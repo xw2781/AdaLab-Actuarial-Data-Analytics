@@ -1,0 +1,59 @@
+﻿# =========================
+# ADAS .gitignore
+# =========================
+
+# -------- Excel / VBA --------
+*.xlam
+*.xlsm
+*.xlsx
+~$*
+*.tmp
+
+# VBA export artifacts
+*.frx
+
+# -------- Python --------
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+.venv/
+venv/
+.env
+.env.*
+
+# PyInstaller / build artifacts
+build/
+dist/
+*.spec
+*.exe
+
+# -------- Frontend (JS/HTML) --------
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+
+# -------- Runtime / Data --------
+data/
+requests/
+logs/
+output/
+cache/
+temp/
+
+# -------- OS / Editor --------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# -------- Jupyter --------
+.ipynb_checkpoints/
