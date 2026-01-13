@@ -2,7 +2,7 @@ Attribute VB_Name = "Core"
 Option Private Module
 Option Explicit
 
-Public Const ADAS_VERSION As String = "1.8.2"
+Public Const ADAS_VERSION As String = "1.8.3"
 
 ' User Specific Config (C:\User\...\ADAS\config.txt)
 Public configDir As String

@@ -1,7 +1,7 @@
-Attribute VB_Name = "Module1"
+Attribute VB_Name = "ExportCode"
 Option Explicit
 
-Private Const REPO_ROOT As String = "E:\ADAS\repos\ADAS-Actuarial-Data-Analysis-System"
+Private Const REPO_ROOT As String = "E:\ADAS\repos\ADAS-Actuarial-Data-Analytics-System"
 Private Const OUT_DIR As String = "excel\src_vba"
 
 Public Sub ExportProjectToRepo()
