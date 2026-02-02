@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AdaLab - Actuarial Data & Analytics</title>
+    <title>UraLab - Actuarial Data & Analytics</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -206,10 +206,18 @@
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 18px;
-            font-weight: 700;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .logo-icon svg {
+            width: 22px;
+            height: 22px;
+            display: block;
+        }
+
+        .logo-icon rect {
+            fill: currentColor;
         }
 
         .logo:hover .logo-icon {
@@ -828,9 +836,51 @@
 
         .ai-demo-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+            gap: 28px;
+            align-items: stretch;
+        }
+
+        .ai-steps-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 32px;
+            margin: 0 0 22px;
+        }
+
+        .ai-step-pill {
+            display: inline-flex;
             align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(15, 23, 42, 0.45);
+            color: var(--gray-200);
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            justify-content: center;
+        }
+
+        .ai-step-number {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.6);
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+        }
+
+        .ai-demo-workflow {
+            display: flex;
+            flex-direction: column;
         }
 
         .ai-demo-left {
@@ -839,6 +889,9 @@
             border-radius: 20px;
             padding: 24px;
             backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            min-height: 480px;
         }
 
         .ai-demo-header {
@@ -1035,9 +1088,11 @@
             border-radius: 20px;
             padding: 24px;
             backdrop-filter: blur(10px);
-            min-height: 400px;
+            min-height: 480px;
+            height: 100%;
             display: flex;
             flex-direction: column;
+            box-sizing: border-box;
         }
 
         .ai-chart-header {
@@ -1180,6 +1235,487 @@
         .legend-color-2 { background: linear-gradient(135deg, #22c55e, #10b981); }
         .legend-color-3 { background: linear-gradient(135deg, #f59e0b, #f97316); }
 
+        /* Workflow + Workspace Sequence */
+        .ai-workflow-stage {
+            background: rgba(10, 10, 18, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 20px;
+            position: relative;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            min-height: 480px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .ai-workflow-stage.visible {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 12px 30px rgba(12, 12, 24, 0.4);
+        }
+
+        .ai-workflow-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .ai-workflow-step {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--gray-400);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            transition: all 0.3s ease;
+        }
+
+        .ai-step-index {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .ai-workflow-step.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #fff;
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
+        }
+
+        .ai-workflow-step.complete {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.6);
+            color: #d1fae5;
+        }
+
+        .ai-workflow-step.complete .ai-step-index {
+            background: rgba(34, 197, 94, 0.8);
+            color: #052e16;
+        }
+
+        .ai-workflow-step.up-next {
+            color: #e2e8f0;
+            border-color: rgba(148, 163, 184, 0.35);
+        }
+
+        .ai-workflow-hint {
+            margin-top: 12px;
+            margin-bottom: 4px;
+            color: var(--gray-400);
+            font-size: 0.78rem;
+            line-height: 1.4;
+        }
+
+        .ai-workflow-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 14px;
+            flex: 1;
+        }
+
+        .ai-workspace {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.7), rgba(10, 15, 30, 0.8));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 14px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ai-workspace-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .ai-workspace-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-workspace-header-left span {
+            color: white;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .ai-workspace-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--primary), #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-workspace-icon svg {
+            width: 14px;
+            height: 14px;
+            color: white;
+        }
+
+        .ai-workspace-status {
+            font-size: 0.68rem;
+            color: var(--gray-400);
+            background: rgba(99, 102, 241, 0.15);
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .ai-workspace-status.added {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #86efac;
+        }
+
+        .ai-workspace-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .workspace-triangle {
+            display: grid;
+            gap: 2px;
+            font-size: 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .workspace-triangle-row {
+            display: flex;
+            gap: 2px;
+        }
+
+        .workspace-cell {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 4px 5px;
+            border-radius: 3px;
+            min-width: 32px;
+            text-align: right;
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .workspace-cell.header {
+            background: rgba(99, 102, 241, 0.3);
+            color: #c7d2fe;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .ai-workspace-drop {
+            border: 2px dashed rgba(148, 163, 184, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            min-height: 120px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 15, 30, 0.4);
+            position: relative;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .ai-workspace-drop.active {
+            border-color: rgba(99, 102, 241, 0.8);
+            border-style: solid;
+            background: rgba(99, 102, 241, 0.08);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.35), 0 0 20px rgba(99, 102, 241, 0.25);
+        }
+
+        .ai-workspace-drop.filled {
+            border-style: solid;
+            border-color: rgba(99, 102, 241, 0.3);
+            background: rgba(15, 23, 42, 0.5);
+            padding: 8px;
+        }
+
+        .ai-workspace-drop-label {
+            color: var(--gray-500);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: opacity 0.3s ease;
+        }
+
+        .ai-workspace-chart {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ai-workspace-chart.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .ai-workspace-drop.filled .ai-workspace-chart {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .ai-workspace-drop.filled .ai-workspace-drop-label {
+            display: none;
+        }
+
+        .workspace-chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .workspace-chart-title {
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .workspace-chart-canvas {
+            flex: 1;
+            min-height: 80px;
+            position: relative;
+        }
+
+        .workspace-chart-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .ai-chart-chip,
+        .ai-drag-ghost {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(20, 30, 50, 0.9));
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 12px;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+            color: #e2e8f0;
+            box-shadow: 0 8px 24px rgba(8, 8, 20, 0.5);
+            width: fit-content;
+        }
+
+        .ai-chart-chip {
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .ai-chart-chip.visible {
+            opacity: 1;
+            transform: translateY(0);
+            animation: float 3.5s ease-in-out infinite;
+        }
+
+        .ai-chart-chip.ghosted {
+            opacity: 0.3;
+            animation: none;
+        }
+
+        .ai-chip-preview {
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 40px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(8, 8, 16, 0.7);
+        }
+
+        .ai-chip-bar {
+            width: 7px;
+            border-radius: 3px 3px 1px 1px;
+            background: linear-gradient(180deg, #8b5cf6, #6366f1);
+        }
+
+        .ai-chip-bar.alt {
+            background: linear-gradient(180deg, #a855f7, #7c3aed);
+        }
+
+        .ai-chip-line {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            top: 14px;
+            height: 2px;
+            background: linear-gradient(90deg, #f59e0b, #ef4444);
+            border-radius: 999px;
+            opacity: 0.9;
+        }
+
+        .ai-chip-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            text-align: center;
+        }
+
+        .ai-drag-ghost {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 6;
+            transform: translate3d(0, 0, 0) scale(0.98);
+            transition: opacity 0.2s ease;
+        }
+
+        .ai-drag-ghost.visible {
+            opacity: 1;
+        }
+
+        /* Drag Mouse Cursor */
+        .ai-drag-cursor {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .ai-drag-cursor.visible {
+            opacity: 1;
+        }
+
+        .ai-drag-cursor svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .ai-drag-cursor.dragging svg {
+            transform: rotate(-10deg);
+        }
+
+        /* Global Chart Ghost for cross-panel animation */
+        .ai-global-chart-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+            border: 2px solid rgba(99, 102, 241, 0.5);
+            border-radius: 16px;
+            padding: 12px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4), 0 0 30px rgba(99, 102, 241, 0.3);
+            backdrop-filter: blur(10px);
+            transform-origin: center center;
+            transition: opacity 0.15s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .ai-global-chart-ghost.visible {
+            opacity: 1;
+        }
+
+        .ai-global-chart-ghost.lifting {
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.4);
+            border-color: rgba(99, 102, 241, 0.7);
+        }
+
+        .global-ghost-chart {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .ghost-chart-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .global-ghost-label {
+            font-size: clamp(0.6rem, 2.5vw, 0.85rem);
+            font-weight: 600;
+            color: #e2e8f0;
+            text-align: center;
+            padding: 4px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Global Drag Cursor */
+        .ai-global-drag-cursor {
+            position: fixed;
+            width: 28px;
+            height: 28px;
+            pointer-events: none;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+        }
+
+        .ai-global-drag-cursor.visible {
+            opacity: 1;
+        }
+
+        .ai-global-drag-cursor svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .ai-global-drag-cursor.dragging svg {
+            transform: rotate(-12deg);
+        }
+
         /* Placeholder state */
         .ai-chart-placeholder {
             position: absolute;
@@ -1316,6 +1852,11 @@
                 grid-template-columns: 1fr;
                 gap: 30px;
             }
+
+            .ai-steps-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
         }
 
         @media (max-width: 640px) {
@@ -1328,6 +1869,18 @@
             .ai-chart-legend {
                 flex-wrap: wrap;
                 gap: 12px;
+            }
+
+            .ai-workflow-body {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-workspace-content {
+                gap: 8px;
+            }
+
+            .ai-chart-chip {
+                width: 100%;
             }
         }
 
@@ -2571,8 +3124,17 @@
     <nav id="navbar">
         <div class="nav-container">
             <a href="#" class="logo">
-                <div class="logo-icon">A</div>
-                AdaLab
+                <div class="logo-icon" aria-label="UraLab logo">
+                    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                        <rect x="3" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="10" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="17" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="3" y="10" width="5" height="5" rx="1.2"></rect>
+                        <rect x="10" y="10" width="5" height="5" rx="1.2"></rect>
+                        <rect x="3" y="17" width="5" height="5" rx="1.2"></rect>
+                    </svg>
+                </div>
+                UraLab
             </a>
             <ul class="nav-links">
                 <li><a href="#features">Features</a></li>
@@ -2619,7 +3181,7 @@
                                 <span></span>
                                 <span></span>
                             </div>
-                            <span class="app-title">AdaLab - Loss Triangle Analysis</span>
+                            <span class="app-title">UraLab - Loss Triangle Analysis</span>
                         </div>
                         <div class="app-content">
                             <div class="triangle-chart">
@@ -2676,7 +3238,7 @@
                                         <div class="chart-bar"></div>
                                         <div class="chart-bar"></div>
                                     </div>
-                                    <div class="chart-label">Dev Factors</div>
+                                    <div class="chart-label">Ultimate Loss</div>
                                 </div>
                             </div>
                         </div>
@@ -2702,8 +3264,11 @@
                             <path d="M3 9h18M9 21V9"/>
                         </svg>
                     </div>
-                    <h3>Triangle Analysis</h3>
-                    <p>Interactive development triangles with automatic ratio calculations, custom averages, and visual development curves.</p>
+                    <h3>Core Tools</h3>
+                    <p>
+                        Everything you need for loss development analysis in one place. 
+                        Built-in standard reserving methods and models, with seamless data loading and validation.
+                    </p>
                 </div>
                 <div class="feature-card animate-on-scroll animate-delay-2">
                     <div class="feature-icon">
@@ -2713,7 +3278,10 @@
                         </svg>
                     </div>
                     <h3>Excel Integration</h3>
-                    <p>Seamless read/write to Excel workbooks. Preserve formulas, formatting, and work with your existing templates.</p>
+                    <p>
+                        Native support for reading and writing Excel workbooks.
+                        Preserve formulas, formatting, and existing templates.
+                    </p>
                 </div>
                 <div class="feature-card animate-on-scroll animate-delay-3">
                     <div class="feature-icon">
@@ -2734,7 +3302,7 @@
                         </svg>
                     </div>
                     <h3>Project Management</h3>
-                    <p>Organize projects in folders with a familiar tree view. Quick access to all your reserving analyses in one place.</p>
+                    <p>Organize projects in a user-friendly front end interface. Quick access to all your reserving analyses in one place.</p>
                 </div>
                 <div class="feature-card animate-on-scroll animate-delay-2">
                     <div class="feature-icon">
@@ -2777,7 +3345,22 @@
                     Experimental Feature
                 </div>
                 <h2 class="section-title">AI-Powered Data Visualization</h2>
-                <p class="section-subtitle">Describe the chart you want in plain English. Our AI generates beautiful, customized loss development curves instantly.</p>
+                <p class="section-subtitle">No more coding or dragging UI blocks — just describe your chart in plain English. AI builds the graph config and style so it’s reusable, shareable, and naturally integrates with the built-in workflow system.</p>
+            </div>
+
+            <div class="ai-steps-row animate-on-scroll">
+                <div class="ai-step-pill">
+                    <span class="ai-step-number">1</span>
+                    Prompt
+                </div>
+                <div class="ai-step-pill">
+                    <span class="ai-step-number">2</span>
+                    Design
+                </div>
+                <div class="ai-step-pill">
+                    <span class="ai-step-number">3</span>
+                    Apply
+                </div>
             </div>
 
             <div class="ai-demo-container">
@@ -2791,7 +3374,7 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="ai-demo-title">Loss Triangle Data</div>
+                            <div class="ai-demo-title">Input Data</div>
                             <div class="ai-demo-subtitle">Commercial Auto - Paid Losses</div>
                         </div>
                     </div>
@@ -3238,7 +3821,256 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
+
+                <div class="ai-demo-workflow animate-on-scroll animate-delay-3">
+                    <div class="ai-workflow-stage visible" id="aiWorkflowStage">
+                        <div class="ai-workflow-nav">
+                            <div class="ai-workflow-step" id="aiStepData">
+                                <span class="ai-step-index">1</span>
+                                Data
+                            </div>
+                            <div class="ai-workflow-step" id="aiStepViz">
+                                <span class="ai-step-index">2</span>
+                                Visualize
+                            </div>
+                            <div class="ai-workflow-step" id="aiStepWorkspace">
+                                <span class="ai-step-index">3</span>
+                                Workspace
+                            </div>
+                        </div>
+                        <div class="ai-workflow-hint">Drag customized chart templates into any workspace to build a narrative.</div>
+                        <div class="ai-workflow-body">
+                            <div class="ai-workspace" id="aiWorkspace">
+                                <div class="ai-workspace-header">
+                                    <div class="ai-workspace-header-left">
+                                        <div class="ai-workspace-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                                <path d="M3 9h18M9 21V9"/>
+                                            </svg>
+                                        </div>
+                                        <span>Workspace Canvas</span>
+                                    </div>
+                                    <span class="ai-workspace-status" id="aiWorkspaceStatus">Ready</span>
+                                </div>
+                                <div class="ai-workspace-content">
+                                    <div class="workspace-triangle">
+                                        <div class="workspace-triangle-row">
+                                            <div class="workspace-cell header">AY</div>
+                                            <div class="workspace-cell header">12</div>
+                                            <div class="workspace-cell header">24</div>
+                                            <div class="workspace-cell header">36</div>
+                                        </div>
+                                        <div class="workspace-triangle-row">
+                                            <div class="workspace-cell header">2021</div>
+                                            <div class="workspace-cell">1,678</div>
+                                            <div class="workspace-cell">3,567</div>
+                                            <div class="workspace-cell">4,389</div>
+                                        </div>
+                                        <div class="workspace-triangle-row">
+                                            <div class="workspace-cell header">2022</div>
+                                            <div class="workspace-cell">1,823</div>
+                                            <div class="workspace-cell">3,789</div>
+                                            <div class="workspace-cell"></div>
+                                        </div>
+                                        <div class="workspace-triangle-row">
+                                            <div class="workspace-cell header">2023</div>
+                                            <div class="workspace-cell">1,956</div>
+                                            <div class="workspace-cell"></div>
+                                            <div class="workspace-cell"></div>
+                                        </div>
+                                    </div>
+                                    <div class="ai-workspace-drop" id="aiWorkspaceDrop">
+                                        <div class="ai-workspace-drop-label">Drop chart here</div>
+                                        <div class="ai-workspace-chart" id="aiWorkspaceChart">
+                                            <div class="workspace-chart-header">
+                                                <span class="workspace-chart-title" id="wsChartTitle">Loss Trend Chart</span>
+                                            </div>
+                                            <div class="workspace-chart-canvas">
+                                                <svg class="workspace-chart-svg" id="wsChartLine" viewBox="0 0 200 100">
+                                                    <defs>
+                                                        <linearGradient id="wsGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                            <stop offset="0%" style="stop-color:#6366f1"/>
+                                                            <stop offset="100%" style="stop-color:#8b5cf6"/>
+                                                        </linearGradient>
+                                                        <linearGradient id="wsGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                            <stop offset="0%" style="stop-color:#22c55e"/>
+                                                            <stop offset="100%" style="stop-color:#10b981"/>
+                                                        </linearGradient>
+                                                        <linearGradient id="wsGradient3" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                            <stop offset="0%" style="stop-color:#14b8a6"/>
+                                                            <stop offset="100%" style="stop-color:#06b6d4"/>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <!-- Grid lines -->
+                                                    <line x1="25" y1="15" x2="190" y2="15" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <line x1="25" y1="35" x2="190" y2="35" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <line x1="25" y1="55" x2="190" y2="55" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <line x1="25" y1="75" x2="190" y2="75" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <!-- Development curves -->
+                                                    <path d="M30,75 L55,55 L80,42 L105,32 L130,25 L155,20 L180,17"
+                                                          stroke="url(#wsGradient1)" fill="none" stroke-width="2" stroke-linecap="round"/>
+                                                    <path d="M30,73 L55,52 L80,40 L105,30 L130,24 L155,20"
+                                                          stroke="url(#wsGradient2)" fill="none" stroke-width="2" stroke-linecap="round"/>
+                                                    <path d="M30,70 L55,48 L80,36 L105,28 L130,23"
+                                                          stroke="url(#wsGradient3)" fill="none" stroke-width="2" stroke-linecap="round"/>
+                                                    <path d="M30,68 L55,45 L80,34 L105,27"
+                                                          stroke="#f59e0b" fill="none" stroke-width="2" stroke-linecap="round"/>
+                                                    <!-- Data points -->
+                                                    <circle cx="180" cy="17" r="3" fill="#6366f1"/>
+                                                    <circle cx="155" cy="20" r="3" fill="#22c55e"/>
+                                                    <circle cx="130" cy="23" r="3" fill="#14b8a6"/>
+                                                    <circle cx="105" cy="27" r="3" fill="#f59e0b"/>
+                                                </svg>
+                                                <!-- Chart Type 2: Bar Chart with Trend Line -->
+                                                <svg class="workspace-chart-svg" id="wsChartBar" viewBox="0 0 200 100" style="display: none;">
+                                                    <defs>
+                                                        <linearGradient id="wsBarGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                            <stop offset="0%" style="stop-color:#8b5cf6"/>
+                                                            <stop offset="100%" style="stop-color:#6366f1"/>
+                                                        </linearGradient>
+                                                        <linearGradient id="wsBarGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                            <stop offset="0%" style="stop-color:#a855f7"/>
+                                                            <stop offset="100%" style="stop-color:#7c3aed"/>
+                                                        </linearGradient>
+                                                        <linearGradient id="wsTrendGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                            <stop offset="0%" style="stop-color:#f59e0b"/>
+                                                            <stop offset="100%" style="stop-color:#ef4444"/>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <!-- Grid lines -->
+                                                    <line x1="15" y1="15" x2="190" y2="15" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <line x1="15" y1="35" x2="190" y2="35" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <line x1="15" y1="55" x2="190" y2="55" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                                                    <!-- Bars -->
+                                                    <rect x="20" y="28" width="16" height="52" rx="2" fill="url(#wsBarGrad1)"/>
+                                                    <rect x="40" y="24" width="16" height="56" rx="2" fill="url(#wsBarGrad1)"/>
+                                                    <rect x="60" y="20" width="16" height="60" rx="2" fill="url(#wsBarGrad1)"/>
+                                                    <rect x="80" y="16" width="16" height="64" rx="2" fill="url(#wsBarGrad1)"/>
+                                                    <rect x="100" y="22" width="16" height="58" rx="2" fill="url(#wsBarGrad2)"/>
+                                                    <rect x="120" y="30" width="16" height="50" rx="2" fill="url(#wsBarGrad2)"/>
+                                                    <rect x="140" y="38" width="16" height="42" rx="2" fill="url(#wsBarGrad2)"/>
+                                                    <rect x="160" y="46" width="16" height="34" rx="2" fill="url(#wsBarGrad2)"/>
+                                                    <!-- Trend line -->
+                                                    <path d="M28,28 L48,24 L68,20 L88,16 L108,22 L128,30 L148,38 L168,46"
+                                                          stroke="url(#wsTrendGrad)" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+                                                    <!-- Trend dots -->
+                                                    <circle cx="28" cy="28" r="3" fill="#f59e0b"/>
+                                                    <circle cx="88" cy="16" r="3" fill="#f59e0b"/>
+                                                    <circle cx="168" cy="46" r="3" fill="#ef4444"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="ai-chart-chip" id="aiChartChip">
+                                <div class="ai-chip-preview">
+                                    <span class="ai-chip-bar" style="height: 16px;"></span>
+                                    <span class="ai-chip-bar" style="height: 26px;"></span>
+                                    <span class="ai-chip-bar alt" style="height: 30px;"></span>
+                                    <span class="ai-chip-bar alt" style="height: 22px;"></span>
+                                    <span class="ai-chip-bar" style="height: 18px;"></span>
+                                    <span class="ai-chip-line"></span>
+                                </div>
+                                <div class="ai-chip-label">Loss Trend Chart</div>
+                            </div>
+                        </div>
+
+                        <div class="ai-drag-ghost" id="aiDragGhost" aria-hidden="true">
+                            <div class="ai-chip-preview">
+                                <span class="ai-chip-bar" style="height: 16px;"></span>
+                                <span class="ai-chip-bar" style="height: 26px;"></span>
+                                <span class="ai-chip-bar alt" style="height: 30px;"></span>
+                                <span class="ai-chip-bar alt" style="height: 22px;"></span>
+                                <span class="ai-chip-bar" style="height: 18px;"></span>
+                                <span class="ai-chip-line"></span>
+                            </div>
+                            <div class="ai-chip-label">Loss Trend Chart</div>
+                        </div>
+
+                        <!-- Drag Mouse Cursor -->
+                        <div class="ai-drag-cursor" id="aiDragCursor">
+                            <svg viewBox="0 0 24 24" fill="white" stroke="#333" stroke-width="1">
+                                <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.48 0 .72-.58.38-.92L6.35 2.85a.5.5 0 0 0-.85.36Z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Chart Ghost for cross-panel drag animation -->
+            <div class="ai-global-chart-ghost" id="aiGlobalChartGhost">
+                <div class="global-ghost-chart">
+                    <!-- Ghost Line Chart -->
+                    <svg class="ghost-chart-svg" id="ghostChartLine" viewBox="0 0 400 250">
+                        <defs>
+                            <linearGradient id="ghostGradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#6366f1"/>
+                                <stop offset="100%" style="stop-color:#8b5cf6"/>
+                            </linearGradient>
+                            <linearGradient id="ghostGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#22c55e"/>
+                                <stop offset="100%" style="stop-color:#10b981"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Simplified chart lines -->
+                        <path d="M60,178 L100,128 L140,98 L180,78 L220,63 L260,53 L300,46 L340,42"
+                              stroke="url(#ghostGradient1)" fill="none" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M60,172 L100,118 L140,88 L180,68 L220,55 L260,48"
+                              stroke="url(#ghostGradient2)" fill="none" stroke-width="3" stroke-linecap="round"/>
+                        <path d="M60,165 L100,108 L140,78 L180,60"
+                              stroke="#f59e0b" fill="none" stroke-width="3" stroke-linecap="round"/>
+                        <!-- Dots -->
+                        <circle cx="340" cy="42" r="5" fill="#6366f1"/>
+                        <circle cx="260" cy="48" r="5" fill="#22c55e"/>
+                        <circle cx="180" cy="60" r="5" fill="#f59e0b"/>
+                    </svg>
+                    <!-- Ghost Bar Chart -->
+                    <svg class="ghost-chart-svg" id="ghostChartBar" viewBox="0 0 400 250" style="display: none;">
+                        <defs>
+                            <linearGradient id="ghostBarGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#8b5cf6"/>
+                                <stop offset="100%" style="stop-color:#6366f1"/>
+                            </linearGradient>
+                            <linearGradient id="ghostBarGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#a855f7"/>
+                                <stop offset="100%" style="stop-color:#7c3aed"/>
+                            </linearGradient>
+                            <linearGradient id="ghostTrendGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#f59e0b"/>
+                                <stop offset="100%" style="stop-color:#ef4444"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Bars -->
+                        <rect x="50" y="90" width="32" height="110" rx="4" fill="url(#ghostBarGrad1)"/>
+                        <rect x="90" y="80" width="32" height="120" rx="4" fill="url(#ghostBarGrad1)"/>
+                        <rect x="130" y="70" width="32" height="130" rx="4" fill="url(#ghostBarGrad1)"/>
+                        <rect x="170" y="60" width="32" height="140" rx="4" fill="url(#ghostBarGrad1)"/>
+                        <rect x="210" y="75" width="32" height="125" rx="4" fill="url(#ghostBarGrad2)"/>
+                        <rect x="250" y="95" width="32" height="105" rx="4" fill="url(#ghostBarGrad2)"/>
+                        <rect x="290" y="115" width="32" height="85" rx="4" fill="url(#ghostBarGrad2)"/>
+                        <rect x="330" y="135" width="32" height="65" rx="4" fill="url(#ghostBarGrad2)"/>
+                        <!-- Trend line -->
+                        <path d="M66,90 L106,80 L146,70 L186,60 L226,75 L266,95 L306,115 L346,135"
+                              stroke="url(#ghostTrendGrad)" fill="none" stroke-width="4" stroke-linecap="round"/>
+                        <!-- Trend dots -->
+                        <circle cx="66" cy="90" r="5" fill="#f59e0b"/>
+                        <circle cx="186" cy="60" r="5" fill="#f59e0b"/>
+                        <circle cx="346" cy="135" r="5" fill="#ef4444"/>
+                    </svg>
+                </div>
+                <div class="global-ghost-label" id="ghostChartLabel">Loss Trend Chart</div>
+            </div>
+
+            <!-- Global Drag Cursor -->
+            <div class="ai-global-drag-cursor" id="aiGlobalDragCursor">
+                <svg viewBox="0 0 24 24" fill="white" stroke="#333" stroke-width="1">
+                    <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.48 0 .72-.58.38-.92L6.35 2.85a.5.5 0 0 0-.85.36Z"/>
+                </svg>
             </div>
         </div>
     </section>
@@ -3312,7 +4144,7 @@
                             </div>
                             <div>
                                 <div class="sim-title">Reserve Distribution</div>
-                                <div class="sim-subtitle">Lognormal simulation results</div>
+                                <div class="sim-subtitle">Simulation results</div>
                             </div>
                         </div>
                         <div class="sim-counter">
@@ -3388,6 +4220,200 @@
         </div>
     </section>
 
+    <!-- Workflow Automation Section -->
+    <section class="workflow-auto" id="workflow-auto">
+        <div class="workflow-auto-container">
+            <div class="section-header animate-on-scroll">
+                <p class="section-label">Workflow Automation</p>
+                <h2 class="section-title">Build. Script. <span class="gradient-text">Run.</span></h2>
+                <p class="section-subtitle">Create powerful automated workflows with drag-and-drop simplicity and built-in scripting.</p>
+            </div>
+
+            <div class="workflow-auto-content">
+                <!-- Workflow Demo Visual -->
+                <div class="workflow-demo animate-on-scroll" id="workflowDemo">
+                    <div class="workflow-demo-header">
+                        <div class="workflow-demo-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                            </svg>
+                            Workflow Designer
+                        </div>
+                        <div class="workflow-demo-actions">
+                            <button class="demo-run-btn" id="demoRunBtn">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                                Run All
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="workflow-demo-body">
+                        <!-- Demo Sidebar -->
+                        <div class="demo-sidebar">
+                            <div class="demo-sidebar-title">Steps</div>
+                            <div class="demo-step" id="demoStep1" data-step="1">
+                                <div class="demo-step-icon import">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                </div>
+                                Import Data
+                            </div>
+                            <div class="demo-step" id="demoStep2" data-step="2">
+                                <div class="demo-step-icon transform">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="16 3 21 3 21 8"/>
+                                        <line x1="4" y1="20" x2="21" y2="3"/>
+                                        <polyline points="21 16 21 21 16 21"/>
+                                        <line x1="15" y1="15" x2="21" y2="21"/>
+                                        <line x1="4" y1="4" x2="9" y2="9"/>
+                                    </svg>
+                                </div>
+                                Transform
+                            </div>
+                            <div class="demo-step" id="demoStep3" data-step="3">
+                                <div class="demo-step-icon analyze">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="20" x2="18" y2="10"/>
+                                        <line x1="12" y1="20" x2="12" y2="4"/>
+                                        <line x1="6" y1="20" x2="6" y2="14"/>
+                                    </svg>
+                                </div>
+                                Analyze
+                            </div>
+                            <div class="demo-step drop-target" id="demoStep4" data-step="4" style="opacity: 0;">
+                                <div class="demo-step-icon export">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="17 8 12 3 7 8"/>
+                                        <line x1="12" y1="3" x2="12" y2="15"/>
+                                    </svg>
+                                </div>
+                                Export
+                            </div>
+                            <div class="demo-add-step" id="demoAddStep">+ Add Step</div>
+                        </div>
+
+                        <!-- Demo Workspace -->
+                        <div class="demo-workspace">
+                            <div class="demo-workspace-title">Script Editor</div>
+                            <div class="demo-script-editor">
+                                <div class="script-editor-header">
+                                    <div class="script-tab active">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="16 18 22 12 16 6"/>
+                                            <polyline points="8 6 2 12 8 18"/>
+                                        </svg>
+                                        workflow.py
+                                    </div>
+                                </div>
+                                <div class="script-editor-content" id="scriptContent">
+                                    <div class="script-line" data-line="1">
+                                        <span class="line-number">1</span>
+                                        <span class="line-content"><span class="code-comment"># Auto-generated workflow script</span></span>
+                                    </div>
+                                    <div class="script-line" data-line="2">
+                                        <span class="line-number">2</span>
+                                        <span class="line-content"><span class="code-keyword">import</span> uralab <span class="code-keyword">as</span> ur</span>
+                                    </div>
+                                    <div class="script-line" data-line="3">
+                                        <span class="line-number">3</span>
+                                        <span class="line-content"></span>
+                                    </div>
+                                    <div class="script-line" data-line="4">
+                                        <span class="line-number">4</span>
+                                        <span class="line-content"><span class="code-variable">data</span> = ur.<span class="code-function">import_triangle</span>(<span class="code-string">"loss_data.csv"</span>)</span>
+                                    </div>
+                                    <div class="script-line" data-line="5">
+                                        <span class="line-number">5</span>
+                                        <span class="line-content"><span class="code-variable">data</span> = ur.<span class="code-function">transform</span>(data, method=<span class="code-string">"incr_to_cum"</span>)</span>
+                                    </div>
+                                    <div class="script-line" data-line="6">
+                                        <span class="line-number">6</span>
+                                        <span class="line-content"><span class="code-variable">result</span> = ur.<span class="code-function">chain_ladder</span>(data)</span>
+                                    </div>
+                                    <div class="script-line" data-line="7">
+                                        <span class="line-number">7</span>
+                                        <span class="line-content">ur.<span class="code-function">export</span>(result, <span class="code-string">"reserves.xlsx"</span>)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="demo-output">
+                                <div class="output-header">
+                                    <span class="output-title">Output</span>
+                                    <span class="output-status" id="outputStatus">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"/>
+                                        </svg>
+                                        Ready
+                                    </span>
+                                </div>
+                                <div class="output-content" id="outputContent">$ Workflow completed in 1.24s — Exported 8 accident years to reserves.xlsx</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Animated Cursor -->
+                    <div class="demo-cursor" id="demoCursor">
+                        <svg viewBox="0 0 24 24" fill="white" stroke="#333" stroke-width="1">
+                            <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.48 0 .72-.58.38-.92L6.35 2.85a.5.5 0 0 0-.85.36Z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Progress dots -->
+                    <div class="workflow-progress">
+                        <div class="progress-dot" id="progDot1"></div>
+                        <div class="progress-dot" id="progDot2"></div>
+                        <div class="progress-dot" id="progDot3"></div>
+                    </div>
+                </div>
+
+                <!-- Info Section -->
+                <div class="workflow-auto-info animate-on-scroll animate-delay-1">
+                    <div class="auto-badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                        </svg>
+                        Automation Engine
+                    </div>
+                    <h3>Visual Workflow Builder with Powerful Scripting</h3>
+                    <p>Design complex actuarial workflows visually, then fine-tune with our built-in scripting engine. Run everything with a single click.</p>
+
+                    <ul class="workflow-auto-features">
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Drag-and-drop workflow designer
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Built-in Python scripting
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            One-click execution with live output
+                        </li>
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Reusable workflow templates
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Workflow Section -->
     <section class="workflow" id="workflow">
         <div class="workflow-bg-pattern"></div>
@@ -3427,7 +4453,7 @@
         <div class="benefits-container">
             <div class="benefits-content">
                 <div class="section-header animate-on-scroll" style="text-align: left;">
-                    <p class="section-label">Why AdaLab</p>
+                    <p class="section-label">Why UraLab</p>
                     <h2 class="section-title">Built for Real Actuarial Work</h2>
                 </div>
                 <ul class="benefits-list">
@@ -3509,9 +4535,9 @@
     <section class="cta" id="contact">
         <div class="cta-container animate-on-scroll">
             <h2>Ready to Streamline Your Reserving?</h2>
-            <p>See how AdaLab can transform your actuarial workflow. Request a personalized demo today.</p>
+            <p>See how UraLab can transform your actuarial workflow. Request a personalized demo today.</p>
             <div class="cta-buttons">
-                <a href="mailto:demo@example.com?subject=AdaLab Demo Request" class="btn-primary">
+                <a href="mailto:xw2781@gmail.com?subject=UraLab Demo Request" class="btn-primary">
                     Request a Demo
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -3526,10 +4552,19 @@
     <footer>
         <div class="footer-container">
             <div class="footer-logo">
-                <div class="logo-icon">A</div>
-                AdaLab
+                <div class="logo-icon" aria-label="UraLab logo">
+                    <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                        <rect x="3" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="10" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="17" y="3" width="5" height="5" rx="1.2"></rect>
+                        <rect x="3" y="10" width="5" height="5" rx="1.2"></rect>
+                        <rect x="10" y="10" width="5" height="5" rx="1.2"></rect>
+                        <rect x="3" y="17" width="5" height="5" rx="1.2"></rect>
+                    </svg>
+                </div>
+                UraLab
             </div>
-            <p>&copy; 2025 AdaLab - Actuarial Data & Analytics. All rights reserved.</p>
+            <p>&copy; 2026 UraLab - Ultimate Reserving Analytics Platform. All rights reserved.</p>
         </div>
     </footer>
 
@@ -3635,6 +4670,26 @@
         const aiMouseCursor = document.getElementById('aiMouseCursor');
         const aiPromptContainer = document.querySelector('.ai-prompt-container');
         const aiDemoLeft = document.querySelector('.ai-demo-left');
+        const aiWorkflowStage = document.getElementById('aiWorkflowStage');
+        const aiStepData = document.getElementById('aiStepData');
+        const aiStepViz = document.getElementById('aiStepViz');
+        const aiStepWorkspace = document.getElementById('aiStepWorkspace');
+        const aiChartChip = document.getElementById('aiChartChip');
+        const aiDragGhost = document.getElementById('aiDragGhost');
+        const aiWorkspaceDrop = document.getElementById('aiWorkspaceDrop');
+        const aiWorkspaceChart = document.getElementById('aiWorkspaceChart');
+        const aiWorkspaceStatus = document.getElementById('aiWorkspaceStatus');
+        const wsChartLine = document.getElementById('wsChartLine');
+        const wsChartBar = document.getElementById('wsChartBar');
+        const wsChartTitle = document.getElementById('wsChartTitle');
+        const aiDragCursor = document.getElementById('aiDragCursor');
+        const aiChartCanvas = document.getElementById('aiChartCanvas');
+        const aiGlobalChartGhost = document.getElementById('aiGlobalChartGhost');
+        const aiGlobalDragCursor = document.getElementById('aiGlobalDragCursor');
+        const aiChartContainer = document.querySelector('.ai-chart-container');
+        const ghostChartLine = document.getElementById('ghostChartLine');
+        const ghostChartBar = document.getElementById('ghostChartBar');
+        const ghostChartLabel = document.getElementById('ghostChartLabel');
 
         // Two different prompts for alternating demos
         const prompts = [
@@ -3648,6 +4703,11 @@
         let aiDemoRunning = false;
         let autoPlayInterval = null;
         let cursorAnimationFrame = null;
+        let workflowAnimationRunning = false;
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
 
         // Typing animation
         function typePrompt(text, element, speed = 25) {
@@ -3753,6 +4813,223 @@
             }
             aiMouseCursor.classList.remove('visible');
             aiMouseCursor.classList.remove('clicking');
+        }
+
+        function setWorkflowStepState(stepEl, state) {
+            stepEl.classList.remove('active', 'complete', 'up-next');
+            if (state) {
+                stepEl.classList.add(state);
+            }
+        }
+
+        function resetWorkflowStage() {
+            aiWorkflowStage.classList.add('visible');
+            aiChartChip.classList.remove('visible', 'ghosted');
+            aiDragGhost.classList.remove('visible');
+            aiDragCursor.classList.remove('visible', 'dragging');
+            aiWorkspaceDrop.classList.remove('active', 'filled');
+            aiWorkspaceChart.classList.remove('visible');
+            resetGlobalGhost();
+            if (aiWorkspaceStatus) {
+                aiWorkspaceStatus.textContent = 'Ready';
+                aiWorkspaceStatus.classList.remove('added');
+            }
+            // Reset chart type display
+            if (wsChartLine) wsChartLine.style.display = 'block';
+            if (wsChartBar) wsChartBar.style.display = 'none';
+            if (wsChartTitle) wsChartTitle.textContent = 'Loss Trend Chart';
+
+            setWorkflowStepState(aiStepData, null);
+            setWorkflowStepState(aiStepViz, null);
+            setWorkflowStepState(aiStepWorkspace, null);
+            workflowAnimationRunning = false;
+        }
+
+        // Reset global ghost elements
+        function resetGlobalGhost() {
+            aiGlobalChartGhost.classList.remove('visible', 'lifting');
+            aiGlobalDragCursor.classList.remove('visible', 'dragging');
+            // Reset ghost chart types
+            if (ghostChartLine) ghostChartLine.style.display = 'block';
+            if (ghostChartBar) ghostChartBar.style.display = 'none';
+            if (ghostChartLabel) ghostChartLabel.textContent = 'Loss Trend Chart';
+        }
+
+        // Animate chart drag from Step 2 to Step 3 with smooth resize
+        function animateChartToWorkspace() {
+            return new Promise(resolve => {
+                // Set correct ghost chart type based on current prompt
+                if (currentPromptIndex === 0) {
+                    ghostChartLine.style.display = 'block';
+                    ghostChartBar.style.display = 'none';
+                    ghostChartLabel.textContent = 'Loss Development Curves';
+                } else {
+                    ghostChartLine.style.display = 'none';
+                    ghostChartBar.style.display = 'block';
+                    ghostChartLabel.textContent = 'Ultimate Loss by AY';
+                }
+
+                // Get positions
+                const chartContainerRect = aiChartContainer.getBoundingClientRect();
+                const dropRect = aiWorkspaceDrop.getBoundingClientRect();
+
+                // Start: chart size and position (in step 2)
+                const startWidth = Math.min(chartContainerRect.width * 0.85, 320);
+                const startHeight = startWidth * 0.65;
+                const startX = chartContainerRect.left + (chartContainerRect.width - startWidth) / 2;
+                const startY = chartContainerRect.top + (chartContainerRect.height - startHeight) / 2;
+
+                // End: small chip size in workspace drop zone
+                const endWidth = Math.min(dropRect.width - 24, 110);
+                const endHeight = endWidth * 0.85;
+                const endX = dropRect.left + (dropRect.width - endWidth) / 2;
+                const endY = dropRect.top + (dropRect.height - endHeight) / 2;
+
+                // Cursor offset from ghost center
+                const cursorOffsetX = 15;
+                const cursorOffsetY = 15;
+
+                // Phase 1: Cursor moves to chart (500ms)
+                const phase1Duration = 500;
+                // Phase 2: Lift and drag with resize (1200ms)
+                const phase2Duration = 1200;
+
+                // Initial cursor position (above-left of chart)
+                const cursorStartX = startX - 60;
+                const cursorStartY = startY - 40;
+                const cursorChartX = startX + startWidth / 2 + cursorOffsetX;
+                const cursorChartY = startY + startHeight / 2 + cursorOffsetY;
+
+                // Show cursor and move to chart
+                aiGlobalDragCursor.style.left = `${cursorStartX}px`;
+                aiGlobalDragCursor.style.top = `${cursorStartY}px`;
+                aiGlobalDragCursor.classList.add('visible');
+
+                let startTime = performance.now();
+
+                function animatePhase1(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / phase1Duration, 1);
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+
+                    const curX = cursorStartX + (cursorChartX - cursorStartX) * easeOut;
+                    const curY = cursorStartY + (cursorChartY - cursorStartY) * easeOut;
+
+                    aiGlobalDragCursor.style.left = `${curX}px`;
+                    aiGlobalDragCursor.style.top = `${curY}px`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animatePhase1);
+                    } else {
+                        // Phase 2: Lift chart and drag
+                        startPhase2();
+                    }
+                }
+
+                function startPhase2() {
+                    // Position and show the ghost at chart location
+                    aiGlobalChartGhost.style.left = `${startX}px`;
+                    aiGlobalChartGhost.style.top = `${startY}px`;
+                    aiGlobalChartGhost.style.width = `${startWidth}px`;
+                    aiGlobalChartGhost.style.height = `${startHeight}px`;
+                    aiGlobalChartGhost.classList.add('visible', 'lifting');
+                    aiGlobalDragCursor.classList.add('dragging');
+
+                    // Activate drop zone
+                    aiWorkspaceDrop.classList.add('active');
+
+                    startTime = performance.now();
+                    requestAnimationFrame(animatePhase2);
+                }
+
+                function animatePhase2(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / phase2Duration, 1);
+
+                    // Use easeInOutCubic for smooth movement
+                    const easeProgress = progress < 0.5
+                        ? 4 * progress * progress * progress
+                        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+                    // Interpolate position
+                    const currentX = startX + (endX - startX) * easeProgress;
+                    const currentY = startY + (endY - startY) * easeProgress;
+
+                    // Interpolate size (shrink smoothly)
+                    const currentWidth = startWidth + (endWidth - startWidth) * easeProgress;
+                    const currentHeight = startHeight + (endHeight - startHeight) * easeProgress;
+
+                    // Apply transforms
+                    aiGlobalChartGhost.style.left = `${currentX}px`;
+                    aiGlobalChartGhost.style.top = `${currentY}px`;
+                    aiGlobalChartGhost.style.width = `${currentWidth}px`;
+                    aiGlobalChartGhost.style.height = `${currentHeight}px`;
+
+                    // Move cursor with ghost
+                    aiGlobalDragCursor.style.left = `${currentX + currentWidth / 2 + cursorOffsetX}px`;
+                    aiGlobalDragCursor.style.top = `${currentY + currentHeight / 2 + cursorOffsetY}px`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animatePhase2);
+                    } else {
+                        // Animation complete
+                        aiGlobalChartGhost.classList.remove('visible', 'lifting');
+                        aiGlobalDragCursor.classList.remove('visible', 'dragging');
+                        resolve();
+                    }
+                }
+
+                requestAnimationFrame(animatePhase1);
+            });
+        }
+
+        async function runWorkflowSequence() {
+            if (workflowAnimationRunning) return;
+            workflowAnimationRunning = true;
+
+            aiWorkflowStage.classList.add('visible');
+            setWorkflowStepState(aiStepData, 'complete');
+            setWorkflowStepState(aiStepViz, 'active');
+            setWorkflowStepState(aiStepWorkspace, 'up-next');
+            if (aiWorkspaceStatus) {
+                aiWorkspaceStatus.textContent = 'Ready';
+            }
+
+            await delay(300);
+
+            // Animate chart drag from Step 2 to Step 3 with smooth resize
+            await animateChartToWorkspace();
+
+            // Complete the drop
+            aiWorkspaceDrop.classList.remove('active');
+            aiWorkspaceDrop.classList.add('filled');
+            if (aiWorkspaceStatus) {
+                aiWorkspaceStatus.textContent = 'Chart added';
+                aiWorkspaceStatus.classList.add('added');
+            }
+            if (aiWorkspaceChart) {
+                // Show the correct chart type based on what was generated
+                if (currentPromptIndex === 0) {
+                    // Line chart (development curves)
+                    wsChartLine.style.display = 'block';
+                    wsChartBar.style.display = 'none';
+                    wsChartTitle.textContent = 'Loss Development Curves';
+                } else {
+                    // Bar chart
+                    wsChartLine.style.display = 'none';
+                    wsChartBar.style.display = 'block';
+                    wsChartTitle.textContent = 'Ultimate Loss by AY';
+                }
+                aiWorkspaceChart.classList.add('visible');
+            }
+
+            setWorkflowStepState(aiStepViz, 'complete');
+            setWorkflowStepState(aiStepWorkspace, 'active');
+
+            await delay(400);
+            setWorkflowStepState(aiStepWorkspace, 'complete');
+
+            workflowAnimationRunning = false;
         }
 
         // Animate chart type 1 (development curves)
@@ -3899,6 +5176,7 @@
             // Reset state
             aiPromptText.innerHTML = '';
             resetCharts();
+            resetWorkflowStage();
             showGenerateReady();
             hideMouseCursor();
 
@@ -3912,11 +5190,11 @@
             }
 
             // Show generating
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await delay(200);
             showGenerating();
 
             // Wait and show chart
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await delay(1500);
 
             if (currentPromptIndex === 0) {
                 animateChart1();
@@ -3924,18 +5202,19 @@
                 animateChart2();
             }
 
-            // Complete - wait for animation to fully render
-            setTimeout(() => {
-                showGenerateReady();
-                aiDemoComplete = true;
-                aiDemoRunning = false;
+            // Wait for chart animation, then run workflow sequence
+            await delay(2600);
+            await runWorkflowSequence();
 
-                // Toggle to next prompt for next run
-                currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
+            showGenerateReady();
+            aiDemoComplete = true;
+            aiDemoRunning = false;
 
-                // Schedule next demo after 4 seconds
-                scheduleNextDemo();
-            }, 3500);
+            // Toggle to next prompt for next run
+            currentPromptIndex = (currentPromptIndex + 1) % prompts.length;
+
+            // Schedule next demo after 4 seconds
+            scheduleNextDemo();
         }
 
         // Start auto-play cycle
@@ -3977,7 +5256,6 @@
         });
 
         // Click on chart area to switch to next animation
-        const aiChartCanvas = document.getElementById('aiChartCanvas');
         aiChartCanvas.addEventListener('click', (e) => {
             if (!aiDemoRunning) {
                 stopAutoPlay();
@@ -4219,6 +5497,279 @@
         }, { threshold: 0.4 });
 
         stochasticObserver.observe(stochasticSection);
+
+        // ========================================
+        // Workflow Automation Animation
+        // ========================================
+        const workflowDemo = document.getElementById('workflowDemo');
+        const demoCursor = document.getElementById('demoCursor');
+        const demoRunBtn = document.getElementById('demoRunBtn');
+        const scriptContent = document.getElementById('scriptContent');
+        const outputStatus = document.getElementById('outputStatus');
+        const outputContent = document.getElementById('outputContent');
+        const demoStep4 = document.getElementById('demoStep4');
+        const demoAddStep = document.getElementById('demoAddStep');
+        const progDots = [
+            document.getElementById('progDot1'),
+            document.getElementById('progDot2'),
+            document.getElementById('progDot3')
+        ];
+
+        let wfAnimationRunning = false;
+        let wfAnimationPhase = 0;
+
+        // Animate cursor to element
+        function animateCursorTo(targetEl, duration = 600) {
+            return new Promise(resolve => {
+                const demoRect = workflowDemo.getBoundingClientRect();
+                const targetRect = targetEl.getBoundingClientRect();
+
+                const targetX = targetRect.left - demoRect.left + targetRect.width / 2;
+                const targetY = targetRect.top - demoRect.top + targetRect.height / 2;
+
+                const cursorStyle = window.getComputedStyle(demoCursor);
+                const startX = parseFloat(cursorStyle.left) || 200;
+                const startY = parseFloat(cursorStyle.top) || 200;
+
+                demoCursor.classList.add('visible');
+
+                const startTime = performance.now();
+
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+
+                    const currentX = startX + (targetX - startX) * easeOut;
+                    const currentY = startY + (targetY - startY) * easeOut;
+
+                    demoCursor.style.left = currentX + 'px';
+                    demoCursor.style.top = currentY + 'px';
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        resolve();
+                    }
+                }
+
+                requestAnimationFrame(animate);
+            });
+        }
+
+        // Show script lines with typing effect
+        function showScriptLines() {
+            return new Promise(resolve => {
+                const lines = scriptContent.querySelectorAll('.script-line');
+                lines.forEach((line, index) => {
+                    setTimeout(() => {
+                        line.classList.add('visible');
+                        if (index === lines.length - 1) {
+                            setTimeout(resolve, 300);
+                        }
+                    }, index * 150);
+                });
+            });
+        }
+
+        // Hide all script lines
+        function hideScriptLines() {
+            const lines = scriptContent.querySelectorAll('.script-line');
+            lines.forEach(line => line.classList.remove('visible'));
+        }
+
+        // Set progress dot state
+        function setProgressDot(index, state) {
+            progDots.forEach((dot, i) => {
+                dot.classList.remove('active', 'complete');
+                if (i < index) dot.classList.add('complete');
+                else if (i === index) dot.classList.add('active');
+            });
+        }
+
+        // Run button animation
+        function animateRunButton() {
+            return new Promise(resolve => {
+                demoRunBtn.classList.add('running');
+                demoRunBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    Running...
+                `;
+
+                outputStatus.classList.remove('success');
+                outputStatus.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    Running...
+                `;
+                outputContent.classList.remove('visible');
+
+                setTimeout(() => {
+                    demoRunBtn.classList.remove('running');
+                    demoRunBtn.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Run All
+                    `;
+
+                    outputStatus.classList.add('success');
+                    outputStatus.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Success
+                    `;
+                    outputContent.classList.add('visible');
+
+                    resolve();
+                }, 2000);
+            });
+        }
+
+        // Reset workflow demo
+        function resetWorkflowDemo() {
+            demoCursor.classList.remove('visible');
+            demoCursor.style.left = '200px';
+            demoCursor.style.top = '200px';
+
+            hideScriptLines();
+
+            document.querySelectorAll('.demo-step').forEach(step => {
+                step.classList.remove('active', 'dragging', 'drop-target');
+            });
+            demoStep4.style.opacity = '0';
+            demoStep4.classList.add('drop-target');
+
+            outputStatus.classList.remove('success');
+            outputStatus.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                </svg>
+                Ready
+            `;
+            outputContent.classList.remove('visible');
+
+            demoRunBtn.classList.remove('running');
+            demoRunBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Run All
+            `;
+
+            progDots.forEach(dot => dot.classList.remove('active', 'complete'));
+        }
+
+        // Phase 1: Drag and drop animation
+        async function runDragDropPhase() {
+            setProgressDot(0, 'active');
+
+            // Move cursor to add step button
+            await animateCursorTo(demoAddStep, 500);
+            await new Promise(r => setTimeout(r, 300));
+
+            // Show the export step with drop target style
+            demoStep4.style.opacity = '1';
+            demoStep4.classList.add('drop-target');
+
+            await new Promise(r => setTimeout(r, 400));
+
+            // Move cursor to step 4 and "drop" it
+            await animateCursorTo(demoStep4, 400);
+            await new Promise(r => setTimeout(r, 200));
+
+            demoStep4.classList.remove('drop-target');
+            demoStep4.classList.add('active');
+
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        // Phase 2: Script typing animation
+        async function runScriptPhase() {
+            setProgressDot(1, 'active');
+
+            // Activate steps in sequence
+            const steps = document.querySelectorAll('.demo-step:not(#demoStep4)');
+            for (let i = 0; i < steps.length; i++) {
+                steps[i].classList.add('active');
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            // Show script lines
+            await showScriptLines();
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        // Phase 3: Run animation
+        async function runExecutePhase() {
+            setProgressDot(2, 'active');
+
+            // Move cursor to run button
+            await animateCursorTo(demoRunBtn, 500);
+            await new Promise(r => setTimeout(r, 200));
+
+            // Run the workflow
+            await animateRunButton();
+
+            setProgressDot(3, 'complete');
+            await new Promise(r => setTimeout(r, 3000)); // Stay for 3 seconds
+        }
+
+        // Main workflow animation
+        async function runWorkflowAnimation() {
+            if (wfAnimationRunning) return;
+            wfAnimationRunning = true;
+
+            resetWorkflowDemo();
+            await new Promise(r => setTimeout(r, 500));
+
+            await runDragDropPhase();
+            await runScriptPhase();
+            await runExecutePhase();
+
+            wfAnimationRunning = false;
+        }
+
+        // Click handler for run button
+        demoRunBtn.addEventListener('click', () => {
+            if (!wfAnimationRunning) {
+                runWorkflowAnimation();
+            }
+        });
+
+        // Intersection observer for workflow section
+        const workflowAutoSection = document.querySelector('.workflow-auto');
+
+        const workflowAutoObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    if (!wfAnimationRunning) {
+                        resetWorkflowDemo();
+                        setTimeout(runWorkflowAnimation, 500);
+                    }
+                } else {
+                    if (!wfAnimationRunning) {
+                        resetWorkflowDemo();
+                    }
+                }
+            });
+        }, { threshold: 0.4 });
+
+        workflowAutoObserver.observe(workflowAutoSection);
+
+        // Add CSS for spin animation
+        const spinStyle = document.createElement('style');
+        spinStyle.textContent = `
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(spinStyle);
     </script>
 </body>
 </html>
