@@ -1,8 +1,7 @@
 # Lytrx
 
-Lytrx is a layered matrix analytics platform designed for actuarial reserving, modeling,
-and workflow automation. It integrates Excel-based workflows, Python analytics services,
-and a modern web UI to support structured, repeatable decision-making.
+VecLane is a modular analytics and workflow platform for actuarial reserving and insurance modeling.
+It combines a modern web interface, Python-based analytics services, and Excel-integrated workflows to support structured, repeatable, and scalable actuarial analysis.
 
 ## Frontend Preview
 
