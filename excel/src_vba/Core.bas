@@ -1,10 +1,10 @@
-Attribute VB_Name = "Core"
+
 Option Private Module
 Option Explicit
 
-Public Const ADAS_VERSION As String = "1.8.3"
+Public Const ADAS_VERSION As String = "2.0.0.1"
 
-' User Specific Config (C:\User\...\ADAS\config.txt)
+' User-specific config (C:\Users\...\AppData\Local\ADAS\config.txt)
 Public configDir As String
 Public configPath As String
 Public removeData As Boolean
@@ -35,11 +35,17 @@ Public Const VP_SETTINGS_SHEET As String = "Dataset Types"
 Public triangle_tool_row As Long
 Public triangle_tool_col As Long
 
+Private Sub InitConfigPaths()
+    configDir = Environ$("LOCALAPPDATA") & "\ADAS"
+    configPath = configDir & "\config.txt"
+End Sub
+
 Public Function GetDataset(funcArgs As String)
 ' +---------------+
 ' | Main Function |
 ' +---------------+
     Dim dataPath As String
+    Dim projectDataDir As String
     Dim t1 As Double, t2 As Double
     Dim requestInfo As String
     Const MAX_WAIT_SEC As Double = 5
@@ -53,6 +59,13 @@ Public Function GetDataset(funcArgs As String)
     ' Debug.Print "Time - Start: " & TimeMS()
     
     dataPath = SetDataPath(funcArgs)
+    If InStrRev(dataPath, "\") > 0 Then
+        projectDataDir = Left$(dataPath, InStrRev(dataPath, "\") - 1)
+        If Dir(projectDataDir, vbDirectory) = "" Then
+            GetDataset = "(project not defined)"
+            GoTo CleanExit
+        End If
+    End If
     requestInfo = funcArgs & "#DataPath = " & dataPath
     
     ' --- Case 1: reuse existing data if allowed ---
@@ -110,14 +123,11 @@ ErrHandler:
 End Function
 
 Public Sub LoadConfig()
-    Dim configDir As String
-    Dim configPath As String
     Dim line As String, parts As Variant
     Dim fileVersion As String
     Dim f As Integer
 
-    configDir = Environ$("USERPROFILE") & "\ADAS"
-    configPath = configDir & "\config.txt"
+    InitConfigPaths
 
     ' Ensure config dir
     If Dir(configDir, vbDirectory) = "" Then
@@ -208,12 +218,10 @@ Public Sub LoadConfig()
 End Sub
 
 Public Sub UpdateConfigValue(ByVal keyName As String, ByVal newValue As String)
-    Dim configDir As String, configPath As String
     Dim lines() As String, temp As String
     Dim f As Integer, i As Long
 
-    configDir = Environ$("USERPROFILE") & "\ADAS"
-    configPath = configDir & "\config.txt"
+    InitConfigPaths
 
     ' Read all lines
     f = FreeFile()
@@ -279,7 +287,7 @@ Public Function SetDataPath(inputString As String) As String
     fullName = Replace(fullName, "/", "^")
     fullName = Replace(fullName, "*", "$star$")
     
-    basePath = "E:\ADAS\data\"
+    basePath = "E:\ADAS\projects\"
     
     ' If ProjectName exists, use it as a subfolder and remove it from fullName (already excluded)
     If Len(proj) > 0 Then
@@ -289,7 +297,7 @@ Public Function SetDataPath(inputString As String) As String
         For Each ch In invalidChars
             proj = Replace(proj, CStr(ch), "_")
         Next ch
-        SetDataPath = basePath & proj & "\" & fullName & ".csv"
+        SetDataPath = basePath & proj & "\data\" & fullName & ".csv"
     Else
         SetDataPath = basePath & fullName & ".csv"
     End If
@@ -297,11 +305,14 @@ Public Function SetDataPath(inputString As String) As String
 End Function
 
 Public Function SetDefaultProject(ByVal ProjectName As String)
+    Dim tmpName As String
+    ' SetProjectName
     If ProjectName = "Default" Then
-        SetDefaultProject = ActiveWorkbook.Sheets("ResQ Settings").Range("B7").Value
+        tmpName = ActiveWorkbook.Sheets("ResQ Settings").Range("B7").Value
     Else
-        SetDefaultProject = ProjectName
+        tmpName = ProjectName
     End If
+    SetDefaultProject = Mid(tmpName, InStrRev(tmpName, "\") + 1)
 End Function
 
 Public Sub SendRequest(requestInfo As String)
