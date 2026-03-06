@@ -1,4 +1,4 @@
-Attribute VB_Name = "Helper"
+
 Option Private Module
 
 Private Sub EnableDebugMode()
@@ -145,16 +145,18 @@ End Function
 
 Public Function WaitForFileReady(ByVal filePath As String, _
                                  ByVal maxWaitSeconds As Double) As Boolean
-    Dim deadline As Date
+    Dim deadline As Double
     Dim ff As Integer
-    Dim line As String
-    
+
     Show_ufLoading
-    
-    deadline = DateAdd("s", maxWaitSeconds, Now)
-    
-    Do While Now < deadline
-        If Dir(filePath) <> "" Then
+
+    deadline = Timer + maxWaitSeconds
+    ' Handle midnight rollover
+    If deadline >= 86400 Then deadline = deadline - 86400
+
+    Do While Timer < deadline
+        ' Use Dir on a fresh call each iteration to avoid VBA caching
+        If Len(Dir(filePath)) > 0 Then
             ff = FreeFile
             On Error Resume Next
             Open filePath For Input As #ff
@@ -165,14 +167,17 @@ Public Function WaitForFileReady(ByVal filePath As String, _
                 WaitForFileReady = True
                 Exit Function
             Else
-                ' Exists but still locked / being written
+                ' Exists but still locked / being written by the agent
                 Err.Clear
                 On Error GoTo 0
             End If
         End If
-        DoEvents
+
+        ' Small delay to avoid hammering the filesystem and to let
+        ' the Python agent finish writing and release the file lock
+        WaitSec 0.1
     Loop
-    
+
     ' Timed out
     WaitForFileReady = False
 End Function
