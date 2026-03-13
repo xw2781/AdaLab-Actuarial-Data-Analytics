@@ -5,4 +5,3 @@ It provides a structured framework for transforming insurance loss data into rep
 
 ## Frontend Preview
 
-![ADAS Frontend UI](assets/images/triangle_viewer_v2.jpg)
