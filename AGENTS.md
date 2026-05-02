@@ -8,6 +8,12 @@ This is the ArcRho monorepo root. Use one Git repository here for all ArcRho com
 - `tools/`: repository-level automation, including commit/push helpers for agents.
 
 ## Mandatory Read Before Editing
+Before making code or documentation edits, run `git branch --show-current`.
+
+If the current branch is `main` and the requested work appears feature-specific, experimental, or tied to an existing non-main branch, stop and ask the user whether to switch branches first.
+
+For ArcBot-related work, use `codex/arcbot` unless the user explicitly asks to work on another branch.
+
 Before changing files under `frontend/`, read `frontend/AGENTS.md` and follow its contracts and documentation workflow.
 
 When future component-specific `AGENTS.md` files are added, read the nearest one before editing that component.
