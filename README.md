@@ -140,3 +140,8 @@ All functions are available under both the `ADAS` prefix and the `Arc` alias pre
 | `ADASVecCell` | Vector | Returns a single element from a vector by 1-based index | `Path`, `VectorName`, `Index`, `[ProjectName]`, `[PeriodLength]` |
 | `ADASHeaders` | Utility | Returns axis labels for triangle headers. `periodType = 0` = origin labels; `1` = development age labels | `periodType`, `Transposed`, `[PeriodLength]`, `[ProjectName]` |
 | `ADASProjectSettings` | Utility | Returns project metadata: name, origin type, start/end dates, development end date, period lengths | `[ProjectName]` |
+
+## License
+
+ArcRho is proprietary software. Copyright (c) 2026 Xiao Wei. All rights reserved.
+See [LICENSE](LICENSE) for details.
