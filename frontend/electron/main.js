@@ -26,6 +26,11 @@ const APP_ROOT = path.resolve(__dirname, "..");
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
 const MAIN_WINDOW_PREFS_FILE = "main_window_prefs.json";
 const SCRIPTING_SHORTCUTS_FILE = "scripting_shortcuts.json";
+const WORKSPACE_PATHS_FILE = "workspace_paths.json";
+const CODEX_ASSISTANT_TIMEOUT_MS = Math.max(
+  15000,
+  parseInt(process.env.ARCRHO_CODEX_ASSISTANT_TIMEOUT_MS || "120000", 10) || 120000
+);
 const BACKEND_CONTROL_FLAGS = [
   ".restart_app",
   ".shutdown_app",
@@ -59,6 +64,7 @@ let pseudoMaximized = false;
 let lastBounds = null;
 let serverSpawnError = null;
 let backendShutdownPromise = null;
+const mappedDriveRemoteCache = new Map();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,6 +80,363 @@ function getPrefsDir() {
 
 function getScriptingShortcutsPath() {
   return path.join(getPrefsDir(), SCRIPTING_SHORTCUTS_FILE);
+}
+
+function getWorkspacePathsPath() {
+  return path.join(app.getPath("appData"), "ArcRho", WORKSPACE_PATHS_FILE);
+}
+
+function getConfiguredWorkspaceRoot() {
+  try {
+    const filePath = getWorkspacePathsPath();
+    if (!fs.existsSync(filePath)) return "";
+    const raw = fs.readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return String(parsed?.workspace_root || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getCodexAssistantProjectRoot() {
+  const configuredRoot = getConfiguredWorkspaceRoot();
+  if (configuredRoot) return configuredRoot;
+  return APP_ROOT;
+}
+
+function isUncPath(filePath) {
+  return /^\\\\[^\\]+\\[^\\]+/u.test(String(filePath || "").trim());
+}
+
+function getLocalArcRhoAssistantRoot() {
+  const userHome = process.env.USERPROFILE || os.homedir();
+  const basePath = path.join(userHome, "Documents");
+  return path.join(basePath, "ArcRho");
+}
+
+function ensureLocalArcRhoAssistantRoot() {
+  const localRoot = getLocalArcRhoAssistantRoot();
+  fs.mkdirSync(localRoot, { recursive: true });
+  return localRoot;
+}
+
+function parseNetUseRemoteName(output) {
+  const match = String(output || "").match(/^\s*Remote name\s+(.+?)\s*$/im);
+  return match ? match[1].trim() : "";
+}
+
+function toMappedDriveUncPath(localPath, remoteName) {
+  const text = String(localPath || "").trim();
+  const remote = String(remoteName || "").trim();
+  if (!/^[A-Za-z]:[\\/]/u.test(text) || !/^\\\\[^\\]+\\[^\\]+/u.test(remote)) return text;
+  const rest = text.slice(2).replace(/^[\\/]+/u, "");
+  return rest ? path.win32.join(remote, rest) : remote;
+}
+
+async function resolveMappedDrivePath(localPath) {
+  const text = String(localPath || "").trim();
+  if (process.platform !== "win32" || !/^[A-Za-z]:[\\/]/u.test(text)) return text;
+
+  const drive = text.slice(0, 2).toUpperCase();
+  if (!mappedDriveRemoteCache.has(drive)) {
+    const result = await runHostCommand("net", ["use", drive], {
+      timeoutMs: 3000,
+      shell: false,
+    });
+    mappedDriveRemoteCache.set(drive, result.ok ? parseNetUseRemoteName(combinedCommandOutput(result)) : "");
+  }
+
+  const remoteName = mappedDriveRemoteCache.get(drive);
+  return remoteName ? toMappedDriveUncPath(text, remoteName) : text;
+}
+
+async function getCodexAssistantProjectRoots(options = {}) {
+  const { ensureLocalRoot = false } = options;
+  const configuredRoot = getCodexAssistantProjectRoot();
+  const resolvedProjectRoot = await resolveMappedDrivePath(configuredRoot);
+  const networkRoot = isUncPath(resolvedProjectRoot);
+  const localArcRhoRoot = networkRoot
+    ? (ensureLocalRoot ? ensureLocalArcRhoAssistantRoot() : getLocalArcRhoAssistantRoot())
+    : "";
+  return {
+    projectRoot: resolvedProjectRoot,
+    cliRoot: networkRoot ? localArcRhoRoot : resolvedProjectRoot,
+    networkRoot,
+  };
+}
+
+function getBundledNpmCommand() {
+  if (process.platform === "win32") {
+    const bundled = path.join(APP_ROOT, "node-portable", "npm.cmd");
+    return fs.existsSync(bundled) ? bundled : "";
+  }
+  const bundled = path.join(APP_ROOT, "node-portable", "npm");
+  return fs.existsSync(bundled) ? bundled : "";
+}
+
+function getNpmCommand() {
+  const configured = String(process.env.ARCRHO_NPM_CMD || "").trim();
+  if (configured) return configured;
+  return getBundledNpmCommand() || "npm";
+}
+
+function isWindowsAppsPath(filePath) {
+  return /\\WindowsApps\\/iu.test(String(filePath || ""));
+}
+
+function findExecutableOnPath(names) {
+  const pathText = String(process.env.PATH || process.env.Path || "");
+  const pathParts = pathText.split(path.delimiter).filter(Boolean);
+  for (const dir of pathParts) {
+    if (isWindowsAppsPath(dir)) continue;
+    for (const name of names) {
+      const candidate = path.join(dir, name);
+      try {
+        if (fs.existsSync(candidate)) return candidate;
+      } catch {
+        // Skip inaccessible PATH entries.
+      }
+    }
+  }
+  return "";
+}
+
+function getCodexCommand() {
+  const configured = String(process.env.ARCRHO_CODEX_CMD || "").trim();
+  if (configured) return configured;
+
+  if (process.platform === "win32") {
+    const candidates = [
+      path.join(APP_ROOT, "node-portable", "codex.cmd"),
+      process.env.APPDATA ? path.join(process.env.APPDATA, "npm", "codex.cmd") : "",
+      process.env.LOCALAPPDATA
+        ? path.join(process.env.LOCALAPPDATA, "OpenAI", "Codex", "bin", "codex.cmd")
+        : "",
+      findExecutableOnPath(["codex.cmd", "codex.exe"]),
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate) && !isWindowsAppsPath(candidate)) return candidate;
+      } catch {
+        // Try the next candidate.
+      }
+    }
+    return "";
+  }
+
+  return findExecutableOnPath(["codex"]) || "codex";
+}
+
+function runHostCommand(command, args = [], options = {}) {
+  const {
+    cwd = APP_ROOT,
+    env = process.env,
+    input = "",
+    timeoutMs = 15000,
+    windowsHide = true,
+    shell: useShell = process.platform === "win32",
+  } = options;
+  return new Promise((resolve) => {
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let proc = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve({
+        ok: result.code === 0 && !timedOut,
+        code: result.code,
+        signal: result.signal,
+        stdout,
+        stderr,
+        timedOut,
+        error: result.error || "",
+      });
+    };
+
+    try {
+      proc = spawn(command, args, {
+        cwd,
+        env,
+        shell: useShell,
+        windowsHide,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (err) {
+      finish({ code: -1, signal: null, error: String(err?.message || err) });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        proc.kill();
+      } catch {
+        // ignore
+      }
+    }, Math.max(1000, timeoutMs));
+
+    proc.stdout?.on("data", (chunk) => {
+      stdout += String(chunk || "");
+      if (stdout.length > 200000) stdout = stdout.slice(-200000);
+    });
+    proc.stderr?.on("data", (chunk) => {
+      stderr += String(chunk || "");
+      if (stderr.length > 200000) stderr = stderr.slice(-200000);
+    });
+    proc.once("error", (err) => {
+      clearTimeout(timer);
+      finish({ code: -1, signal: null, error: String(err?.message || err) });
+    });
+    proc.once("close", (code, signal) => {
+      clearTimeout(timer);
+      finish({ code: Number.isFinite(code) ? code : -1, signal });
+    });
+
+    if (input) proc.stdin?.write(String(input));
+    proc.stdin?.end();
+  });
+}
+
+function quoteWindowsCmdArg(value) {
+  const text = String(value ?? "");
+  if (!text) return '""';
+  if (!/[\s"]/u.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function runWindowsCmdCommand(command, args = [], options = {}) {
+  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(" ");
+  return runHostCommand("cmd.exe", ["/d", "/c", "call", commandLine], {
+    ...options,
+    shell: false,
+  });
+}
+
+function runCodexCommand(args = [], options = {}) {
+  const command = getCodexCommand();
+  if (!command) {
+    return Promise.resolve({
+      ok: false,
+      code: -1,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+      error: "Codex CLI was not found. Install Codex CLI before using ArcBot.",
+    });
+  }
+  if (process.platform === "win32") {
+    const bundledCodexCmd = path.join(APP_ROOT, "node-portable", "codex.cmd");
+    if (command.toLowerCase() === bundledCodexCmd.toLowerCase()) {
+      const bundledNode = path.join(APP_ROOT, "node-portable", "node.exe");
+      const bundledCodexJs = path.join(APP_ROOT, "node-portable", "node_modules", "@openai", "codex", "bin", "codex.js");
+      if (fs.existsSync(bundledNode) && fs.existsSync(bundledCodexJs)) {
+        return runHostCommand(bundledNode, [bundledCodexJs, ...args], {
+          ...options,
+          shell: false,
+        });
+      }
+    }
+    if (/\.(cmd|bat)$/iu.test(command)) {
+      return runWindowsCmdCommand(command, args, options);
+    }
+    return runHostCommand(command, args, {
+      ...options,
+      shell: false,
+    });
+  }
+  return runHostCommand(command, args, {
+    ...options,
+    shell: false,
+  });
+}
+
+function combinedCommandOutput(result) {
+  return `${result?.stdout || ""}\n${result?.stderr || ""}`.trim();
+}
+
+function normalizeHostError(result, fallback) {
+  if (result?.timedOut) return "The command timed out.";
+  return combinedCommandOutput(result) || result?.error || fallback;
+}
+
+function isAuthFailure(result) {
+  const raw = combinedCommandOutput(result).toLowerCase();
+  return /not\s+logged\s+in|not\s+authenticated|authentication|required|sign\s*in|login/.test(raw);
+}
+
+function getCodexInstallScriptPath() {
+  return path.join(app.getPath("userData"), "install_codex_cli.ps1");
+}
+
+function writeCodexInstallScript() {
+  const scriptPath = getCodexInstallScriptPath();
+  fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+  const script = [
+    "param([string]$NpmCommand = 'npm')",
+    "$ErrorActionPreference = 'Stop'",
+    "Write-Output 'ArcRho is installing Codex CLI with: npm install -g @openai/codex'",
+    "$resolvedNpm = $null",
+    "if (Test-Path -LiteralPath $NpmCommand) {",
+    "  $resolvedNpm = Resolve-Path -LiteralPath $NpmCommand",
+    "} else {",
+    "  $resolvedNpm = Get-Command $NpmCommand -ErrorAction SilentlyContinue",
+    "  if (-not $resolvedNpm) { throw 'npm was not found. Install Node.js/npm, then try again.' }",
+    "}",
+    "$npmPath = if ($resolvedNpm.Path) { $resolvedNpm.Path } else { [string]$resolvedNpm }",
+    "$npmDir = Split-Path -Parent $npmPath",
+    "if ($npmDir) { $env:Path = \"$npmDir;$env:Path\" }",
+    "& $NpmCommand install -g @openai/codex",
+    "Write-Output 'Codex CLI install completed.'",
+    "$codexCmd = Join-Path $npmDir 'codex.cmd'",
+    "if (Test-Path -LiteralPath $codexCmd) { & $codexCmd --version } else { & codex --version }",
+    "",
+  ].join("\r\n");
+  fs.writeFileSync(scriptPath, script, "utf8");
+  return scriptPath;
+}
+
+function buildAssistantPrompt(messages, mode = "review", projectRoot = "", cliRoot = "", networkRoot = false) {
+  const safeMessages = Array.isArray(messages) ? messages.slice(-12) : [];
+  const transcript = safeMessages
+    .map((message) => {
+      const role = String(message?.role || "").toLowerCase() === "assistant" ? "Assistant" : "User";
+      const text = String(message?.content || "").trim();
+      return text ? `${role}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  return [
+    "You are ArcBot, the ArcRho in-app AI assistant.",
+    `Current mode: ${mode === "review" ? "Review Mode" : "Unsupported Mode"}.`,
+    `Current project folder: ${projectRoot || APP_ROOT}.`,
+    `CLI working folder: ${cliRoot || projectRoot || APP_ROOT}.`,
+    networkRoot
+      ? "The project folder is a network path, so the CLI process starts from the local Documents\\ArcRho folder to avoid Windows/Codex startup failures with UNC working directories."
+      : "",
+    "Review Mode is read-only. Do not edit files, change settings, install packages, run destructive commands, commit code, or push code.",
+    "If the user asks for changes, explain what you would do and ask them to approve a future Edit Mode flow.",
+    "Keep answers concise and focused on the ArcRho desktop app context.",
+    "",
+    "Conversation:",
+    transcript || "User: Hello",
+  ].join("\n");
+}
+
+function clampCodexPrompt(prompt) {
+  const text = String(prompt || "");
+  const maxChars = 16000;
+  if (text.length <= maxChars) return text;
+  return [
+    text.slice(0, 12000),
+    "",
+    "[Earlier conversation was truncated to fit the Codex CLI prompt argument limit.]",
+    "",
+    text.slice(-3500),
+  ].join("\n");
 }
 
 function loadMainWindowPrefs() {
@@ -909,6 +1272,146 @@ ipcMain.handle("app-clear-cache-reload", async () => {
     // ignore
   }
   return true;
+});
+
+ipcMain.handle("codex-assistant-status", async () => {
+  const version = await runCodexCommand(["--version"], {
+    timeoutMs: 8000,
+  });
+  if (!version.ok) {
+    return {
+      installed: false,
+      authenticated: false,
+      version: "",
+      error: normalizeHostError(version, "Codex CLI was not found."),
+    };
+  }
+
+  const auth = await runCodexCommand(["login", "status"], {
+    timeoutMs: 8000,
+  });
+  return {
+    installed: true,
+    authenticated: auth.ok,
+    version: combinedCommandOutput(version).split(/\r?\n/)[0] || "codex",
+    authStatus: combinedCommandOutput(auth),
+    error: auth.ok ? "" : normalizeHostError(auth, "Codex CLI is not signed in."),
+  };
+});
+
+ipcMain.handle("codex-assistant-install", async () => {
+  if (process.platform === "win32") {
+    const scriptPath = writeCodexInstallScript();
+    const result = await runHostCommand("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      scriptPath,
+      "-NpmCommand",
+      getNpmCommand(),
+    ], {
+      timeoutMs: 10 * 60 * 1000,
+      windowsHide: false,
+      shell: false,
+    });
+    return {
+      ok: result.ok,
+      output: combinedCommandOutput(result),
+      error: result.ok ? "" : normalizeHostError(result, "Codex CLI installation failed."),
+    };
+  }
+
+  const result = await runHostCommand(getNpmCommand(), ["install", "-g", "@openai/codex"], {
+    timeoutMs: 10 * 60 * 1000,
+    windowsHide: false,
+  });
+  return {
+    ok: result.ok,
+    output: combinedCommandOutput(result),
+    error: result.ok ? "" : normalizeHostError(result, "Codex CLI installation failed."),
+  };
+});
+
+ipcMain.handle("codex-assistant-login", async () => {
+  try {
+    const codexCommand = getCodexCommand();
+    if (!codexCommand) {
+      return { ok: false, error: "Codex CLI was not found. Install Codex CLI before signing in." };
+    }
+    if (process.platform === "win32") {
+      const child = spawn("cmd.exe", ["/d", "/k", `${quoteWindowsCmdArg(codexCommand)} login`], {
+        cwd: APP_ROOT,
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false,
+        shell: false,
+      });
+      child.unref();
+      return { ok: true };
+    }
+    const child = spawn(codexCommand, ["login"], {
+      cwd: APP_ROOT,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+      shell: false,
+    });
+    child.unref();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("codex-assistant-send", async (_event, payload) => {
+  const mode = String(payload?.mode || "review").trim().toLowerCase();
+  const model = String(payload?.model || "codex").trim().toLowerCase();
+  if (mode !== "review") {
+    return {
+      ok: false,
+      needsAuth: false,
+      error: "Edit Mode is not available yet.",
+    };
+  }
+  if (model !== "codex") {
+    return {
+      ok: false,
+      needsAuth: false,
+      error: "Only Codex is available for ArcBot right now.",
+    };
+  }
+  const roots = await getCodexAssistantProjectRoots({ ensureLocalRoot: true });
+  const prompt = clampCodexPrompt(
+    buildAssistantPrompt(payload?.messages, mode, roots.projectRoot, roots.cliRoot, roots.networkRoot)
+  );
+  const result = await runCodexCommand([
+    "exec",
+    "--ephemeral",
+    "--color",
+    "never",
+    "--sandbox",
+    "read-only",
+    "--skip-git-repo-check",
+    "--cd",
+    roots.cliRoot,
+  ], {
+    input: prompt,
+    timeoutMs: CODEX_ASSISTANT_TIMEOUT_MS,
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      needsAuth: isAuthFailure(result),
+      error: normalizeHostError(result, "Codex CLI request failed."),
+    };
+  }
+  return {
+    ok: true,
+    text: String(result.stdout || "").trim(),
+    progress: String(result.stderr || "").trim(),
+  };
 });
 
 ipcMain.handle("focus-window", () => {

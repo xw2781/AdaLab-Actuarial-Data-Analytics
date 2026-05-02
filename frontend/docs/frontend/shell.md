@@ -17,6 +17,7 @@ Dragging a floating window to the left or right shell edge shows a half-frame sn
 After a floating window snaps to a half frame, the shell remembers its previous floating size and restores it automatically once the user drags the snapped title bar beyond a small movement threshold.
 Dragging a floating window title bar to roughly the midpoint-height of the tab strip highlights the strip as a dock target and shows a tab-order placeholder; releasing there docks the window back into the main tab bar at the previewed order.
 Floating and docking transitions use a short scale/fade animation on the paired floating frame and iframe body without recreating the iframe.
+The desktop shell includes a bottom-right ArcBot launcher. ArcBot opens as an in-shell floating chat panel that can be moved by dragging its header, checks the local Codex CLI install and `codex login status`, offers an explicit first-time install action that runs `npm install -g @openai/codex`, and launches `codex login` when local credentials are missing. Users can type into ArcBot immediately, while sending stays gated until Codex CLI is installed and signed in. ArcBot shows compact dropdowns below the input for mode and model selection: Review Mode is active, Edit Mode is visible but disabled, Codex is the default model, and Claude/Copilot entries show a not-available popup while leaving Codex selected. Host IPC rejects non-review or non-Codex assistant requests. Review Mode requests prefer the npm-installed or bundled `codex.cmd` over WindowsApps helper executables, pass the prompt through stdin to `codex exec`, run with the read-only sandbox, resolve mapped drive roots such as `E:\...` to their UNC network target when Windows exposes one, and use the configured Server Connection root path as the default project folder context. If the configured project folder resolves to a UNC network path, ArcBot creates `%USERPROFILE%\Documents\ArcRho` when needed and starts Codex from that local folder instead of using the network path as `--cd` to avoid Windows/Codex working-directory startup failures. When using the bundled Codex CLI, ArcBot launches the bundled Node entrypoint directly so Windows `.cmd` quoting does not split paths that contain spaces. ArcBot does not edit files by default.
 <!-- MANUAL:END -->
 
 ## Entry Points
@@ -80,6 +81,7 @@ Detected `arcrho:*` message types in key JS files:
 - Invokes app-server endpoints for workflow import helpers and configuration endpoints.
 - Uses Electron host bridge for shutdown/clear-cache actions; app-server startup is host-managed with retry on transient launch failures.
 - Uses Electron host bridge for Server Connection folder browsing and first-time `ArcRho Server` drive detection.
+- Uses Electron host bridge for desktop-only ArcBot Codex CLI status, install, login, and read-only `codex exec` requests.
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.
 - Receives `arcrho:open-dataset-from-history` from Browsing History tab to open dataset tabs with selected inputs.
 - OS-level detached tab pop-out windows are not supported; floating tabs stay inside the main shell and reuse the same iframe/message contracts as docked tabs.
@@ -89,6 +91,7 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Persists tab state, docked/floating layout, floating window position/size/z-order, zoom, and toggles in `localStorage`.
 - Persists dataset browsing history entries (latest 15) via `browsing_history.js`.
+- Keeps ArcBot messages in memory for the current app session only.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

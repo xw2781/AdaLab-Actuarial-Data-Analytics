@@ -11,12 +11,12 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `.claude` | 1 |
 | `app_server` | 47 |
 | `build` | 7 |
-| `changes` | 16 |
+| `changes` | 17 |
 | `docs` | 37 |
 | `electron` | 2 |
 | `icons` | 17 |
 | `tools` | 2 |
-| `ui` | 183 |
+| `ui` | 184 |
 
 ## Full File List
 | Path | Size (bytes) |
@@ -96,6 +96,7 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `changes/unreleased/2026-04-29-home-sidebar-grid.json` | 373 |
 | `changes/unreleased/2026-04-29-main-tab-floating-windows.json` | 1315 |
 | `changes/unreleased/2026-04-29-shell-module-split.json` | 398 |
+| `changes/unreleased/2026-04-30-codex-ai-assistant.json` | 844 |
 | `changes/unreleased/_template.json` | 193 |
 | `docs/CONVENTIONS.md` | 1515 |
 | `docs/GENERATED_README.md` | 400 |
@@ -124,7 +125,7 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `docs/frontend/dfm.md` | 17115 |
 | `docs/frontend/project_settings.md` | 11933 |
 | `docs/frontend/scripting_console.md` | 3867 |
-| `docs/frontend/shell.md` | 11115 |
+| `docs/frontend/shell.md` | 12907 |
 | `docs/frontend/workflow.md` | 3145 |
 | `docs/landing - cn.html` | 194369 |
 | `docs/landing.html` | 194621 |
@@ -134,8 +135,8 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `docs/releases/INDEX.md` | 149 |
 | `docs/runtime/config_paths.md` | 3392 |
 | `docs/runtime/data_cache_files.md` | 2352 |
-| `electron/main.js` | 34462 |
-| `electron/preload.js` | 3421 |
+| `electron/main.js` | 50200 |
+| `electron/preload.js` | 3682 |
 | `electron_shell.py` | 2359 |
 | `icons/ico_arc_app_sq.svg` | 830 |
 | `icons/icon.png` | 18289 |
@@ -189,7 +190,7 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `ui/dfm/dfm_storage.js` | 6085 |
 | `ui/dfm/dfm_sync.js` | 3204 |
 | `ui/dfm/dfm_tabs_orchestrator.js` | 8536 |
-| `ui/index.html` | 52317 |
+| `ui/index.html` | 64214 |
 | `ui/libs/monaco-editor/min/vs/base/browser/ui/codicons/codicon/codicon.ttf` | 80340 |
 | `ui/libs/monaco-editor/min/vs/base/worker/workerMain.js` | 376545 |
 | `ui/libs/monaco-editor/min/vs/basic-languages/abap/abap.js` | 14996 |
@@ -318,6 +319,7 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `ui/shared/state.js` | 360 |
 | `ui/shared/tabbed_page.js` | 4776 |
 | `ui/shared/valid_value_list_provider.js` | 12105 |
+| `ui/shell/ai_assistant.js` | 12592 |
 | `ui/shell/app_lifecycle.js` | 6405 |
 | `ui/shell/browsing_history.html` | 2693 |
 | `ui/shell/browsing_history.js` | 4115 |
@@ -337,7 +339,7 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `ui/shell/tab_actions.js` | 6657 |
 | `ui/shell/tab_strip.js` | 19598 |
 | `ui/shell/titlebar_controls.js` | 3857 |
-| `ui/shell/ui_shell.js` | 5863 |
+| `ui/shell/ui_shell.js` | 5943 |
 | `ui/shell/workflow_host_actions.js` | 7212 |
 | `ui/splash.html` | 7831 |
 | `ui/workflow/workflow.html` | 16655 |
