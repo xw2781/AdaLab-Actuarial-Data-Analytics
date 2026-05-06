@@ -1,5 +1,5 @@
 {
-  "type": "change",
+  "type": "improvement",
   "scope": "shell",
   "audience": "user",
   "summary": "Removed detached window actions for shell tabs and DFM Results.",

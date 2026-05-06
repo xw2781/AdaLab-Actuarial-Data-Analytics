@@ -1,7 +1,7 @@
 {
-  "type": "refactor",
+  "type": "improvement",
   "scope": "shell",
-  "audience": "developer",
+  "audience": "internal",
   "summary": "Split the shell entrypoint into focused shell modules.",
   "details": [
     "Reduced ui_shell.js to bootstrap and controller composition.",

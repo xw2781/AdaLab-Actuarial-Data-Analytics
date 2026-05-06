@@ -1,7 +1,7 @@
 {
   "type": "breaking",
   "scope": "runtime",
-  "audience": "developer",
+  "audience": "internal",
   "summary": "Renamed runtime APIs, schemas, cache IDs, and protocol names to ArcRho.",
   "details": [
     "Renamed runtime endpoints to /arcrho paths and renamed request models to ArcRho*.",
