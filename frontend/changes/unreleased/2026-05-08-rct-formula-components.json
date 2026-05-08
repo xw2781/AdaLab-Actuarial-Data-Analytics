@@ -5,6 +5,21 @@
   "summary": "Add a selected-level component tray to Reserving Class Types formulas.",
   "details": [
     "Users can drag or click components into the formula field as double-quoted tokens with plus operators, see components already present in the formula highlighted, and right-click the tray to replace the formula with all selected-level components.",
+    "The component tray includes selectable + and - operator chips, styled like review-mode operators, before the component values; one operator is active at a time and remains active for subsequent component adds until another operator is selected or the editor closes.",
+    "Formula review and component tray operators use light green for + and light yellow for -.",
+    "Formula editing now separates plain-text edit mode from review mode, where components and operators render as rounded tokens and component drops are accepted.",
+    "Review mode renders operators as larger SVG controls, displays multiplication as X, lets the Reserving Class Type editor be resized, and keeps the component tray inside an auto-sizing Formula frame with a frameless Show all components / Hide all components toggle that includes a rotating arrow SVG.",
+    "Formula review and Apply normalize repeated and trailing operators before rendering or validation.",
+    "Dataset Types and Reserving Class Types floating editor close buttons use the same SVG close icon as the main app titlebar.",
+    "Formula components already present in review mode are hidden from the tray, and dragging a review-mode component pill back to the tray removes it from the formula while normalizing adjacent operators.",
+    "Formula review renders known values as neutral no-fill pills sized consistently with the component tray, keeps operator circles the same height as component pills, shows calculated values with the reserving-class filter picker's stacked SVG marker, renders source-derived values without markers, and marks unknown values with a light red fill.",
+    "Components whose names contain slash or dash characters can be clicked or dragged as quoted tokens using an in-page drag payload without being removed by formula cleanup, and component drags are blocked from dropping into editor fields other than Formula.",
+    "The component tray right-click menu can replace the formula with all selected-level components or only source-derived imported items.",
+    "The EEX Formula field now has the same selected-level component tray and tokenized review/edit rendering as Formula, defaulting the tray to hidden each time the reserving class type editor opens and targeting EEX Formula for click, drag, drag-back removal, and right-click select-all actions.",
+    "Dragging a rendered formula component pill outside its Formula or EEX Formula box removes that component and normalizes adjacent operators.",
+    "Single-clicking a rendered formula component pill in review mode removes it with a short ghost-pill trajectory animation toward the matching component tray, while double-clicking the rendered formula opens raw text editing.",
+    "Single-clicking a component tray item to add it now shows a matching ghost-pill trajectory animation toward the target formula review box.",
+    "Project Settings right-click menus now share a single context-menu font-size control for consistent menu text across project, folder, row, and formula component menus.",
     "The formula field auto-sizes as components are added and Escape now leaves formula editing without closing the reserving class type editor."
   ]
 }

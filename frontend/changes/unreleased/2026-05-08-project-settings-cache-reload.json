@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Make Project Settings reloads pick up refreshed frontend files more reliably.",
+  "details": [
+    "Clear Cache & Reload now reloads the shell with a fresh timestamped UI URL after clearing Electron cache/storage.",
+    "Project Settings iframes now include the shell UI version parameter, matching other feature pages during cache-clearing and reload flows."
+  ]
+}

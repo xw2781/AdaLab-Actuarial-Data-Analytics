@@ -10,7 +10,7 @@ Detailed menu, floating-window, lifecycle, and bridge behavior belongs in focuse
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.shell.entry_points -->
-- `ui/index.html`: external scripts `/ui/shell/ui_shell.js?v=20260506a`; inline imports _none_.
+- `ui/index.html`: external scripts `/ui/shell/ui_shell.js?v=2026050801`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/`
@@ -68,6 +68,7 @@ Detected `arcrho:*` message types in key JS files:
 - Communicates with child iframes via `arcrho:*` postMessage events.
 - Invokes app-server endpoints for workflow import helpers and configuration endpoints.
 - Uses Electron host bridge and explicit shell commands for shutdown/clear-cache actions; ordinary document unloads and reloads do not send app shutdown.
+- Clear Cache & Reload reloads the shell with a fresh timestamped UI URL after clearing Electron cache/storage, and Project Settings iframes include the shell UI version query parameter so reloads fetch the current Project Settings HTML/module graph consistently.
 - App-server startup is host-managed with retry on transient launch failures.
 - Uses Electron host bridge for Server Connection folder browsing and first-time `ArcRho Server` drive detection.
 - Saving Server Connection updates `/workspace_paths` without restarting the app, then broadcasts `arcrho:server-connection-updated` to open feature iframes so page-local path caches can refresh.

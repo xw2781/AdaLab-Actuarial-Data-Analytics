@@ -5,7 +5,7 @@
 import { AuditLogStore } from "/ui/project_settings/project_settings_audit.js?v=20260223";
 import { createFieldMappingFeature } from "/ui/project_settings/project_settings_field_mapping.js?v=20260315";
 import { createDatasetTypesFeature } from "/ui/project_settings/project_settings_dataset_types.js?v=2026040308";
-import { createReservingClassTypesFeature } from "/ui/project_settings/project_settings_reserving_class_types.js?v=2026050803";
+import { createReservingClassTypesFeature } from "/ui/project_settings/project_settings_reserving_class_types.js?v=2026050832";
 
 // ============ Zoom & Hotkey Handling ============
 const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
@@ -156,7 +156,9 @@ const reservingClassTypeEditorClose = document.getElementById("reservingClassTyp
 const rctEditName = document.getElementById("rctEditName");
 const rctEditLevel = document.getElementById("rctEditLevel");
 const rctEditFormula = document.getElementById("rctEditFormula");
+const rctFormulaReview = document.getElementById("rctFormulaReview");
 const rctEditEexFormula = document.getElementById("rctEditEexFormula");
+const rctEexFormulaReview = document.getElementById("rctEexFormulaReview");
 const rctEditorCancelBtn = document.getElementById("rctEditorCancelBtn");
 const rctEditorSaveBtn = document.getElementById("rctEditorSaveBtn");
 const datasetTypeEditor = document.getElementById("datasetTypeEditor");
@@ -597,6 +599,8 @@ reservingClassTypesFeature = createReservingClassTypesFeature({
   rctEditName,
   rctEditLevel,
   rctEditFormula,
+  rctFormulaReview,
+  rctEexFormulaReview,
   rctEditEexFormula,
   initTableColumnResizing,
   normalizeProjectKey,

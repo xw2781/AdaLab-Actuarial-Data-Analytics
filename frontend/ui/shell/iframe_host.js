@@ -135,7 +135,7 @@ export function createIframeHost(deps) {
         }
       }, { once: true });
     } else if (tab.type === "project_settings") {
-      iframe.src = "/ui/project_settings/project_settings.html";
+      iframe.src = `/ui/project_settings/project_settings.html?v=${encodeURIComponent(uiVersionParam)}`;
     } else if (tab.type === "browsing_history") {
       iframe.src = `/ui/shell/browsing_history.html?v=${encodeURIComponent(uiVersionParam)}`;
     } else if (tab.type === "scripting") {

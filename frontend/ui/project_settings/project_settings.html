@@ -15,6 +15,7 @@
       --folder-hover: #e9ecef;
       --project-hover: #fff3cd;
       --active-bg: #cfe2ff;
+      --project-settings-context-menu-font-size: 11px;
     }
     html, body { height: 100%; margin: 0; }
     body {
@@ -188,13 +189,14 @@
       padding: 4px 0;
       min-width: 140px;
       z-index: 1000;
+      font-size: var(--project-settings-context-menu-font-size);
     }
     .context-menu.show {
       display: block;
     }
     .context-menu-item {
       padding: 8px 16px;
-      font-size: 13px;
+      font-size: inherit;
       cursor: pointer;
       color: #333;
     }
@@ -1520,6 +1522,11 @@
     }
     #reservingClassTypeEditor {
       width: 624px;
+      min-width: 520px;
+      min-height: 320px;
+      max-height: calc(100vh - 32px);
+      resize: both;
+      overflow: auto;
     }
     .rct-row-editor.show {
       display: block;
@@ -1545,15 +1552,24 @@
       border-radius: 4px;
       width: 22px;
       height: 22px;
-      line-height: 20px;
-      text-align: center;
-      font-size: 14px;
       cursor: pointer;
       color: #333;
       padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .rct-row-editor-close:hover {
       background: #f7f9fc;
+    }
+    .rct-row-editor-close svg {
+      width: 10px;
+      height: 10px;
+      display: block;
+      stroke: currentColor;
+      stroke-width: 1.4;
+      stroke-linecap: round;
+      fill: none;
     }
     .rct-row-editor-body {
       padding: 12px;
@@ -1587,15 +1603,195 @@
       overflow: hidden;
       resize: vertical;
     }
-    .rct-row-editor-body textarea.rct-formula-drop-target {
+    .rct-row-editor-body textarea.rct-formula-drop-target,
+    .rct-formula-review.rct-formula-drop-target {
       border-color: #2a66f5;
       box-shadow: 0 0 0 2px rgba(42, 102, 245, 0.12);
+    }
+    .rct-formula-components-box.rct-formula-return-drop-target {
+      border-color: #2a66f5;
+      box-shadow: 0 0 0 2px rgba(42, 102, 245, 0.12);
+      background: #f5f8ff;
+    }
+    .rct-formula-control {
+      width: 100%;
+      min-width: 0;
+    }
+    .rct-formula-frame {
+      width: 100%;
+      box-sizing: border-box;
+      min-width: 0;
+      border: 1px solid #e0e6ef;
+      border-radius: 6px;
+      padding: 8px;
+      background: #fbfcfe;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .rct-row-editor-body label[for="rctEditFormula"],
+    .rct-row-editor-body label[for="rctEditEexFormula"] {
+      align-self: start;
+      padding-top: 8px;
+    }
+    .rct-formula-control textarea {
+      display: none;
+    }
+    .rct-formula-control.editing textarea {
+      display: block;
+    }
+    .rct-formula-control.editing .rct-formula-review {
+      display: none;
+    }
+    .rct-formula-review {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 58px;
+      border: 1px solid #ccd2da;
+      border-radius: 6px;
+      padding: 6px;
+      background: #fff;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: flex-start;
+      align-content: flex-start;
+      cursor: text;
+      overflow: auto;
+      max-height: 180px;
+    }
+    .rct-formula-review.disabled {
+      background: #f1f4f8;
+      color: #67758a;
+      cursor: default;
+    }
+    .rct-formula-token {
+      --rct-formula-token-height: 22px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      padding: 2px 9px;
+      box-sizing: border-box;
+      min-height: var(--rct-formula-token-height);
+      max-width: 100%;
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rct-formula-token.component {
+      gap: 4px;
+      height: var(--rct-formula-token-height);
+      border-color: #d4d4d4;
+      background: #fff;
+      color: #323232;
+    }
+    .rct-formula-token.component.unknown {
+      border-color: #efb0b0;
+      background: #fff0f0;
+      color: #9a3047;
+    }
+    .rct-formula-token-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rct-formula-token.component[draggable="true"] {
+      cursor: grab;
+    }
+    .rct-formula-token.component[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    .rct-formula-token-removal-ghost,
+    .rct-formula-token-selection-ghost {
+      position: fixed;
+      z-index: 4300;
+      pointer-events: none;
+      box-shadow: 0 8px 18px rgba(31, 49, 73, 0.18);
+      will-change: transform, opacity;
+    }
+    .rct-formula-token.operator {
+      width: var(--rct-formula-token-height);
+      min-width: var(--rct-formula-token-height);
+      height: var(--rct-formula-token-height);
+      min-height: var(--rct-formula-token-height);
+      justify-content: center;
+      padding: 0;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border-color: #c5ccd8;
+      background: #f4f6f9;
+      color: #273142;
+      font-weight: 700;
+      flex: 0 0 var(--rct-formula-token-height);
+    }
+    .rct-formula-token.operator.plus {
+      border-color: #b7dfc0;
+      background: #f1fbf3;
+      color: #237a3b;
+    }
+    .rct-formula-token.operator.minus {
+      border-color: #e9d98b;
+      background: #fff9da;
+      color: #7b650e;
+    }
+    .rct-formula-token.operator svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+      stroke: currentColor;
+      stroke-width: 2.3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+    .rct-formula-components-label-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .rct-formula-components-toggle {
+      min-height: 24px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #30445f;
+      cursor: pointer;
+      padding: 3px 0;
+      font-size: 12px;
+      font-weight: 600;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .rct-formula-components-toggle:hover {
+      color: #0d6efd;
+      text-decoration: underline;
+    }
+    .rct-formula-components-toggle svg {
+      width: 12px;
+      height: 12px;
+      display: block;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      transform: rotate(90deg);
+      transition: transform 0.12s ease;
+    }
+    .rct-formula-components-toggle.collapsed svg {
+      transform: rotate(0deg);
     }
     .rct-formula-components-box {
       width: 100%;
       box-sizing: border-box;
       min-height: 48px;
-      max-height: 118px;
+      max-height: 177px;
       overflow: auto;
       border: 1px solid #efefef;
       border-radius: 6px;
@@ -1607,6 +1803,9 @@
       align-items: flex-start;
       overscroll-behavior: contain;
     }
+    .rct-formula-components-box.collapsed {
+      display: none;
+    }
     .rct-formula-components-box.disabled {
       background: #f1f4f8;
       color: #67758a;
@@ -1614,10 +1813,14 @@
     .rct-formula-component-chip {
       display: inline-flex;
       align-items: center;
+      gap: 4px;
       border: 1px solid #d4d4d4;
       border-radius: 14px;
       padding: 2px 9px;
+      box-sizing: border-box;
+      min-height: 22px;
       font-size: 12px;
+      line-height: 16px;
       color: #323232;
       background: #fff;
       cursor: grab;
@@ -1626,6 +1829,29 @@
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .rct-formula-component-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rct-formula-calculated-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #2563eb;
+      flex: 0 0 auto;
+    }
+    .rct-formula-calculated-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .rct-formula-component-chip:hover {
       border-color: #9d9d9d;
@@ -1636,8 +1862,39 @@
       background: #edf3ff;
       color: #1445ba;
     }
+    .rct-formula-component-chip.operator {
+      width: 22px;
+      min-width: 22px;
+      height: 22px;
+      min-height: 22px;
+      justify-content: center;
+      padding: 0;
+      border-radius: 50%;
+      border-color: #c5ccd8;
+      background: #f4f6f9;
+      color: #273142;
+      font-weight: 700;
+      flex: 0 0 22px;
+      cursor: pointer;
+    }
+    .rct-formula-component-chip.operator.active {
+      box-shadow: 0 0 0 2px rgba(42, 102, 245, 0.22);
+    }
+    .rct-formula-component-chip.operator svg {
+      width: 10px;
+      height: 10px;
+      display: block;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
     .rct-formula-component-chip:active {
       cursor: grabbing;
+    }
+    .rct-formula-component-chip.operator:active {
+      cursor: pointer;
     }
     .rct-formula-components-empty {
       color: #777;
@@ -2095,7 +2352,12 @@
   <div class="rct-row-editor" id="datasetTypeEditor">
     <div class="rct-row-editor-header" id="datasetTypeEditorHeader">
       <div class="rct-row-editor-title" id="datasetTypeEditorTitle">Edit Dataset Type</div>
-      <button class="rct-row-editor-close" id="datasetTypeEditorClose" type="button" aria-label="Close">x</button>
+      <button class="rct-row-editor-close" id="datasetTypeEditorClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 10 10" aria-hidden="true">
+          <line x1="2" y1="2" x2="8" y2="8"></line>
+          <line x1="8" y1="2" x2="2" y2="8"></line>
+        </svg>
+      </button>
     </div>
     <div class="rct-row-editor-body">
       <label for="dtEditName">Name</label>
@@ -2130,7 +2392,12 @@
   <div class="rct-row-editor" id="reservingClassTypeEditor">
     <div class="rct-row-editor-header" id="reservingClassTypeEditorHeader">
       <div class="rct-row-editor-title" id="reservingClassTypeEditorTitle">Edit Reserving Class Type</div>
-      <button class="rct-row-editor-close" id="reservingClassTypeEditorClose" type="button" aria-label="Close">x</button>
+      <button class="rct-row-editor-close" id="reservingClassTypeEditorClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 10 10" aria-hidden="true">
+          <line x1="2" y1="2" x2="8" y2="8"></line>
+          <line x1="8" y1="2" x2="2" y2="8"></line>
+        </svg>
+      </button>
     </div>
     <div class="rct-row-editor-body">
       <label for="rctEditName">Name</label>
@@ -2138,11 +2405,27 @@
       <label for="rctEditLevel">Level</label>
       <input id="rctEditLevel" type="text" spellcheck="false" />
       <label for="rctEditFormula">Formula</label>
-      <textarea id="rctEditFormula" spellcheck="false"></textarea>
-      <label for="rctFormulaComponentsBox" id="rctFormulaComponentsLabel">Components</label>
-      <div class="rct-formula-components-box" id="rctFormulaComponentsBox" role="listbox" tabindex="0" aria-label="Formula components for selected level"></div>
+      <div class="rct-formula-frame" id="rctFormulaFrame">
+        <div class="rct-formula-control" id="rctFormulaControl">
+          <textarea id="rctEditFormula" spellcheck="false"></textarea>
+          <div class="rct-formula-review" id="rctFormulaReview" role="textbox" tabindex="0" aria-label="Formula"></div>
+        </div>
+        <div class="rct-formula-components-label-row" id="rctFormulaComponentsLabel">
+          <button class="rct-formula-components-toggle" id="rctFormulaComponentsToggle" type="button" aria-label="Hide all components" aria-expanded="true">Hide all components</button>
+        </div>
+        <div class="rct-formula-components-box" id="rctFormulaComponentsBox" role="listbox" tabindex="0" aria-label="Formula components for selected level"></div>
+      </div>
       <label for="rctEditEexFormula">EEX Formula</label>
-      <textarea id="rctEditEexFormula" spellcheck="false"></textarea>
+      <div class="rct-formula-frame rct-eex-formula-frame" id="rctEexFormulaFrame">
+        <div class="rct-formula-control" id="rctEexFormulaControl">
+          <textarea id="rctEditEexFormula" spellcheck="false"></textarea>
+          <div class="rct-formula-review" id="rctEexFormulaReview" role="textbox" tabindex="0" aria-label="EEX Formula"></div>
+        </div>
+        <div class="rct-formula-components-label-row" id="rctEexFormulaComponentsLabel">
+          <button class="rct-formula-components-toggle collapsed" id="rctEexFormulaComponentsToggle" type="button" aria-label="Show all components" aria-expanded="false">Show all components</button>
+        </div>
+        <div class="rct-formula-components-box collapsed" id="rctEexFormulaComponentsBox" role="listbox" tabindex="0" aria-label="EEX formula components for selected level"></div>
+      </div>
     </div>
     <div class="rct-row-editor-actions">
       <button class="dialog-btn" id="rctEditorCancelBtn" type="button">Cancel</button>
@@ -2184,6 +2467,6 @@
     </div>
   </div>
 
-<script type="module" src="/ui/project_settings/project_settings.js?v=2026050803"></script>
+<script type="module" src="/ui/project_settings/project_settings.js?v=2026050832"></script>
 </body>
 </html>

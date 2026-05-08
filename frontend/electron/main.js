@@ -904,9 +904,14 @@ ipcMain.handle("app-clear-cache-reload", async () => {
     // ignore
   }
   try {
-    win.webContents.reloadIgnoringCache();
+    const reloadUrl = `http://${HOST}:${PORT}/ui/?v=${encodeURIComponent(String(Date.now()))}`;
+    await win.loadURL(reloadUrl);
   } catch {
-    // ignore
+    try {
+      win.webContents.reloadIgnoringCache();
+    } catch {
+      // ignore
+    }
   }
   return true;
 });
