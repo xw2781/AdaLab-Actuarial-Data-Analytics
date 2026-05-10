@@ -62,11 +62,6 @@ export function getSummaryConfigKey() {
   return base ? `arcrho_dfm_summary_custom::${base}` : null;
 }
 
-export function getSummaryHiddenKey() {
-  const base = getSummaryKeyBase();
-  return base ? `arcrho_dfm_summary_hidden::${base}` : null;
-}
-
 export function getMethodNameKey() {
   const base = getMethodNameScopeBase();
   return base ? `arcrho_dfm_method_name::${base}` : null;
@@ -82,18 +77,6 @@ export function getNaBorderKey() {
 }
 
 // --- Load functions ---
-
-export function loadHiddenSummaryIds(key) {
-  if (!key) return [];
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-}
 
 export function loadSummaryOrder(key) {
   if (!key) return null;
@@ -138,13 +121,6 @@ export function loadNaBorders() {
 }
 
 // --- Save functions ---
-
-export function saveHiddenSummaryIds(key, ids) {
-  if (!key || !Array.isArray(ids)) return;
-  try {
-    localStorage.setItem(key, JSON.stringify(ids));
-  } catch {}
-}
 
 export function saveSummaryOrder(key, order) {
   if (!key || !Array.isArray(order)) return;

@@ -25,9 +25,10 @@ These contracts are mandatory whenever a task touches:
 After relevant code changes:
 1. Update contract docs (or explicitly state "no contract impact").
 2. Keep index docs concise. Put feature-specific behavior notes in the relevant module doc under `docs/ui/`, `docs/app_server/domains/`, or `docs/runtime/`; do not paste long changelog/spec text into `INDEX.md` files.
-3. Run `python tools/docs_index_builder.py --write`.
-4. Run `python tools/docs_index_builder.py --check`.
-5. If `--check` fails, fix docs before finishing.
+3. When a plan has both `.md` and `.html` versions, treat the `.md` file as the source of truth. Update the Markdown first, then mirror material user-facing changes into the HTML companion.
+4. Run `python tools/docs_index_builder.py --write`.
+5. Run `python tools/docs_index_builder.py --check`.
+6. If `--check` fails, fix docs before finishing.
 
 ## Commit and Push Workflow
 When the user asks an agent to commit and/or push frontend code, follow the root `AGENTS.md` Commit and Push Workflow.

@@ -1,0 +1,795 @@
+const STYLE_ID = "dfm-rpc-bridge-dialog-style";
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    .dfmRpcOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 12000;
+      background: rgba(15, 23, 42, 0.18);
+      box-sizing: border-box;
+    }
+    .dfmRpcWindow {
+      position: fixed;
+      width: min(980px, calc(100vw - 32px));
+      min-width: min(620px, calc(100vw - 32px));
+      min-height: 360px;
+      max-width: calc(100vw - 16px);
+      max-height: calc(100vh - 96px);
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #c8d0dc;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 22px 54px rgba(15, 23, 42, 0.24);
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: #172033;
+      overflow: hidden;
+      resize: both;
+    }
+    .dfmRpcHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 32px;
+      padding: 3px 12px;
+      border-bottom: 1px solid #e2e7ef;
+      background: #f7f9fc;
+      cursor: move;
+      user-select: none;
+    }
+    .dfmRpcTitle {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .dfmRpcClose {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      box-sizing: border-box;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      color: #5b6678;
+    }
+    .dfmRpcHeader button {
+      cursor: pointer;
+    }
+    .dfmRpcClose:hover { background: #edf1f7; color: #1f2937; }
+    .dfmRpcBody {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 16px;
+      overflow: hidden;
+    }
+    .dfmRpcStatus {
+      margin: 0 0 14px;
+      padding: 12px 14px;
+      border-radius: 7px;
+      border: 1px solid #c9d9f7;
+      background: #eef5ff;
+      color: #244a86;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .dfmRpcStatus.warn {
+      border-color: #ead19f;
+      background: #fff5df;
+      color: #7a5515;
+    }
+    .dfmRpcStatus.error {
+      border-color: #efc1c1;
+      background: #fff0f0;
+      color: #9d2d2d;
+    }
+    .dfmRpcStatus.ok {
+      border-color: #b9dac9;
+      background: #ecf8f1;
+      color: #206246;
+    }
+    .dfmRpcGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      flex: 1 1 auto;
+      min-height: 0;
+      align-items: stretch;
+    }
+    .dfmRpcVersionCard {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #d9e0ea;
+      border-radius: 7px;
+      background: #fbfcff;
+      padding: 12px;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .dfmRpcVersionCard.selectable {
+      cursor: pointer;
+      transition: border-color 100ms ease-out, box-shadow 100ms ease-out, background 100ms ease-out;
+    }
+    .dfmRpcVersionCard.selectable:hover {
+      border-color: #9fb7d9;
+      background: #f7fbff;
+    }
+    .dfmRpcVersionCard.selected {
+      border-color: #2457a6;
+      box-shadow: inset 0 0 0 1px #2457a6;
+      background: #f2f7ff;
+    }
+    .dfmRpcVersionCard.newest {
+      border-color: #78b997;
+      box-shadow: inset 0 0 0 1px #a8d9bd;
+      background: #f3fbf6;
+    }
+    .dfmRpcVersionCard.newest.selected {
+      border-color: #2457a6;
+      box-shadow: inset 0 0 0 1px #2457a6, 0 0 0 2px rgba(99, 195, 132, 0.28);
+    }
+    .dfmRpcVersionTitle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 9px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .dfmRpcSourceLabel {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 9px;
+      border: 1px solid #2457a6;
+      border-radius: 6px;
+      background: #e8f0ff;
+      color: #173d78;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .dfmRpcVersionBadges {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .dfmRpcNewSeal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 38px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid #4d9a70;
+      background: #e7f7ee;
+      color: #17613a;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .dfmRpcMeta {
+      display: grid;
+      gap: 7px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .dfmRpcSnapshot {
+      display: grid;
+      grid-template-rows: auto auto auto auto auto minmax(42px, 1fr);
+      gap: 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e7ef;
+      overflow: auto;
+    }
+    .dfmRpcSnapshotTitle {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: #253046;
+    }
+    .dfmRpcPatternPreview {
+      display: grid;
+      gap: 3px;
+      align-items: start;
+      justify-content: start;
+      max-width: 100%;
+      overflow: auto;
+      padding: 6px;
+      border: 1px solid #e2e7ef;
+      border-radius: 5px;
+      background: #fff;
+    }
+    .dfmRpcPatternRow {
+      display: flex;
+      gap: 3px;
+    }
+    .dfmRpcPatternCell {
+      width: 20px;
+      height: 10px;
+      flex: 0 0 auto;
+      border: 1px solid #d8dee8;
+      background: #f5f7fb;
+    }
+    .dfmRpcPatternCell.excludedCommon {
+      border-color: #3f4650;
+      background: #5a6470;
+    }
+    .dfmRpcPatternCell.excludedAdded {
+      border-color: #4f9b70;
+      background: #63c384;
+    }
+    .dfmRpcPatternCell.excludedRemoved {
+      border-color: #c34646;
+      background: #e95a5a;
+    }
+    .dfmRpcPatternCell.masked {
+      visibility: hidden;
+      border-color: transparent;
+      background: transparent;
+    }
+    .dfmRpcPatternLegend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .dfmRpcPatternLegendItem {
+      display: inline-flex;
+      gap: 5px;
+      align-items: center;
+      color: #5b6678;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .dfmRpcNotesPreview {
+      min-height: 42px;
+      max-height: 300px;
+      height: 100%;
+      margin: 0;
+      padding: 7px;
+      border: 1px solid #e2e7ef;
+      border-radius: 5px;
+      background: #fff;
+      box-sizing: border-box;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #253046;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .dfmRpcNoteDeleted,
+    .dfmRpcNoteAdded {
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+    .dfmRpcNoteDeleted {
+      background: #ffd8d8;
+      box-shadow: inset 0 0 0 1px #f3a6a6;
+    }
+    .dfmRpcNoteAdded {
+      background: #dff5e7;
+      box-shadow: inset 0 0 0 1px #99d7ad;
+    }
+    .dfmRpcActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid #e2e7ef;
+      background: #f7f9fc;
+    }
+    .dfmRpcBtn {
+      min-height: 30px;
+      padding: 0 12px;
+      border: 1px solid #c8d0dc;
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .dfmRpcBtn:hover:not(:disabled) { background: #f1f5fa; }
+    .dfmRpcBtn.primary {
+      border-color: #2457a6;
+      background: #2457a6;
+      color: #fff;
+    }
+    .dfmRpcBtn.primary:hover:not(:disabled) { background: #1f4d93; }
+    .dfmRpcBtn:disabled {
+      opacity: 0.58;
+      cursor: wait;
+    }
+    .dfmRpcWindow .small {
+      color: #5b6678;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    @media (max-width: 720px) {
+      .dfmRpcWindow {
+        min-width: min(360px, calc(100vw - 16px));
+      }
+      .dfmRpcGrid { grid-template-columns: 1fr; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function formatTime(meta) {
+  if (!meta || !meta.exists) return "Missing";
+  const jsonTimestamp = Number(meta.last_modified_timestamp);
+  if (Number.isFinite(jsonTimestamp) && jsonTimestamp > 0) {
+    return new Date(jsonTimestamp * 1000).toLocaleString();
+  }
+  if (meta.last_modified) return String(meta.last_modified);
+  return "Missing last modified";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function comparisonMessage(comparison) {
+  switch (comparison) {
+    case "remote_latest":
+    case "local_latest":
+      return { tone: "", text: "" };
+    case "same_time":
+      return { tone: "ok", text: "Local and remote are already in sync" };
+    case "remote_missing":
+      return { tone: "warn", text: "Remote DFM JSON is missing. No update action is available." };
+    case "local_missing":
+      return { tone: "error", text: "Local DFM JSON is missing. Save the DFM tab before syncing." };
+    case "both_missing":
+      return { tone: "error", text: "Local and remote DFM JSON files are missing." };
+    default:
+      return { tone: "", text: "DFM sync status is available." };
+  }
+}
+
+function getOrderedVersions(data) {
+  const local = data?.local || {};
+  const remote = data?.remote || {};
+  if (!local.exists || !remote.exists) return [];
+  const localModified = Number(local.last_modified_timestamp || 0);
+  const remoteModified = Number(remote.last_modified_timestamp || 0);
+  if (Math.abs(localModified - remoteModified) <= 1e-6) return [];
+  const localVersion = {
+    key: "local",
+    source: "Local",
+    meta: local,
+    snapshot: data?.snapshots?.local || {},
+    action: "update-remote",
+  };
+  const remoteVersion = {
+    key: "remote",
+    source: "Remote Server",
+    meta: remote,
+    snapshot: data?.snapshots?.remote || {},
+    action: "update-local",
+  };
+  return [
+    { ...localVersion, age: localModified < remoteModified ? "old" : "new" },
+    { ...remoteVersion, age: remoteModified < localModified ? "old" : "new" },
+  ];
+}
+
+function getPatternPreviewRows(pattern) {
+  return Array.isArray(pattern?.preview) ? pattern.preview : [];
+}
+
+function getPatternCellValue(pattern, rowIndex, colIndex) {
+  const row = getPatternPreviewRows(pattern)[rowIndex];
+  if (!Array.isArray(row)) return 0;
+  return Number(row[colIndex] ?? 0);
+}
+
+function getPatternOriginLabel(pattern, rowIndex, labelFallbacks = {}) {
+  const labels = Array.isArray(pattern?.origin_labels) ? pattern.origin_labels : [];
+  const fallbackLabels = Array.isArray(labelFallbacks?.origin_labels) ? labelFallbacks.origin_labels : [];
+  return String(labels[rowIndex] ?? fallbackLabels[rowIndex] ?? "").trim();
+}
+
+function getPatternDevelopmentLabel(pattern, colIndex, labelFallbacks = {}) {
+  const labels = Array.isArray(pattern?.development_labels) ? pattern.development_labels : [];
+  const fallbackLabels = Array.isArray(labelFallbacks?.development_labels) ? labelFallbacks.development_labels : [];
+  return String(labels[colIndex] ?? fallbackLabels[colIndex] ?? "").trim();
+}
+
+function getPatternCellClass(value, otherValue, versionAge) {
+  if (value === 2) return "masked";
+  if (value === 1 && otherValue === 1) return "excludedCommon";
+  if (value === 1 && versionAge === "new") return "excludedAdded";
+  if (value === 1 && versionAge === "old") return "excludedRemoved";
+  return "";
+}
+
+function renderPatternLegend(versionAge) {
+  const legendItems = [
+    '<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedCommon"></span>Common excluded</span>',
+  ];
+  if (versionAge === "new") {
+    legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedAdded"></span>Newly excluded</span>');
+  } else if (versionAge === "old") {
+    legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedRemoved"></span>No longer excluded</span>');
+  }
+  return `<div class="dfmRpcPatternLegend">${legendItems.join("")}</div>`;
+}
+
+function renderPatternPreview(pattern, otherPattern, versionAge, labelFallbacks = {}) {
+  if (!pattern?.exists) return `<div class="small">No ratio pattern in this JSON.</div>`;
+  const rows = getPatternPreviewRows(pattern);
+  const renderedRows = rows.map((row, rowIndex) => {
+    const cells = (Array.isArray(row) ? row : [])
+      .map((cell, colIndex) => {
+        const value = Number(cell ?? 0);
+        const otherValue = getPatternCellValue(otherPattern, rowIndex, colIndex);
+        const cls = getPatternCellClass(value, otherValue, versionAge);
+        const originLabel = getPatternOriginLabel(pattern, rowIndex, labelFallbacks);
+        const developmentLabel = getPatternDevelopmentLabel(pattern, colIndex, labelFallbacks);
+        const tooltip = originLabel || developmentLabel
+          ? `Org: ${originLabel}\nDev: ${developmentLabel}`
+          : "";
+        return `<span class="dfmRpcPatternCell ${cls}"${tooltip ? ` title="${escapeHtml(tooltip)}"` : ""}></span>`;
+      })
+      .join("");
+    return `<div class="dfmRpcPatternRow">${cells}</div>`;
+  }).join("");
+  return `
+    <div class="small">${pattern.rows || 0} x ${pattern.columns || 0}; excluded cells: ${pattern.selected_count || 0}</div>
+    ${renderPatternLegend(versionAge)}
+    <div class="dfmRpcPatternPreview">${renderedRows || '<div class="small">Empty preview</div>'}</div>
+  `;
+}
+
+function getSnapshotNotes(snapshot) {
+  return String(snapshot?.notes_preview || snapshot?.notes || "");
+}
+
+function tokenizeNotes(text) {
+  return String(text || "").match(/(\s+|[^\s]+)/g) || [];
+}
+
+function buildNoteDiff(oldText, newText) {
+  const oldTokens = tokenizeNotes(oldText);
+  const newTokens = tokenizeNotes(newText);
+  const dp = Array.from({ length: oldTokens.length + 1 }, () => new Array(newTokens.length + 1).fill(0));
+  for (let i = oldTokens.length - 1; i >= 0; i -= 1) {
+    for (let j = newTokens.length - 1; j >= 0; j -= 1) {
+      dp[i][j] = oldTokens[i] === newTokens[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const deleted = new Array(oldTokens.length).fill(false);
+  const added = new Array(newTokens.length).fill(false);
+  let i = 0;
+  let j = 0;
+  while (i < oldTokens.length && j < newTokens.length) {
+    if (oldTokens[i] === newTokens[j]) {
+      i += 1;
+      j += 1;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      deleted[i] = true;
+      i += 1;
+    } else {
+      added[j] = true;
+      j += 1;
+    }
+  }
+  while (i < oldTokens.length) {
+    deleted[i] = true;
+    i += 1;
+  }
+  while (j < newTokens.length) {
+    added[j] = true;
+    j += 1;
+  }
+  return { oldTokens, newTokens, deleted, added };
+}
+
+function renderHighlightedTokens(tokens, flags, className) {
+  let html = "";
+  let buffer = "";
+  let highlighted = false;
+  const isWhitespace = (token) => /^\s+$/.test(String(token ?? ""));
+  const isInlineWhitespace = (token) => isWhitespace(token) && !/[\r\n]/.test(String(token ?? ""));
+  const isChangedTextToken = (index) => !!flags[index] && !isWhitespace(tokens[index]);
+  const flush = () => {
+    if (!buffer) return;
+    const text = escapeHtml(buffer);
+    html += highlighted ? `<span class="${className}">${text}</span>` : text;
+    buffer = "";
+  };
+  tokens.forEach((token, index) => {
+    const connectsChangedText = isInlineWhitespace(token)
+      && isChangedTextToken(index - 1)
+      && isChangedTextToken(index + 1);
+    const nextHighlighted = (!!flags[index] && !isWhitespace(token)) || connectsChangedText;
+    if (nextHighlighted !== highlighted) {
+      flush();
+      highlighted = nextHighlighted;
+    }
+    buffer += token;
+  });
+  flush();
+  return html;
+}
+
+function renderNotesPreview(version, otherVersion) {
+  const notes = getSnapshotNotes(version.snapshot);
+  if (!notes) return escapeHtml("No notes");
+  if (!otherVersion || (version.age !== "old" && version.age !== "new")) {
+    return escapeHtml(notes);
+  }
+
+  const otherNotes = getSnapshotNotes(otherVersion.snapshot);
+  const oldNotes = version.age === "old" ? notes : otherNotes;
+  const newNotes = version.age === "new" ? notes : otherNotes;
+  const diff = buildNoteDiff(oldNotes, newNotes);
+  if (version.age === "old") {
+    return renderHighlightedTokens(diff.oldTokens, diff.deleted, "dfmRpcNoteDeleted");
+  }
+  return renderHighlightedTokens(diff.newTokens, diff.added, "dfmRpcNoteAdded");
+}
+
+function versionPrimaryLabel(version) {
+  if (version?.key === "local") return "Keep Using Local";
+  if (version?.key === "remote") return "Use Remote Version";
+  return "Use Selected Version";
+}
+
+function clampDialogPosition(dialogWindow, left, top) {
+  const margin = 8;
+  const rect = dialogWindow.getBoundingClientRect();
+  const maxLeft = Math.max(margin, window.innerWidth - Math.min(96, rect.width));
+  const maxTop = Math.max(margin, window.innerHeight - Math.min(80, rect.height));
+  return {
+    left: Math.min(Math.max(margin, left), maxLeft),
+    top: Math.min(Math.max(margin, top), maxTop),
+  };
+}
+
+function placeDialogWindow(dialogWindow) {
+  const rect = dialogWindow.getBoundingClientRect();
+  const top = Math.min(64, Math.max(16, Math.floor(window.innerHeight * 0.08)));
+  const left = Math.max(8, Math.round((window.innerWidth - rect.width) / 2));
+  const clamped = clampDialogPosition(dialogWindow, left, top);
+  dialogWindow.style.left = `${clamped.left}px`;
+  dialogWindow.style.top = `${clamped.top}px`;
+}
+
+function enableDialogDrag(dialogWindow, header) {
+  if (!dialogWindow || !header) return;
+  header.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target?.closest?.("button")) return;
+    const rect = dialogWindow.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    header.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+
+    const onPointerMove = (moveEvent) => {
+      const nextLeft = startLeft + moveEvent.clientX - startX;
+      const nextTop = startTop + moveEvent.clientY - startY;
+      const clamped = clampDialogPosition(dialogWindow, nextLeft, nextTop);
+      dialogWindow.style.left = `${clamped.left}px`;
+      dialogWindow.style.top = `${clamped.top}px`;
+    };
+    const onPointerUp = () => {
+      header.releasePointerCapture?.(event.pointerId);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
+  });
+}
+
+function renderVersionCard(version, selectedKey, versions, labelFallbacks = {}) {
+  const snapshot = version.snapshot || {};
+  const otherVersion = Array.isArray(versions)
+    ? versions.find((item) => item.key !== version.key)
+    : null;
+  const otherPattern = otherVersion?.snapshot?.ratio_pattern || {};
+  const formulas = Array.isArray(snapshot.average_formulas) ? snapshot.average_formulas : [];
+  return `
+    <div
+      class="dfmRpcVersionCard selectable ${version.age === "new" ? "newest" : ""} ${selectedKey === version.key ? "selected" : ""}"
+      data-version-source="${version.key}"
+      role="radio"
+      aria-checked="${selectedKey === version.key ? "true" : "false"}"
+      tabindex="0"
+    >
+      <div class="dfmRpcVersionTitle">
+        <span class="dfmRpcSourceLabel">${escapeHtml(version.source)}</span>
+        <span class="dfmRpcVersionBadges">${version.age === "new" ? '<span class="dfmRpcNewSeal">NEW</span>' : ""}</span>
+      </div>
+      <div class="dfmRpcMeta">
+        <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(version.meta))}</div>
+      </div>
+      <div class="dfmRpcSnapshot">
+        <p class="dfmRpcSnapshotTitle">Ratio Selection Snapshot</p>
+        ${renderPatternPreview(snapshot.ratio_pattern || {}, otherPattern, version.age, labelFallbacks)}
+        <p class="dfmRpcSnapshotTitle">Average Formulas</p>
+        <div class="small">${formulas.length ? escapeHtml(formulas.join(", ")) : "None listed"}</div>
+        <p class="dfmRpcSnapshotTitle">Notes</p>
+        <pre class="dfmRpcNotesPreview">${renderNotesPreview(version, otherVersion)}</pre>
+      </div>
+    </div>
+  `;
+}
+
+export function createDfmRpcBridgeDialog() {
+  ensureStyles();
+  const overlay = document.createElement("div");
+  overlay.className = "dfmRpcOverlay";
+  overlay.innerHTML = `
+    <div class="dfmRpcWindow" role="dialog" aria-modal="true" aria-labelledby="dfmRpcTitle">
+      <div class="dfmRpcHeader">
+        <h2 class="dfmRpcTitle" id="dfmRpcTitle">Compare DFM Versions</h2>
+        <button class="dfmRpcClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="dfmRpcBody"></div>
+      <div class="dfmRpcActions">
+        <button class="dfmRpcBtn" type="button" data-action="refresh">Refresh</button>
+        <button class="dfmRpcBtn primary" type="button" data-action="primary" style="display:none;"></button>
+        <button class="dfmRpcBtn" type="button" data-action="close">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const dialogWindow = overlay.querySelector(".dfmRpcWindow");
+  const header = overlay.querySelector(".dfmRpcHeader");
+  const body = overlay.querySelector(".dfmRpcBody");
+  const closeBtns = overlay.querySelectorAll(".dfmRpcClose, [data-action='close']");
+  const refreshBtn = overlay.querySelector("[data-action='refresh']");
+  const primaryBtn = overlay.querySelector("[data-action='primary']");
+  let onRefresh = null;
+  let onPrimary = null;
+  let currentVersions = [];
+  let selectedVersionKey = "";
+
+  placeDialogWindow(dialogWindow);
+  enableDialogDrag(dialogWindow, header);
+
+  function close() {
+    overlay.remove();
+  }
+
+  closeBtns.forEach((btn) => btn.addEventListener("click", close));
+  refreshBtn?.addEventListener("click", async () => {
+    if (typeof onRefresh !== "function") return;
+    await onRefresh();
+  });
+  primaryBtn?.addEventListener("click", async () => {
+    if (typeof onPrimary !== "function") return;
+    await onPrimary(primaryBtn.dataset.primaryAction || "", selectedVersionKey);
+  });
+
+  function setBusy(busy) {
+    overlay.querySelectorAll("button").forEach((btn) => {
+      if (btn.classList.contains("dfmRpcClose")) return;
+      btn.disabled = !!busy;
+    });
+  }
+
+  function setWaiting(text) {
+    primaryBtn.style.display = "none";
+    body.innerHTML = `<div class="dfmRpcStatus">${text || "Waiting..."}</div>`;
+  }
+
+  function setMessage(text, tone = "") {
+    primaryBtn.style.display = "none";
+    const toneClass = tone ? ` ${tone}` : "";
+    body.innerHTML = `<div class="dfmRpcStatus${toneClass}">${text || ""}</div>`;
+  }
+
+  function setComparison(data, handlers = {}) {
+    onRefresh = handlers.onRefresh || null;
+    onPrimary = handlers.onPrimary || null;
+    const labelFallbacks = handlers.labelFallbacks || {};
+    const comparison = data?.comparison || "";
+    const msg = comparisonMessage(comparison);
+    currentVersions = getOrderedVersions(data);
+    selectedVersionKey = currentVersions.find((version) => version.age === "new")?.key || "";
+    if (currentVersions.length) {
+      body.innerHTML = `
+        ${msg.text ? `<div class="dfmRpcStatus ${msg.tone}">${msg.text}</div>` : ""}
+        <div class="dfmRpcGrid" role="radiogroup" aria-label="DFM version selection">
+          ${currentVersions.map((version) => renderVersionCard(version, selectedVersionKey, currentVersions, labelFallbacks)).join("")}
+        </div>
+      `;
+      body.querySelectorAll("[data-version-source]").forEach((card) => {
+        const selectCard = () => {
+          selectedVersionKey = card.dataset.versionSource || "";
+          const selected = currentVersions.find((version) => version.key === selectedVersionKey);
+          primaryBtn.textContent = versionPrimaryLabel(selected);
+          primaryBtn.dataset.primaryAction = selected?.action || "";
+          body.querySelectorAll("[data-version-source]").forEach((item) => {
+            const checked = item.dataset.versionSource === selectedVersionKey;
+            item.classList.toggle("selected", checked);
+            item.setAttribute("aria-checked", checked ? "true" : "false");
+          });
+        };
+        card.addEventListener("click", selectCard);
+        card.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          selectCard();
+        });
+      });
+      const selected = currentVersions.find((version) => version.key === selectedVersionKey);
+      primaryBtn.textContent = versionPrimaryLabel(selected);
+      primaryBtn.dataset.primaryAction = selected?.action || "";
+      primaryBtn.style.display = "";
+    } else {
+      currentVersions = [];
+      selectedVersionKey = "";
+      const local = data?.local || {};
+      const remote = data?.remote || {};
+      body.innerHTML = `
+        <div class="dfmRpcStatus ${msg.tone}">${msg.text}</div>
+        <div class="dfmRpcGrid">
+          <div class="dfmRpcVersionCard">
+            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">Local</span></div>
+            <div class="dfmRpcMeta">
+              <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(local))}</div>
+            </div>
+          </div>
+          <div class="dfmRpcVersionCard">
+            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">Remote Server</span></div>
+            <div class="dfmRpcMeta">
+              <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(remote))}</div>
+            </div>
+          </div>
+        </div>
+      `;
+      primaryBtn.style.display = "none";
+      primaryBtn.dataset.primaryAction = "";
+    }
+  }
+
+  return {
+    close,
+    setBusy,
+    setComparison,
+    setMessage,
+    setWaiting,
+  };
+}

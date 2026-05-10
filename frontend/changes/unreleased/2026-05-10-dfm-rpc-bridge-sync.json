@@ -1,0 +1,15 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a DFM RPC Bridge sync workflow with local/remote timestamp comparison.",
+  "details": [
+    "DFM tabs now include a Sync button in the path bar that sends Details-page context through the RPC bridge and waits for a returned DFM JSON.",
+    "DFM now shows a Dataset-style `Loading DFM Settings` spinner popup while saved local method settings are being read and applied.",
+    "The draggable and resizable `Compare DFM Versions` window shows local and remote `last modified` JSON times without JSON file paths, with Local fixed as the framed left card title and Remote Server fixed as the framed right card title, primary actions labeled `Keep Using Local` or `Use Remote Version`, resizing comparison cards with Notes previews that expand up to 300px, plus snapshots of ratio selections, average formulas, and notes, with a `NEW` seal on the newer card, wider ratio-pattern cells colored dark grey for common exclusions, green for newly excluded cells, and red for removed exclusions with card-specific legends, Ratios-table origin/development hover tooltips, and red/green note text differences.",
+    "DFM method JSON now uses canonical keys only, including `ratio pattern` for ratio selections, `origin labels` and `development labels` for ratio tooltips, `ultimate vector` for the stored Results vector, and `last modified` for GUI save time.",
+    "Desktop JSON saving now preserves canonical DFM keys such as `ratio pattern`, `ultimate vector`, and `last modified`.",
+    "DFM method JSON no longer writes `summary hidden`; the average formula table now keeps at least one row when deleting rows.",
+    "DFM method filenames now use Origin Length before Development Length for local and RPC bridge JSON paths."
+  ]
+}

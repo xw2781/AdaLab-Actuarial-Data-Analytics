@@ -7,9 +7,7 @@ used across all DFM tab modules.
 import { state } from "/ui/shared/state.js";
 import {
   getSummaryConfigKey,
-  getSummaryHiddenKey,
   getMethodNameKey,
-  loadHiddenSummaryIds,
   loadCustomSummaryRows,
   loadMethodName,
 } from "/ui/dfm/dfm_storage.js";
@@ -275,7 +273,7 @@ export function getRatioSaveSuggestedName() {
     document.getElementById("originLenSelect")?.value?.trim(),
     "Origin",
   );
-  return `DFM@${reservingClass}@${methodName}@${devLen}@${originLen}.json`;
+  return `DFM@${reservingClass}@${methodName}@${originLen}@${devLen}.json`;
 }
 
 export async function getRatioSaveBaseDir() {
@@ -403,12 +401,10 @@ export function getOriginLabelTextForRatio() {
 
 export function buildSummaryRows() {
   const key = getSummaryConfigKey();
-  const custom = loadCustomSummaryRows(key);
-  const baseRows = BASE_SUMMARY_ROWS;
-  const hiddenKey = getSummaryHiddenKey();
-  const hidden = new Set(loadHiddenSummaryIds(hiddenKey));
-  const visibleBase = baseRows.filter((row) => !hidden.has(row.id));
-  const merged = [...visibleBase, ...custom];
+  const savedRows = loadCustomSummaryRows(key);
+  const merged = Array.isArray(savedRows) && savedRows.length
+    ? savedRows
+    : BASE_SUMMARY_ROWS.map((row) => ({ ...row }));
   summaryRowConfigs = merged;
   summaryRowMap = new Map(merged.map((row) => [row.id, row]));
   return merged;

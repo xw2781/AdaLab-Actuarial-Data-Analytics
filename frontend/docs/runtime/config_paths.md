@@ -57,6 +57,7 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
 - App-server modules import `app_server.config` for runtime path resolution.
 - On first-time setup, the Electron shell searches `D:\ArcRho Server` through `Z:\ArcRho Server` and fills the Server Connection root path when found.
 - Saving Server Connection hot-applies the new config by refreshing `app_server.config` runtime globals and notifying open UI frames; app restart is not required for new server requests.
+- DFM RPC Bridge writes request files under `<workspace_root>/<requests_dir>/RPC bridge` and expects remote DFM/SyncDFM JSON files under `<workspace_root>/<projects_dir>/<project>/methods/RPC bridge`.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
@@ -67,6 +68,7 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
 - In-memory runtime caches that contain absolute workspace paths, including the app-server dataset registry, are cleared after `/workspace_paths` updates.
 - Dataset valid-value caches and the DFM root-path cache are cleared or replaced when the shell broadcasts a Server Connection update.
 - User-local fixed paths are also refreshed in `app_server/config.py`, including workflow export path (`~/Documents/ArcRho/workflows`) and scripting notebook path (`~/Documents/ArcRho/scripts`).
+- DFM RPC Bridge local method files use `projects/<project>/methods/DFM@<ReservingClass>@<Name>@<OriginLength>@<DevelopmentLength>.json`; remote bridge responses use the same filename under `methods/RPC bridge`, while remote-update status files start with `SyncDFM@`.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

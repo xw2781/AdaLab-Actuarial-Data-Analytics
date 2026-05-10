@@ -27,6 +27,7 @@ from app_server.api import (
     dataset_types_router,
     reserving_class_router,
     scripting_router,
+    dfm_rpc_bridge_router,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ app.include_router(field_mapping_router)
 app.include_router(dataset_types_router)
 app.include_router(reserving_class_router)
 app.include_router(scripting_router)
+app.include_router(dfm_rpc_bridge_router)
 
 # --- Frontend (served from ./ui, no /static) ---
 # Mount AFTER API routes to avoid conflicts

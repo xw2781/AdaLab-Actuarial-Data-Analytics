@@ -42,6 +42,7 @@ import {
 } from "/ui/dfm/dfm_details.js";
 import { scheduleRatioSelectionLoad, saveRatioSelectionPattern, saveDfmTemplate, loadDfmTemplate } from "/ui/dfm/dfm_persistence.js";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
+import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js";
 
 function handleDatasetUpdated() {
   if (isRatiosTabVisible()) renderRatioTable();
@@ -112,6 +113,7 @@ export function initDfmRatios() {
   syncMethodNameFromInputs();
   syncOutputTypeFromProject();
   updatePathBar();
+  wireDfmRpcBridgePathBar();
   setTimeout(() => {
     syncOutputTypeFromProject();
     updatePathBar();

@@ -23,6 +23,7 @@ from .table_summary import TableSummaryRefreshRequest
 from .audit_log import AuditLogWriteRequest
 from .workspace_paths import WorkspacePathsUpdateRequest
 from .scripting import ScriptRunRequest, ScriptDeleteVarRequest, ScriptNotebookSaveRequest, ScriptNotebookLoadRequest
+from .dfm_rpc_bridge import DfmRpcBridgeRequest, DfmRpcBridgeApplyRequest, DfmRpcBridgeUpdateRemoteRequest
 
 __all__ = [
     "WorkflowSaveRequest", "WorkflowSaveAsRequest", "WorkflowLoadRequest",
@@ -44,4 +45,7 @@ __all__ = [
     "ScriptDeleteVarRequest",
     "ScriptNotebookSaveRequest",
     "ScriptNotebookLoadRequest",
+    "DfmRpcBridgeRequest",
+    "DfmRpcBridgeApplyRequest",
+    "DfmRpcBridgeUpdateRemoteRequest",
 ]

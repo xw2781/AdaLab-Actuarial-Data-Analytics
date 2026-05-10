@@ -13,6 +13,7 @@ from .field_mapping_router import router as field_mapping_router
 from .dataset_types_router import router as dataset_types_router
 from .reserving_class_router import router as reserving_class_router
 from .scripting_router import router as scripting_router
+from .dfm_rpc_bridge_router import router as dfm_rpc_bridge_router
 
 __all__ = [
     "workflow_router",
@@ -30,4 +31,5 @@ __all__ = [
     "dataset_types_router",
     "reserving_class_router",
     "scripting_router",
+    "dfm_rpc_bridge_router",
 ]

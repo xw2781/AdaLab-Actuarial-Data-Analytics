@@ -14,10 +14,9 @@ import {
   buildExcludedSetForColumn, parsePeriodsValue, parseExcludeValue, getDfmDecimalPlaces,
 } from "/ui/dfm/dfm_state.js";
 import {
-  getSummaryOrderKey, getSummaryConfigKey, getSummaryHiddenKey,
+  getSummaryOrderKey, getSummaryConfigKey,
   loadSummaryOrder, saveSummaryOrder,
   loadCustomSummaryRows, saveCustomSummaryRows,
-  loadHiddenSummaryIds, saveHiddenSummaryIds,
 } from "/ui/dfm/dfm_storage.js";
 import {
   getExcelActiveSelection, readExcelCell, readExcelCellsBatch, openExcelWorkbook, excelWaitForEnter,
@@ -1843,7 +1842,9 @@ function wireAvgModal() {
       hideAvgModal();
       return;
     }
-    const customRows = loadCustomSummaryRows(cfgKey);
+    const customRows = summaryRowConfigs.length
+      ? summaryRowConfigs.map((row) => ({ ...row }))
+      : BASE_SUMMARY_ROWS.map((row) => ({ ...row }));
     const normalizedLabel = label.trim();
     const nameExists = summaryRowConfigs.some((row) =>
       String(row.label || "").trim().toLowerCase() === normalizedLabel.toLowerCase()
@@ -1885,11 +1886,8 @@ export function wireSummaryContextMenu(summaryTable) {
     const cfg = summaryRowMap.get(lastId || "");
     const menu = getAvgMenuEl();
     if (menu) {
-      const isBaseRow = BASE_SUMMARY_ROWS.some((row) => row.id === lastId);
-      const allowDeleteBase =
-        lastId === "volume_all" && summaryRowConfigs.length > 1;
-      const disableRename = !cfg || isBaseRow;
-      const disableDelete = !cfg || (isBaseRow && !allowDeleteBase);
+      const disableRename = !cfg;
+      const disableDelete = !cfg || summaryRowConfigs.length <= 1;
       const renameBtn = menu.querySelector('[data-action="rename-average"]');
       const deleteBtn = menu.querySelector('[data-action="delete-average"]');
       if (renameBtn) renameBtn.disabled = disableRename;
@@ -1925,15 +1923,10 @@ export function wireSummaryContextMenu(summaryTable) {
           }
           const cfgKey = getSummaryConfigKey();
           if (!cfgKey) return true;
-          const customRows = loadCustomSummaryRows(cfgKey);
-          const idx = customRows.findIndex((r) => r.id === lastId);
-          if (idx === -1) {
-            if (BASE_SUMMARY_ROWS.some((row) => row.id === lastId)) return true;
-            customRows.push({ ...cfg, label: trimmed });
-          } else {
-            customRows[idx] = { ...customRows[idx], label: trimmed };
-          }
-          saveCustomSummaryRows(cfgKey, customRows);
+          const nextRows = summaryRowConfigs.map((row) =>
+            String(row.id) === String(lastId) ? { ...row, label: trimmed } : { ...row }
+          );
+          saveCustomSummaryRows(cfgKey, nextRows);
           _renderRatioTable();
           return true;
         });
@@ -1942,24 +1935,19 @@ export function wireSummaryContextMenu(summaryTable) {
       if (action === "delete-average") {
         const lastId = getLastSummaryCtxRowId();
         if (!lastId) return;
-        if (lastId === "volume_all" && summaryRowConfigs.length <= 1) return;
+        if (summaryRowConfigs.length <= 1) return;
         const cfgKey = getSummaryConfigKey();
         if (!cfgKey) return;
-        const hiddenKey = getSummaryHiddenKey();
-        if (BASE_SUMMARY_ROWS.some((row) => row.id === lastId)) {
-          const hidden = loadHiddenSummaryIds(hiddenKey);
-          if (!hidden.includes(lastId)) {
-            hidden.push(lastId);
-            saveHiddenSummaryIds(hiddenKey, hidden);
-          }
-          _renderRatioTable();
-          return;
+        const nextRows = summaryRowConfigs
+          .filter((row) => String(row.id) !== String(lastId))
+          .map((row) => ({ ...row }));
+        if (!nextRows.length) return;
+        saveCustomSummaryRows(cfgKey, nextRows);
+        const orderKey = getSummaryOrderKey();
+        if (orderKey) saveSummaryOrder(orderKey, nextRows.map((row) => row.id).filter(Boolean));
+        for (const [col, rowId] of selectedSummaryByCol.entries()) {
+          if (String(rowId) === String(lastId)) selectedSummaryByCol.delete(col);
         }
-        const customRows = loadCustomSummaryRows(cfgKey);
-        const idx = customRows.findIndex((r) => r.id === lastId);
-        if (idx === -1) return;
-        customRows.splice(idx, 1);
-        saveCustomSummaryRows(cfgKey, customRows);
         _renderRatioTable();
         return;
       }
