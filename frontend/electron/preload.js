@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld("ADAHost", {
   saveScriptingShortcuts: (bindings) => invoke("scripting-shortcuts-save", { bindings }),
   pickOpenFile: (payload) => invoke("pick-open-file", payload),
   openPath: (payload) => invoke("open-path", payload),
+  codexAssistantStatus: () => invoke("codex-assistant-status"),
+  codexAssistantInstall: () => invoke("codex-assistant-install"),
+  codexAssistantLogin: () => invoke("codex-assistant-login"),
+  codexAssistantSend: (payload) => invoke("codex-assistant-send", payload),
   clearCacheAndReload: () => invoke("app-clear-cache-reload"),
   focusWindow: () => invoke("focus-window"),
 });

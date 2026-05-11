@@ -545,13 +545,8 @@ export function scheduleRatioSelectionLoad(reason) {
   }, 120);
 }
 
-export async function saveRatioSelectionPattern(forceSaveAs) {
-  const hostApi = getHostApi();
-  if (!hostApi || typeof hostApi.saveJsonFile !== "function") {
-    alert("Save requires the desktop app.");
-    window.parent.postMessage({ type: "arcrho:status", text: "Save failed: desktop app required." }, "*");
-    return { ok: false, error: "desktop app required" };
-  }
+export function buildDfmMethodPayload(options = {}) {
+  const { persistSummaryOrder = true } = options;
   const pattern = buildRatioSelectionPattern();
   const originLabels = Array.isArray(state?.model?.origin_labels)
     ? state.model.origin_labels.map((label) => String(label ?? ""))
@@ -571,43 +566,55 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
   const ultimateRatioDecimalPlaces = getResultsUltimateRatioDecimalPlacesSelection();
   const cfgKey = getSummaryConfigKey();
   const orderKey = getSummaryOrderKey();
-  const lastModified = new Date().toISOString();
   const summaryRows = getSummaryRowsForPersistence(cfgKey);
   let summaryOrder = orderKey ? loadSummaryOrder(orderKey) : null;
   if (!Array.isArray(summaryOrder) || summaryOrder.length === 0) {
     summaryOrder = summaryRowConfigs
       .map((row) => row.id)
       .filter((id) => id != null && String(id).trim() !== "");
-    if (orderKey && summaryOrder.length) {
+    if (persistSummaryOrder && orderKey && summaryOrder.length) {
       saveSummaryOrder(orderKey, summaryOrder);
     }
   }
+  const data = {
+    "ratio pattern": pattern,
+    "origin labels": originLabels,
+    "development labels": developmentLabels,
+    "average formulas": avgSelection.formulas,
+    "average index": avgSelection.matrix,
+    "summary rows": summaryRows,
+    "ultimate vector": resultVector,
+    notes: notesText,
+    name: methodName,
+    "output type": outputVector,
+    "input triangle": inputTriangle,
+    "origin length": originLength,
+    "development length": developmentLength,
+    "decimal places": decimalPlaces,
+    "ultimate ratio decimal places": ultimateRatioDecimalPlaces,
+    "ratio basis dataset": ratioBasisDataset,
+    "last modified": new Date().toISOString(),
+  };
+  if (Array.isArray(summaryOrder) && summaryOrder.length) {
+    data["summary order"] = summaryOrder;
+  }
+  return data;
+}
+
+export async function saveRatioSelectionPattern(forceSaveAs) {
+  const hostApi = getHostApi();
+  if (!hostApi || typeof hostApi.saveJsonFile !== "function") {
+    alert("Save requires the desktop app.");
+    window.parent.postMessage({ type: "arcrho:status", text: "Save failed: desktop app required." }, "*");
+    return { ok: false, error: "desktop app required" };
+  }
+  const data = buildDfmMethodPayload();
+  const resultVector = buildResultsVector();
   const payload = {
-    data: {
-      "ratio pattern": pattern,
-      "origin labels": originLabels,
-      "development labels": developmentLabels,
-      "average formulas": avgSelection.formulas,
-      "average index": avgSelection.matrix,
-      "summary rows": summaryRows,
-      "ultimate vector": resultVector,
-      notes: notesText,
-      name: methodName,
-      "output type": outputVector,
-      "input triangle": inputTriangle,
-      "origin length": originLength,
-      "development length": developmentLength,
-      "decimal places": decimalPlaces,
-      "ultimate ratio decimal places": ultimateRatioDecimalPlaces,
-      "ratio basis dataset": ratioBasisDataset,
-      "last modified": lastModified,
-    },
+    data,
     suggestedName: getRatioSaveSuggestedName(),
     startDir: await getRatioSaveBaseDir(),
   };
-  if (Array.isArray(summaryOrder) && summaryOrder.length) {
-    payload.data["summary order"] = summaryOrder;
-  }
   if (!forceSaveAs) {
     payload.path = await buildRatioSavePath();
   }

@@ -10,9 +10,9 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `(root)` | 9 |
 | `app_server` | 50 |
 | `build` | 8 |
-| `changes` | 29 |
-| `docs` | 41 |
+| `changes` | 30 |
+| `docs` | 42 |
 | `electron` | 2 |
 | `icons` | 17 |
 | `tools` | 2 |
-| `ui` | 188 |
+| `ui` | 189 |

@@ -12,6 +12,7 @@ import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMT
 import { initHotkeys, runHotkeyAction } from "./shell_hotkeys.js?v=20260510a";
 import { initShellMessages } from "./shell_messages.js?v=20260510a";
 import { initResizeHandle, initTitlebarControls } from "./titlebar_controls.js?v=20260510a";
+import { initAiAssistant } from "./ai_assistant.js?v=20260510a";
 
 const UI_VERSION_PARAM = new URLSearchParams(window.location.search).get("v") || String(Date.now());
 
@@ -36,6 +37,7 @@ function wire() {
   initShellMessages();
   initHotkeys();
   initAppLifecycle();
+  initAiAssistant();
 }
 
 registerShellApi({

@@ -12,9 +12,12 @@ import {
   setShowNaBorders,
   setCachedRootPath,
   setCurrentDfmTab,
+  getCurrentDfmTab,
+  getDfmIsDirty,
   isRatiosTabVisible,
   isResultsTabVisible,
   notifyDfmEditState,
+  buildRatioSavePath,
 } from "/ui/dfm/dfm_state.js";
 import {
   renderRatioTable,
@@ -40,7 +43,13 @@ import {
   wireDfmInstanceCreationNotice,
   wireDetailsThresholdReset,
 } from "/ui/dfm/dfm_details.js";
-import { scheduleRatioSelectionLoad, saveRatioSelectionPattern, saveDfmTemplate, loadDfmTemplate } from "/ui/dfm/dfm_persistence.js";
+import {
+  scheduleRatioSelectionLoad,
+  saveRatioSelectionPattern,
+  saveDfmTemplate,
+  loadDfmTemplate,
+  buildDfmMethodPayload,
+} from "/ui/dfm/dfm_persistence.js";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
 import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js";
 
@@ -52,6 +61,43 @@ function handleDatasetUpdated() {
   updatePathBar();
   scheduleRatioSelectionLoad("dataset-updated");
   if (isRatioChartOpen()) scheduleRatioChartRender();
+}
+
+async function buildAssistantContext() {
+  let methodPath = "";
+  let pathError = "";
+  let activeJson = null;
+  let activeJsonError = "";
+  try {
+    methodPath = await buildRatioSavePath();
+  } catch (err) {
+    pathError = String(err?.message || err || "Could not resolve DFM method path.");
+  }
+  try {
+    activeJson = buildDfmMethodPayload({ persistSummaryOrder: false });
+  } catch (err) {
+    activeJsonError = String(err?.message || err || "Could not build active DFM method payload.");
+  }
+  return {
+    available: true,
+    pageType: "dfm",
+    activeDfmTab: getCurrentDfmTab(),
+    methodPath,
+    pathError,
+    activeJson,
+    activeJsonSource: activeJson ? "dfm-ui-state" : "",
+    activeJsonError,
+    dirty: getDfmIsDirty(),
+    fields: {
+      project: document.getElementById("projectSelect")?.value?.trim() || "",
+      reservingClass: document.getElementById("pathInput")?.value?.trim() || "",
+      methodName: document.getElementById("dfmMethodName")?.value?.trim() || "",
+      outputVector: document.getElementById("dfmOutputVector")?.value?.trim() || "",
+      inputTriangle: document.getElementById("triInput")?.value?.trim() || "",
+      originLength: document.getElementById("originLenSelect")?.value?.trim() || "",
+      developmentLength: document.getElementById("devLenSelect")?.value?.trim() || "",
+    },
+  };
 }
 
 function initDfmTabs() {
@@ -177,6 +223,29 @@ export function initDfmRatios() {
     if (e?.data?.type === "arcrho:server-connection-updated") {
       setCachedRootPath(e.data.config?.workspace_root || "");
       window.parent.postMessage({ type: "arcrho:status", text: "Server connection updated." }, "*");
+      return;
+    }
+    if (e?.data?.type === "arcrho:assistant-context-request") {
+      const requestId = e.data.requestId || "";
+      buildAssistantContext()
+        .then((context) => {
+          window.parent.postMessage({ type: "arcrho:assistant-context-result", requestId, context }, "*");
+        })
+        .catch((err) => {
+          window.parent.postMessage({
+            type: "arcrho:assistant-context-result",
+            requestId,
+            context: {
+              available: false,
+              pageType: "dfm",
+              error: String(err?.message || err || "DFM assistant context failed."),
+            },
+          }, "*");
+        });
+      return;
+    }
+    if (e?.data?.type === "arcrho:assistant-json-updated") {
+      scheduleRatioSelectionLoad("assistant-edit");
       return;
     }
     if (e?.data?.type === "arcrho:dfm-request-state" || e?.data?.type === "arcrho:dfm-tab-activated") {
