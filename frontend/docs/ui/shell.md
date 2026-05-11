@@ -71,6 +71,7 @@ Detected `arcrho:*` message types in key JS files:
 - Uses Electron host bridge and explicit shell commands for shutdown/clear-cache actions; ordinary document unloads and reloads do not send app shutdown.
 - Clear Cache & Reload reloads the shell with a fresh timestamped UI URL after clearing Electron cache/storage, and Project Settings iframes include the shell UI version query parameter so reloads fetch the current Project Settings HTML/module graph consistently.
 - App-server startup is host-managed with retry on transient launch failures.
+- The home sidebar brand reads the Windows username from the Electron host bridge when available, then renders the username and a generated SVG initial mark; plain browser sessions keep the default ArcRho brand.
 - Uses Electron host bridge for Server Connection folder browsing and first-time `ArcRho Server` drive detection.
 - Saving Server Connection updates `/workspace_paths` without restarting the app, then broadcasts `arcrho:server-connection-updated` to open feature iframes so page-local path caches can refresh.
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.

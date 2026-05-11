@@ -936,6 +936,15 @@ ipcMain.handle("get-documents-path", () => {
     return "";
   }
 });
+ipcMain.handle("get-windows-user-name", () => {
+  const envUser = String(process.env.USERNAME || process.env.USER || "").trim();
+  if (envUser) return envUser;
+  try {
+    return String(os.userInfo()?.username || "").trim();
+  } catch {
+    return "";
+  }
+});
 ipcMain.handle("is-windows-11", () => IS_WIN11);
 ipcMain.handle("window-minimize", () => win?.minimize());
 ipcMain.handle("window-maximize", () => win?.maximize());

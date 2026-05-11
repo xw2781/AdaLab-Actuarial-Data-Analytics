@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcRho Home Brand Initial Colors</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #1f2933;
+      background: #f5f7f9;
+    }
+    body {
+      margin: 0;
+      padding: 28px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+    p {
+      margin: 0 0 22px;
+      color: #5d6875;
+      font-size: 14px;
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      gap: 12px;
+      max-width: 1120px;
+    }
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 54px;
+      padding: 10px;
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(31,41,51,0.18);
+      flex: 0 0 auto;
+    }
+    .mark svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .label {
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .color {
+      margin-top: 2px;
+      color: #65717d;
+      font-size: 11px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1>Home Brand Initial Colors</h1>
+  <p>Preview of every supported ArcRho home brand initial color: A-Z, 0-9, and the fallback mark.</p>
+  <div class="swatches" id="swatches"></div>
+
+  <script>
+    const INITIAL_CODES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const ALL_INITIALS = `${INITIAL_CODES}#`.split("");
+
+    function getHomeBrandInitial(value) {
+      const text = String(value || "").trim();
+      const firstAscii = Array.from(text).find((char) => /^[A-Za-z0-9]$/.test(char));
+      return firstAscii ? firstAscii.toUpperCase() : "#";
+    }
+
+    function getHomeBrandColors(initial) {
+      const normalized = getHomeBrandInitial(initial);
+      const index = INITIAL_CODES.indexOf(normalized);
+      if (index < 0) {
+        return {
+          start: "hsl(210 28% 38%)",
+          end: "hsl(222 34% 24%)",
+          ring: "hsl(211 36% 72%)",
+        };
+      }
+      const hue = Math.round((index * 137.508 + 184) % 360);
+      return {
+        start: `hsl(${hue} 76% 38%)`,
+        end: `hsl(${(hue + 34) % 360} 72% 28%)`,
+        ring: `hsl(${(hue + 18) % 360} 70% 70%)`,
+      };
+    }
+
+    function createMark(initial) {
+      const safeInitial = getHomeBrandInitial(initial);
+      const colors = getHomeBrandColors(safeInitial);
+      const gradientId = `previewGradient${safeInitial === "#" ? "Fallback" : safeInitial}`;
+      return `
+        <svg viewBox="0 0 32 32" role="img" aria-label="${safeInitial} initial mark" focusable="false">
+          <defs>
+            <linearGradient id="${gradientId}" x1="6" y1="4" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="${colors.start}"></stop>
+              <stop offset="1" stop-color="${colors.end}"></stop>
+            </linearGradient>
+          </defs>
+          <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#${gradientId})"></rect>
+          <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="${colors.ring}" stroke-opacity="0.7"></rect>
+          <text x="16" y="21.6" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="800">${safeInitial}</text>
+        </svg>
+      `;
+    }
+
+    const swatches = document.getElementById("swatches");
+    swatches.innerHTML = ALL_INITIALS.map((initial) => {
+      const colors = getHomeBrandColors(initial);
+      const label = initial === "#" ? "Fallback" : `Initial ${initial}`;
+      return `
+        <div class="swatch">
+          <div class="mark">${createMark(initial)}</div>
+          <div class="label">
+            <div>${label}</div>
+            <div class="color">${colors.start} -> ${colors.end}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  </script>
+</body>
+</html>

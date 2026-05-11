@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
 contextBridge.exposeInMainWorld("ADAHost", {
   isWindows11: () => invoke("is-windows-11"),
+  getWindowsUserName: () => invoke("get-windows-user-name"),
   pickOpenWorkflowFile: (startDir) => invoke("pick-open-workflow", { startDir }),
   pickOpenTableFile: (startDir) => invoke("pick-open-table-file", { startDir }),
   pickFolder: (startDir) => invoke("pick-folder", { startDir }),

@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Show the Windows username in the home sidebar brand with a generated initial icon.",
+  "details": [
+    "Added a docs preview page for every supported home brand initial color."
+  ]
+}
