@@ -1,7 +1,7 @@
 import { $, getHostApi, shell } from "./shell_context.js?v=20260510a";
 
 const assistantMessages = [];
-const ASSISTANT_MODE = "review";
+let assistantMode = "edit";
 const ASSISTANT_MODEL = "codex";
 let assistantReady = false;
 let assistantBusy = false;
@@ -29,6 +29,18 @@ function setSetup({ open = false, text = "", install = false, login = false } = 
   if (loginBtn) loginBtn.style.display = login ? "inline-block" : "none";
 }
 
+function getModeLabel() {
+  return assistantMode === "review" ? "Review Mode" : "Edit Mode";
+}
+
+function setAssistantMode(mode) {
+  assistantMode = mode === "review" ? "review" : "edit";
+  setText($("aiAssistantModeLabel"), getModeLabel());
+  $("aiAssistantReviewModeOption")?.classList.toggle("active", assistantMode === "review");
+  $("aiAssistantEditModeOption")?.classList.toggle("active", assistantMode === "edit");
+  setStatus(assistantReady ? `Codex ready. ${getModeLabel()}.` : `${getModeLabel()} selected.`);
+}
+
 function setComposerEnabled(enabled) {
   const input = $("aiAssistantInput");
   const sendBtn = $("aiAssistantSendBtn");
@@ -50,7 +62,7 @@ function appendMessage(role, text) {
 function renderEmptyHint() {
   const container = $("aiAssistantMessages");
   if (!container || container.children.length) return;
-  appendMessage("system", "ArcBot is in Review Mode and cannot edit files.");
+  appendMessage("system", "ArcBot is in Edit Mode for JSON files inside the configured Server Connection root.");
 }
 
 function applyStatus(status) {
@@ -77,9 +89,60 @@ function applyStatus(status) {
     setComposerEnabled(false);
     return;
   }
-    setStatus(`Codex ready (${status.version || "installed"}). Review Mode.`);
+  setStatus(`Codex ready (${status.version || "installed"}). ${getModeLabel()}.`);
   setSetup({ open: false });
   setComposerEnabled(!assistantBusy);
+}
+
+function requestActivePageContext() {
+  const activeTab = shell.state?.tabs?.find?.((tab) => tab.id === shell.state.activeId) || null;
+  const baseContext = {
+    available: false,
+    tabId: activeTab?.id || "",
+    tabType: activeTab?.type || "home",
+    title: activeTab?.title || "",
+  };
+  const iframe = activeTab?.iframe || null;
+  if (!iframe?.contentWindow) return Promise.resolve(baseContext);
+
+  return new Promise((resolve) => {
+    const requestId = `arcbot_context_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      window.removeEventListener("message", onMessage);
+      resolve({ ...baseContext, ...(value || {}), available: !!value?.available });
+    };
+    const onMessage = (event) => {
+      if (event.source !== iframe.contentWindow) return;
+      const msg = event.data || {};
+      if (msg.type !== "arcrho:assistant-context-result" || msg.requestId !== requestId) return;
+      finish(msg.context || {});
+    };
+    window.addEventListener("message", onMessage);
+    try {
+      iframe.contentWindow.postMessage({ type: "arcrho:assistant-context-request", requestId }, "*");
+    } catch {
+      finish(baseContext);
+      return;
+    }
+    setTimeout(() => finish(baseContext), 900);
+  });
+}
+
+function notifyActivePageJsonUpdated(result) {
+  const activeTab = shell.state?.tabs?.find?.((tab) => tab.id === shell.state.activeId) || null;
+  const iframe = activeTab?.iframe || null;
+  if (!iframe?.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage({
+      type: "arcrho:assistant-json-updated",
+      path: result?.targetPath || "",
+    }, "*");
+  } catch {
+    // ignore stale iframe messaging
+  }
 }
 
 async function refreshAssistantStatus() {
@@ -285,12 +348,15 @@ async function sendAssistantMessage() {
 
   assistantBusy = true;
   setComposerEnabled(false);
-    setStatus("Codex is responding in Review Mode...");
+  setStatus("ArcBot is checking the active page context...");
   try {
+    const activeContext = await requestActivePageContext();
+    setStatus(`Codex is responding in ${getModeLabel()}...`);
     const result = await host.codexAssistantSend({
-      mode: ASSISTANT_MODE,
+      mode: assistantMode,
       model: ASSISTANT_MODEL,
       messages: assistantMessages,
+      activeContext,
     });
     if (!result?.ok) {
       const message = result?.error || "Codex request failed.";
@@ -312,7 +378,8 @@ async function sendAssistantMessage() {
     const reply = String(result?.text || "").trim() || "No response.";
     if (pending) pending.textContent = reply;
     assistantMessages.push({ role: "assistant", content: reply });
-    setStatus("Codex ready. Review Mode.");
+    if (result?.editApplied) notifyActivePageJsonUpdated(result);
+    setStatus(result?.editApplied ? "ArcBot applied a JSON edit." : `Codex ready. ${getModeLabel()}.`);
   } catch (err) {
     const message = String(err?.message || err || "Codex request failed.");
     if (pending) pending.textContent = message;
@@ -347,11 +414,12 @@ export function initAiAssistant() {
   });
   $("aiAssistantReviewModeOption")?.addEventListener("click", () => {
     closeModeMenu();
-    setStatus(assistantReady ? "Codex ready. Review Mode." : "Review Mode selected.");
+    setAssistantMode("review");
   });
   $("aiAssistantEditModeOption")?.addEventListener("click", (event) => {
     event.preventDefault();
-    setStatus("Edit Mode is not available yet.", "error");
+    closeModeMenu();
+    setAssistantMode("edit");
   });
   $("aiAssistantModelButton")?.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -359,7 +427,7 @@ export function initAiAssistant() {
   });
   $("aiAssistantCodexModelOption")?.addEventListener("click", () => {
     closeModelMenu();
-    setStatus(assistantReady ? "Codex ready. Review Mode." : "Codex selected.");
+    setStatus(assistantReady ? `Codex ready. ${getModeLabel()}.` : "Codex selected.");
   });
   $("aiAssistantClaudeModelOption")?.addEventListener("click", () => showUnavailableModel("Claude"));
   $("aiAssistantCopilotModelOption")?.addEventListener("click", () => showUnavailableModel("Copilot"));

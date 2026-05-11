@@ -16,6 +16,7 @@ Detected `fetch(...)` targets in key JS files:
 - `/template/default_dir`
 
 Detected `arcrho:*` message types in key JS files:
+- `arcrho:assistant-context-result`
 - `arcrho:dfm-settings`
 - `arcrho:dfm-tab-changed`
 - `arcrho:status`
@@ -90,6 +91,7 @@ Detected `arcrho:*` message types in key JS files:
 - DFM local-method lookup scheduling is debounced and reason-coalesced; higher-priority `details-change` lookups are not downgraded by later `tab-activated` triggers (avoids false `dirty + tab-activated` skips immediately after Details edits).
 - Shell tab activation/state-request messages refresh DFM edit-state reporting only; they do not trigger local method lookup or the DFM settings loading popup.
 - Existence checks run on committed input changes (`change`/selection/blur`) rather than every typing keystroke.
+- DFM responds to shell `arcrho:assistant-context-request` messages with the active DFM tab, Details field values, dirty state, standard method JSON path, and current in-memory method payload so ArcBot can analyze the active method even when host-side direct reads from the server share are denied. After an ArcBot JSON edit is applied by the host, DFM receives `arcrho:assistant-json-updated` and schedules a local method reload.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

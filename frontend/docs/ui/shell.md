@@ -5,7 +5,7 @@
 Shell-level tab/iframe host for all feature pages.
 It owns the main desktop frame, home view, docked/floating tab layout, scoped menus, hotkeys, shell preferences, iframe message routing, and Electron host bridge coordination.
 The shell keeps one active top-level tab across docked and floating tabs while preserving iframe sessions as tabs move between layouts.
-The desktop shell also hosts ArcBot, a bottom-right floating Codex CLI assistant panel that runs in Review Mode by default.
+The desktop shell also hosts ArcBot, a bottom-right floating Codex CLI assistant panel.
 The floating window minimize control docks that window back to the end of the main tab strip without activating the docked tab; focus remains on the prior docked tab unless another floating window is still present, in which case the top layered floating window becomes active.
 Detailed menu, floating-window, lifecycle, and bridge behavior belongs in focused sections or source-specific docs, not this overview.
 <!-- MANUAL:END -->
@@ -74,7 +74,7 @@ Detected `arcrho:*` message types in key JS files:
 - App-server startup is host-managed with retry on transient launch failures.
 - The home sidebar brand reads the Windows username from the Electron host bridge when available, then renders the username and a generated SVG initial mark; plain browser sessions keep the default ArcRho brand.
 - Uses Electron host bridge for Server Connection folder browsing and first-time `ArcRho Server` drive detection.
-- Uses Electron host bridge for desktop-only ArcBot Codex CLI status, install, login, and read-only `codex exec` requests.
+- Uses Electron host bridge for desktop-only ArcBot Codex CLI status, install, login, and `codex exec` requests; for Edit Mode, the host writes the active page JSON into a local ArcBot session folder, lets Codex edit only that temporary copy, then validates the target path against the configured Server Connection root, backs up the original JSON under the method `history` folder or the active page snapshot when direct read is denied, applies the edited temp copy, and can revert the latest ArcBot edit from that backup.
 - Saving Server Connection updates `/workspace_paths` without restarting the app, then broadcasts `arcrho:server-connection-updated` to open feature iframes so page-local path caches can refresh.
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.
 - Receives `arcrho:open-dataset-from-history` from Browsing History tab to open dataset tabs with selected inputs.
@@ -85,7 +85,7 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Persists tab state, docked/floating layout, floating window position/size/z-order, zoom, and toggles in `localStorage`.
 - Persists dataset browsing history entries (latest 15) via `browsing_history.js`.
-- Keeps ArcBot messages in memory for the current app session only.
+- Keeps ArcBot messages in memory for the current app session only; local ArcBot edit-session JSON copies are written under the user `Documents\ArcRho\ArcBot\sessions` folder, and latest ArcBot edit metadata is stored under Electron user data so a later `revert latest` request can restore the backed-up method JSON when the file has not changed again.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

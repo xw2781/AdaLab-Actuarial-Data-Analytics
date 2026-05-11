@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const os = require("os");
+const crypto = require("crypto");
 
 // Detect Windows 11 (build number >= 22000)
 function isWindows11() {
@@ -131,6 +132,21 @@ function toMappedDriveUncPath(localPath, remoteName) {
   if (!/^[A-Za-z]:[\\/]/u.test(text) || !/^\\\\[^\\]+\\[^\\]+/u.test(remote)) return text;
   const rest = text.slice(2).replace(/^[\\/]+/u, "");
   return rest ? path.win32.join(remote, rest) : remote;
+}
+
+function normalizeComparablePath(filePath) {
+  return String(filePath || "")
+    .trim()
+    .replace(/[\\/]+/g, "\\")
+    .replace(/\\+$/u, "")
+    .toLowerCase();
+}
+
+function isPathWithinRoot(filePath, rootPath) {
+  const file = normalizeComparablePath(filePath);
+  const root = normalizeComparablePath(rootPath);
+  if (!file || !root) return false;
+  return file === root || file.startsWith(`${root}\\`);
 }
 
 async function resolveMappedDrivePath(localPath) {
@@ -368,6 +384,256 @@ function isAuthFailure(result) {
   return /not\s+logged\s+in|not\s+authenticated|authentication|required|sign\s*in|login/.test(raw);
 }
 
+function getArcBotLatestEditPath() {
+  return path.join(app.getPath("userData"), "arcbot_latest_edit.json");
+}
+
+function getArcBotSessionRoot() {
+  return path.join(ensureLocalArcRhoAssistantRoot(), "ArcBot", "sessions");
+}
+
+function sha256Text(text) {
+  return crypto.createHash("sha256").update(String(text || ""), "utf8").digest("hex");
+}
+
+function formatJsonForArcBot(data) {
+  return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+function extractJsonObject(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Continue with fenced/object extraction.
+  }
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {
+      // Continue with first object extraction.
+    }
+  }
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function getAssistantTargetJsonPath(activeContext) {
+  const page = activeContext && typeof activeContext === "object" ? activeContext : {};
+  const candidates = [
+    page.methodPath,
+    page.filePath,
+    page.targetPath,
+    page?.dfm?.methodPath,
+  ];
+  return String(candidates.find((candidate) => String(candidate || "").trim()) || "").trim();
+}
+
+async function getArcBotEditRoots() {
+  const configuredRoot = getConfiguredWorkspaceRoot();
+  if (!configuredRoot) {
+    return {
+      configuredRoot: "",
+      resolvedRoot: "",
+    };
+  }
+  const resolvedRoot = await resolveMappedDrivePath(configuredRoot);
+  return {
+    configuredRoot,
+    resolvedRoot,
+  };
+}
+
+async function validateArcBotJsonTarget(targetPath) {
+  const cleanPath = String(targetPath || "").trim();
+  if (!cleanPath) return { ok: false, error: "ArcBot has no active JSON file to edit." };
+  if (path.extname(cleanPath).toLowerCase() !== ".json") {
+    return { ok: false, error: "ArcBot can only edit JSON files in this MVP." };
+  }
+  const roots = await getArcBotEditRoots();
+  const allowed = [roots.configuredRoot, roots.resolvedRoot].filter(Boolean);
+  if (allowed.length === 0) {
+    return {
+      ok: false,
+      error: "ArcBot needs a configured Server Connection Root Path before it can edit files.",
+    };
+  }
+  if (!allowed.some((root) => isPathWithinRoot(cleanPath, root))) {
+    return {
+      ok: false,
+      error: "ArcBot refused to edit a file outside the configured Server Connection root.",
+    };
+  }
+  return { ok: true, targetPath: cleanPath, roots };
+}
+
+function getArcBotHistoryDir(targetPath) {
+  return path.join(path.dirname(targetPath), "history");
+}
+
+function writeArcBotLatestEdit(manifest) {
+  const latestPath = getArcBotLatestEditPath();
+  fs.mkdirSync(path.dirname(latestPath), { recursive: true });
+  fs.writeFileSync(latestPath, formatJsonForArcBot(manifest), "utf8");
+}
+
+function createArcBotEditSession({ targetPath, activeJson }) {
+  if (activeJson == null || typeof activeJson !== "object" || Array.isArray(activeJson)) {
+    return null;
+  }
+  const sessionsRoot = getArcBotSessionRoot();
+  fs.mkdirSync(sessionsRoot, { recursive: true });
+  const sessionDir = fs.mkdtempSync(path.join(sessionsRoot, "session-"));
+  const jsonPath = path.join(sessionDir, "active-method.json");
+  const metaPath = path.join(sessionDir, "session.json");
+  const beforeText = formatJsonForArcBot(activeJson);
+  const session = {
+    sessionDir,
+    jsonPath,
+    metaPath,
+    targetPath: String(targetPath || ""),
+    beforeSha256: sha256Text(beforeText),
+  };
+  fs.writeFileSync(jsonPath, beforeText, "utf8");
+  fs.writeFileSync(metaPath, formatJsonForArcBot({
+    type: "arcbot-edit-session",
+    createdAt: new Date().toISOString(),
+    targetPath: session.targetPath,
+    editableFile: jsonPath,
+  }), "utf8");
+  return session;
+}
+
+async function applyArcBotJsonEdit({ targetPath, replacementJson, requestText, reply, originalJson }) {
+  const validation = await validateArcBotJsonTarget(targetPath);
+  if (!validation.ok) return validation;
+  if (replacementJson == null || typeof replacementJson !== "object" || Array.isArray(replacementJson)) {
+    return { ok: false, error: "ArcBot did not provide a valid JSON object replacement." };
+  }
+  const hasOriginalFallback = originalJson != null && typeof originalJson === "object" && !Array.isArray(originalJson);
+  let targetExists = false;
+  try {
+    const stat = fs.statSync(validation.targetPath);
+    targetExists = stat.isFile();
+  } catch {
+    targetExists = false;
+  }
+  if (!targetExists && !hasOriginalFallback) {
+    return { ok: false, error: `Target JSON file was not found: ${validation.targetPath}` };
+  }
+  let beforeText = "";
+  let backupSource = "file";
+  try {
+    beforeText = fs.readFileSync(validation.targetPath, "utf8");
+    JSON.parse(beforeText);
+  } catch (err) {
+    if (!hasOriginalFallback) {
+      const message = String(err?.message || err || "Target file could not be read.");
+      return { ok: false, error: `Target file could not be backed up, so ArcBot did not modify it. ${message}` };
+    }
+    beforeText = formatJsonForArcBot(originalJson);
+    backupSource = "active-page-context";
+  }
+
+  const nextText = formatJsonForArcBot(replacementJson);
+  const historyDir = getArcBotHistoryDir(validation.targetPath);
+  fs.mkdirSync(historyDir, { recursive: true });
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const baseName = path.basename(validation.targetPath, path.extname(validation.targetPath));
+  const backupPath = path.join(historyDir, `${baseName}.${stamp}.bak.json`);
+  const manifestPath = path.join(historyDir, `${baseName}.${stamp}.arcbot.json`);
+  const tmpPath = `${validation.targetPath}.arcbot.tmp`;
+
+  if (backupSource === "file") {
+    fs.copyFileSync(validation.targetPath, backupPath);
+  } else {
+    fs.writeFileSync(backupPath, beforeText, "utf8");
+  }
+  fs.writeFileSync(tmpPath, nextText, "utf8");
+  fs.renameSync(tmpPath, validation.targetPath);
+
+  const manifest = {
+    type: "arcbot-json-edit",
+    timestamp: new Date().toISOString(),
+    targetPath: validation.targetPath,
+    backupPath,
+    manifestPath,
+    requestText: String(requestText || ""),
+    reply: String(reply || ""),
+    beforeSha256: sha256Text(beforeText),
+    afterSha256: sha256Text(nextText),
+    backupSource,
+    allowedRoot: validation.roots.configuredRoot,
+    resolvedAllowedRoot: validation.roots.resolvedRoot,
+  };
+  fs.writeFileSync(manifestPath, formatJsonForArcBot(manifest), "utf8");
+  writeArcBotLatestEdit(manifest);
+  return {
+    ok: true,
+    targetPath: validation.targetPath,
+    backupPath,
+    manifestPath,
+    reply: manifest.reply || "Updated the active JSON file.",
+  };
+}
+
+async function revertLatestArcBotEdit() {
+  const latestPath = getArcBotLatestEditPath();
+  if (!fs.existsSync(latestPath)) {
+    return { ok: false, error: "No ArcBot edit history is available to revert." };
+  }
+  let manifest = null;
+  try {
+    manifest = JSON.parse(fs.readFileSync(latestPath, "utf8"));
+  } catch {
+    return { ok: false, error: "ArcBot latest edit manifest is invalid." };
+  }
+  const validation = await validateArcBotJsonTarget(manifest?.targetPath);
+  if (!validation.ok) return validation;
+  const backupPath = String(manifest?.backupPath || "").trim();
+  if (!backupPath || !fs.existsSync(backupPath)) {
+    return { ok: false, error: "ArcBot backup file is missing, so the latest edit cannot be reverted." };
+  }
+  if (fs.existsSync(validation.targetPath)) {
+    const currentText = fs.readFileSync(validation.targetPath, "utf8");
+    if (manifest.afterSha256 && sha256Text(currentText) !== manifest.afterSha256) {
+      return {
+        ok: false,
+        error: "ArcBot refused to revert because the target file changed after the latest ArcBot edit.",
+      };
+    }
+  }
+  fs.copyFileSync(backupPath, validation.targetPath);
+  try {
+    fs.unlinkSync(latestPath);
+  } catch {
+    // ignore stale latest-manifest cleanup errors
+  }
+  return {
+    ok: true,
+    targetPath: validation.targetPath,
+    backupPath,
+    reply: `Reverted the latest ArcBot edit for ${validation.targetPath}.`,
+  };
+}
+
+function isRevertLatestRequest(messages) {
+  const last = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  const text = String(last?.content || "").toLowerCase();
+  return /\b(revert|undo|restore)\b/.test(text) && /\b(latest|last|previous|arcbot)\b/.test(text);
+}
+
 function getCodexInstallScriptPath() {
   return path.join(app.getPath("userData"), "install_codex_cli.ps1");
 }
@@ -399,7 +665,16 @@ function writeCodexInstallScript() {
   return scriptPath;
 }
 
-function buildAssistantPrompt(messages, mode = "review", projectRoot = "", cliRoot = "", networkRoot = false) {
+function buildAssistantPrompt(
+  messages,
+  mode = "edit",
+  projectRoot = "",
+  cliRoot = "",
+  networkRoot = false,
+  activeContext = null,
+  activeJson = null,
+  editSession = null
+) {
   const safeMessages = Array.isArray(messages) ? messages.slice(-12) : [];
   const transcript = safeMessages
     .map((message) => {
@@ -409,17 +684,46 @@ function buildAssistantPrompt(messages, mode = "review", projectRoot = "", cliRo
     })
     .filter(Boolean)
     .join("\n\n");
+  const contextForPrompt = activeContext && typeof activeContext === "object"
+    ? { ...activeContext }
+    : { available: false };
+  delete contextForPrompt.activeJson;
+  const modeInstructions = mode === "edit"
+    ? [
+        editSession?.jsonPath
+          ? `Editable active JSON copy: ${path.basename(editSession.jsonPath)}.`
+          : "No editable active JSON copy is available for this request.",
+        "ArcBot edits are host-applied only. Do not edit the true project/server file path directly.",
+        "You may edit only the active JSON copy in the current working folder. Do not edit other files, install packages, commit code, or push code.",
+        "If the user asks to modify the active DFM method, inspect and edit the active JSON copy directly.",
+        "Preserve unrelated fields and JSON structure. Keep the file valid JSON.",
+        "When finished, return a single JSON object only, with no Markdown.",
+        "Allowed response shape:",
+        '{"action":"edited","reply":"short summary"}',
+        '{"action":"answer","reply":"short answer"}',
+        "Use answer if the request is informational, ambiguous, outside the active JSON, or cannot be completed safely.",
+      ]
+    : [
+        "Review Mode is read-only. Do not edit files, change settings, install packages, run destructive commands, commit code, or push code.",
+        "Return a concise answer for the user.",
+      ];
   return [
     "You are ArcBot, the ArcRho in-app AI assistant.",
-    `Current mode: ${mode === "review" ? "Review Mode" : "Unsupported Mode"}.`,
+    `Current mode: ${mode === "edit" ? "Edit Mode" : "Review Mode"}.`,
     `Current project folder: ${projectRoot || APP_ROOT}.`,
     `CLI working folder: ${cliRoot || projectRoot || APP_ROOT}.`,
     networkRoot
       ? "The project folder is a network path, so the CLI process starts from the local Documents\\ArcRho folder to avoid Windows/Codex startup failures with UNC working directories."
       : "",
-    "Review Mode is read-only. Do not edit files, change settings, install packages, run destructive commands, commit code, or push code.",
-    "If the user asks for changes, explain what you would do and ask them to approve a future Edit Mode flow.",
-    "Keep answers concise and focused on the ArcRho desktop app context.",
+    ...modeInstructions,
+    "",
+    "Active page context:",
+    JSON.stringify(contextForPrompt, null, 2),
+    "",
+    "Active local JSON data:",
+    editSession?.jsonPath
+      ? `The active JSON is available as ${path.basename(editSession.jsonPath)} in the current working folder. Read and edit that file instead of returning replacement JSON.`
+      : (activeJson ? JSON.stringify(activeJson, null, 2) : "No active JSON data was loaded."),
     "",
     "Conversation:",
     transcript || "User: Hello",
@@ -428,14 +732,14 @@ function buildAssistantPrompt(messages, mode = "review", projectRoot = "", cliRo
 
 function clampCodexPrompt(prompt) {
   const text = String(prompt || "");
-  const maxChars = 16000;
+  const maxChars = 200000;
   if (text.length <= maxChars) return text;
   return [
-    text.slice(0, 12000),
+    text.slice(0, 150000),
     "",
-    "[Earlier conversation was truncated to fit the Codex CLI prompt argument limit.]",
+    "[Prompt was truncated to keep the Codex CLI request bounded.]",
     "",
-    text.slice(-3500),
+    text.slice(-45000),
   ].join("\n");
 }
 
@@ -1377,13 +1681,13 @@ ipcMain.handle("codex-assistant-login", async () => {
 });
 
 ipcMain.handle("codex-assistant-send", async (_event, payload) => {
-  const mode = String(payload?.mode || "review").trim().toLowerCase();
+  const mode = String(payload?.mode || "edit").trim().toLowerCase();
   const model = String(payload?.model || "codex").trim().toLowerCase();
-  if (mode !== "review") {
+  if (mode !== "edit" && mode !== "review") {
     return {
       ok: false,
       needsAuth: false,
-      error: "Edit Mode is not available yet.",
+      error: "Unsupported ArcBot mode.",
     };
   }
   if (model !== "codex") {
@@ -1393,9 +1697,67 @@ ipcMain.handle("codex-assistant-send", async (_event, payload) => {
       error: "Only Codex is available for ArcBot right now.",
     };
   }
+  if (mode === "edit" && isRevertLatestRequest(payload?.messages)) {
+    const reverted = await revertLatestArcBotEdit();
+    return reverted.ok
+      ? { ok: true, text: reverted.reply || "Reverted the latest ArcBot edit." }
+      : { ok: false, needsAuth: false, error: reverted.error || "ArcBot revert failed." };
+  }
   const roots = await getCodexAssistantProjectRoots({ ensureLocalRoot: true });
+  const activeContext = payload?.activeContext && typeof payload.activeContext === "object"
+    ? payload.activeContext
+    : null;
+  const targetPath = getAssistantTargetJsonPath(activeContext);
+  let activeJson = null;
+  const activeJsonFallback = activeContext?.activeJson != null &&
+    typeof activeContext.activeJson === "object" &&
+    !Array.isArray(activeContext.activeJson)
+    ? activeContext.activeJson
+    : null;
+  if (targetPath) {
+    const validation = await validateArcBotJsonTarget(targetPath);
+    if (validation.ok) {
+      if (activeJsonFallback) {
+        activeJson = activeJsonFallback;
+      } else {
+        try {
+          activeJson = JSON.parse(fs.readFileSync(validation.targetPath, "utf8"));
+        } catch (err) {
+          activeJson = {
+            error: "Active JSON file exists but could not be parsed or read.",
+            detail: String(err?.message || err || ""),
+          };
+        }
+      }
+    } else if (!validation.ok) {
+      activeJson = activeJsonFallback || { error: validation.error };
+    }
+  } else if (activeJsonFallback) {
+    activeJson = activeJsonFallback;
+  }
+  let editSession = null;
+  const activeJsonIsError = activeJson &&
+    typeof activeJson.error === "string" &&
+    !Object.prototype.hasOwnProperty.call(activeJson, "ratio pattern");
+  if (mode === "edit" && targetPath && activeJson && !activeJsonIsError) {
+    const validation = await validateArcBotJsonTarget(targetPath);
+    if (validation.ok) {
+      editSession = createArcBotEditSession({ targetPath: validation.targetPath, activeJson });
+    }
+  }
+  const codexCwd = editSession?.sessionDir || roots.cliRoot;
+  const codexSandbox = editSession ? "workspace-write" : "read-only";
   const prompt = clampCodexPrompt(
-    buildAssistantPrompt(payload?.messages, mode, roots.projectRoot, roots.cliRoot, roots.networkRoot)
+    buildAssistantPrompt(
+      payload?.messages,
+      mode,
+      roots.projectRoot,
+      codexCwd,
+      roots.networkRoot,
+      activeContext,
+      activeJson,
+      editSession
+    )
   );
   const result = await runCodexCommand([
     "exec",
@@ -1403,10 +1765,10 @@ ipcMain.handle("codex-assistant-send", async (_event, payload) => {
     "--color",
     "never",
     "--sandbox",
-    "read-only",
+    codexSandbox,
     "--skip-git-repo-check",
     "--cd",
-    roots.cliRoot,
+    codexCwd,
   ], {
     input: prompt,
     timeoutMs: CODEX_ASSISTANT_TIMEOUT_MS,
@@ -1419,9 +1781,49 @@ ipcMain.handle("codex-assistant-send", async (_event, payload) => {
       error: normalizeHostError(result, "Codex CLI request failed."),
     };
   }
+  const rawText = String(result.stdout || "").trim();
+  if (mode === "edit") {
+    if (editSession) {
+      let editedJson = null;
+      let editedText = "";
+      try {
+        editedText = fs.readFileSync(editSession.jsonPath, "utf8");
+        editedJson = JSON.parse(editedText);
+      } catch (err) {
+        const message = String(err?.message || err || "Edited JSON copy could not be read.");
+        return { ok: false, needsAuth: false, error: `ArcBot could not apply the temp JSON copy. ${message}` };
+      }
+      if (sha256Text(editedText) !== editSession.beforeSha256) {
+        const structured = extractJsonObject(rawText);
+        const applied = await applyArcBotJsonEdit({
+          targetPath: editSession.targetPath,
+          replacementJson: editedJson,
+          requestText: String((payload?.messages || []).slice(-1)[0]?.content || ""),
+          reply: structured?.reply || rawText,
+          originalJson: activeJson,
+        });
+        return applied.ok
+          ? {
+              ok: true,
+              text: `${applied.reply || "Updated the active JSON file."}\n\nBackup: ${applied.backupPath}`,
+              editApplied: true,
+              targetPath: applied.targetPath,
+              backupPath: applied.backupPath,
+            }
+          : { ok: false, needsAuth: false, error: applied.error || "ArcBot JSON edit failed." };
+      }
+    }
+    const structured = extractJsonObject(rawText);
+    if (structured?.action === "answer" || structured?.action === "edited" || structured?.action === "no_edit") {
+      return {
+        ok: true,
+        text: String(structured.reply || "").trim() || "No response.",
+      };
+    }
+  }
   return {
     ok: true,
-    text: String(result.stdout || "").trim(),
+    text: rawText,
     progress: String(result.stderr || "").trim(),
   };
 });
