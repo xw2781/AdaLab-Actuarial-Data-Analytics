@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app_server.schemas.dfm_rpc_bridge import (
     DfmRpcBridgeApplyRequest,
+    DfmRpcBridgeKeepLocalRequest,
     DfmRpcBridgeRequest,
     DfmRpcBridgeUpdateRemoteRequest,
 )
@@ -27,6 +28,11 @@ def compare_dfm_rpc_bridge(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
 @router.post("/dfm/rpc-bridge/apply")
 def apply_dfm_rpc_bridge(req: DfmRpcBridgeApplyRequest) -> Dict[str, Any]:
     return dfm_rpc_bridge_service.apply_remote_to_local(req)
+
+
+@router.post("/dfm/rpc-bridge/keep-local")
+def keep_local_dfm_rpc_bridge(req: DfmRpcBridgeKeepLocalRequest) -> Dict[str, Any]:
+    return dfm_rpc_bridge_service.keep_local(req)
 
 
 @router.post("/dfm/rpc-bridge/update-remote")

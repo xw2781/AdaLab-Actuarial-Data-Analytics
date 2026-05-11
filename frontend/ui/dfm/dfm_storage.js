@@ -43,15 +43,6 @@ export function getSummaryKeyBase() {
   return _storageInstanceId ? `${_storageInstanceId}::${base}` : base;
 }
 
-function getMethodNameScopeBase() {
-  const path = document.getElementById("pathInput")?.value?.trim();
-  const tri = document.getElementById("triInput")?.value?.trim();
-  const origin = document.getElementById("originLenSelect")?.value?.trim();
-  if (!path || !tri || !origin) return null;
-  const base = `${encodeURIComponent(path)}::${encodeURIComponent(tri)}::o${encodeURIComponent(origin)}`;
-  return _storageInstanceId ? `${_storageInstanceId}::${base}` : base;
-}
-
 export function getSummaryOrderKey() {
   const base = getSummaryKeyBase();
   return base ? `arcrho_dfm_summary_order::${base}` : null;
@@ -60,11 +51,6 @@ export function getSummaryOrderKey() {
 export function getSummaryConfigKey() {
   const base = getSummaryKeyBase();
   return base ? `arcrho_dfm_summary_custom::${base}` : null;
-}
-
-export function getMethodNameKey() {
-  const base = getMethodNameScopeBase();
-  return base ? `arcrho_dfm_method_name::${base}` : null;
 }
 
 export function getSavedMethodKey() {
@@ -102,16 +88,6 @@ export function loadCustomSummaryRows(key) {
   }
 }
 
-export function loadMethodName(key) {
-  if (!key) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? String(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 export function loadNaBorders() {
   try {
     return localStorage.getItem(NA_BORDER_KEY) === "1";
@@ -133,13 +109,6 @@ export function saveCustomSummaryRows(key, rows) {
   if (!key || !Array.isArray(rows)) return;
   try {
     localStorage.setItem(key, JSON.stringify(rows));
-  } catch {}
-}
-
-export function saveMethodName(key, name) {
-  if (!key || !name) return;
-  try {
-    localStorage.setItem(key, name);
   } catch {}
 }
 

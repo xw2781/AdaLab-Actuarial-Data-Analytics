@@ -685,6 +685,8 @@ ipcMain.handle("save-text-file", async (_event, payload) => {
       const methodName = data.name;
       const outputType = data["output type"];
       const inputTriangle = data["input triangle"];
+      const originLength = data["origin length"];
+      const developmentLength = data["development length"];
       const decimalPlaces = data["decimal places"];
       const ultimateRatioDecimalPlaces = data["ultimate ratio decimal places"];
       const ratioBasisDataset = data["ratio basis dataset"];
@@ -701,25 +703,16 @@ ipcMain.handle("save-text-file", async (_event, payload) => {
       const hasMethodName = "name" in data;
       const hasOutputType = "output type" in data;
       const hasInputTriangle = "input triangle" in data;
+      const hasOriginLength = "origin length" in data;
+      const hasDevelopmentLength = "development length" in data;
       const hasDecimalPlaces = "decimal places" in data;
       const hasUltimateRatioDecimalPlaces = "ultimate ratio decimal places" in data;
       const hasRatioBasisDataset = "ratio basis dataset" in data;
       const hasLastModified = "last modified" in data;
-      const hasOriginLen = "originLen" in data;
-      const hasDevLen = "devLen" in data;
-      if (hasRatioPattern || hasOriginLabels || hasDevelopmentLabels || hasAvgIndex || hasAvgFormula || hasSummaryRows || hasSummaryOrder || hasUltimateVector || hasNotes || hasInputTriangle || hasDecimalPlaces || hasUltimateRatioDecimalPlaces || hasRatioBasisDataset || hasLastModified || hasOriginLen || hasDevLen) {
+      if (hasRatioPattern || hasOriginLabels || hasDevelopmentLabels || hasAvgIndex || hasAvgFormula || hasSummaryRows || hasSummaryOrder || hasUltimateVector || hasNotes || hasInputTriangle || hasOriginLength || hasDevelopmentLength || hasDecimalPlaces || hasUltimateRatioDecimalPlaces || hasRatioBasisDataset || hasLastModified) {
         const lines = [];
         lines.push("{");
         let wroteSection = false;
-        if (hasOriginLen) {
-          lines.push(`  "originLen": ${JSON.stringify(data.originLen)}`);
-          wroteSection = true;
-        }
-        if (hasDevLen) {
-          if (wroteSection) lines[lines.length - 1] += ",";
-          lines.push(`  "devLen": ${JSON.stringify(data.devLen)}`);
-          wroteSection = true;
-        }
         if (hasRatioPattern) {
           lines.push('  "ratio pattern": [');
         lines.push(formatRowArrayLines(ratioPattern, "    "));
@@ -793,6 +786,16 @@ ipcMain.handle("save-text-file", async (_event, payload) => {
         if (hasInputTriangle) {
           if (wroteSection) lines[lines.length - 1] += ",";
           lines.push(`  "input triangle": ${JSON.stringify(typeof inputTriangle === "string" ? inputTriangle : "")}`);
+          wroteSection = true;
+        }
+        if (hasOriginLength) {
+          if (wroteSection) lines[lines.length - 1] += ",";
+          lines.push(`  "origin length": ${JSON.stringify(Number.isFinite(Number(originLength)) ? Number(originLength) : null)}`);
+          wroteSection = true;
+        }
+        if (hasDevelopmentLength) {
+          if (wroteSection) lines[lines.length - 1] += ",";
+          lines.push(`  "development length": ${JSON.stringify(Number.isFinite(Number(developmentLength)) ? Number(developmentLength) : null)}`);
           wroteSection = true;
         }
         if (hasDecimalPlaces) {

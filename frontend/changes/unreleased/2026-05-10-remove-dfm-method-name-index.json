@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Remove the DFM saved-name index file and dropdown lookup behavior.",
+  "details": [
+    "DFM no longer creates or reads `dfm_method_names.json` or the browser-local cached DFM Name key; method lookup now uses the current Details fields and the standard local DFM JSON path only.",
+    "The Details Name field is now a plain text input without the saved-name dropdown/delete controls, avoiding conflicts where indexed lengths could override manual Origin or Development Length changes."
+  ]
+}

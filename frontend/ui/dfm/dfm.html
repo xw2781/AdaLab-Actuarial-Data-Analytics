@@ -283,6 +283,41 @@
       white-space: nowrap;
     }
     .dfmNotesPathTooltip.show { display: block; }
+    .notesPathContextMenu {
+      position: fixed;
+      z-index: 2300;
+      display: none;
+      min-width: 150px;
+      padding: 5px;
+      border: 1px solid #bfc7d4;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+      box-sizing: border-box;
+    }
+    .notesPathContextMenu.show {
+      display: block;
+    }
+    .notesPathContextMenuItem {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #1f2937;
+      font: 13px var(--dfm-font);
+      line-height: 1.25;
+      text-align: left;
+      padding: 7px 9px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .notesPathContextMenuItem:hover,
+    .notesPathContextMenuItem:focus {
+      background: #edf3ff;
+      color: #0b3d91;
+      outline: none;
+    }
     #dfmDetailsPage {
       display: none;
       padding-top: 12px;
@@ -397,48 +432,6 @@
     .dfmInstanceMissingNotice.show {
       display: inline-flex;
     }
-    .dfmMethodNameOptionRow {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-width: 0;
-    }
-    .dfmMethodNameOptionText {
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .dfmMethodNameDeleteBtn {
-      flex: 0 0 auto;
-      width: 18px;
-      height: 18px;
-      padding: 0;
-      border: 1px solid transparent;
-      border-radius: 4px;
-      background: transparent;
-      color: #8a8f99;
-      cursor: pointer;
-      font-size: 12px;
-      line-height: 1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .dfmMethodNameDeleteBtn:hover:not(:disabled) {
-      border-color: #d9c5c5;
-      background: #fff1f1;
-      color: #b42318;
-    }
-    .dfmMethodNameDeleteBtn:disabled {
-      opacity: 0.55;
-      cursor: wait;
-    }
-    .datasetOption.active .dfmMethodNameDeleteBtn {
-      color: #707680;
-    }
     #dfmInstanceConfirmBtn {
       height: 28px;
       padding: 0 10px;
@@ -488,7 +481,6 @@
     }
     .dfmFormField .dfmMethodNameWrap #dfmMethodName {
       width: 100%;
-      padding-right: 34px;
     }
     .dfmFormField .dfmOutputVectorWrap #dfmOutputVector {
       width: 100%;
@@ -1382,8 +1374,6 @@
         <div class="dfmFormField">
           <div class="dfmMethodNameWrap">
             <input id="dfmMethodName" type="text" placeholder="DFM | Triangle Name" />
-            <button id="dfmMethodNameBtn" type="button" class="pathTreeBtn" title="Search saved DFM names" aria-label="Search saved DFM names">...</button>
-            <div id="dfmMethodNameDropdown" class="datasetDropdown"></div>
           </div>
           <div id="dfmInstanceMissingNotice" class="dfmInstanceMissingNotice" aria-live="polite">
             <span id="dfmInstanceMissingText">This DFM instance has not been created, click confirm to generate it.</span>

@@ -497,6 +497,7 @@
           <span class="pill">Last updated 2026-05-10</span>
           <span class="pill green">Timeout 8 seconds</span>
           <span class="pill amber">Canonical DFM JSON keys</span>
+          <span class="pill blue">Name-only local DFM files</span>
         </div>
       </header>
 
@@ -513,7 +514,7 @@
           </div>
           <div class="card">
             <h3>Follow-up Request</h3>
-            <p><code>Update Remote DFM</code> sends <code>Function = SyncDFM</code> and waits for a status JSON.</p>
+            <p><code>Keep Using Local</code> does not send <code>Function = SyncDFM</code>; it keeps local JSON and removes the remote RPC JSON.</p>
           </div>
         </div>
 
@@ -558,7 +559,7 @@
             <span class="step-index">5</span>
             <div class="step-body">
               <p class="step-title">Select Old or New</p>
-              <p class="step-text">The draggable and resizable floating window resizes the comparison cards with the window, lets the Notes preview expand from 42px up to 300px, shows <code>Local</code> in a framed top-left label on the left card and <code>Remote Server</code> in a framed top-left label on the right card, hides JSON file paths, adds a <code>NEW</code> seal on the newer card, color-codes wide ratio-pattern cells with dark grey for common exclusions, green for newly excluded cells on the new card, and red for removed exclusions on the old card, shows card-specific legends for green/red states, shows Ratios-table origin/development labels on cell hover, and highlights notes deletions in red and additions in green.</p>
+              <p class="step-text">The draggable and resizable floating window resizes the comparison cards with the window, lets the Notes preview expand from 42px up to 300px, shows <code>Local</code> in a framed top-left label on the left card and <code>Remote Server</code> in a framed top-left label on the right card, hides JSON file paths, adds a <code>NEW</code> seal on the newer card, color-codes wide ratio-pattern cells with dark grey for common exclusions, green for newly excluded cells on the new card, and red for removed exclusions on the old card, shows card-specific legends for green/red states, shows Ratios-table origin/development labels on cell hover, and highlights notes deletions in red and additions in green. After a version action is selected, the comparison window closes and a smaller same-style DFM Sync message box shows waiting/final status.</p>
             </div>
           </div>
         </div>
@@ -566,8 +567,8 @@
         <div class="action-grid">
           <div class="action-card local">
             <div class="action-label">Selected version is Local</div>
-            <h3>Result: Update Remote DFM</h3>
-            <p>Send <code>Function = SyncDFM</code>, wait for <code>SyncDFM...json</code>, and show the pass/fail message. Local JSON is unchanged.</p>
+            <h3>Result: Keep Using Local</h3>
+            <p>Keep local JSON unchanged and remove the returned remote RPC JSON. No <code>Function = SyncDFM</code> request is sent.</p>
           </div>
           <div class="action-card remote">
             <div class="action-label">Selected version is Remote</div>
@@ -579,6 +580,9 @@
 
       <section id="requests">
         <h2>Request Contracts</h2>
+        <div class="callout">
+          Local DFM method JSON files use <code>DFM@&lt;full_reserving_class_path&gt;@&lt;DFM Name&gt;.json</code>. Within one project/reserving-class pair, <code>Name</code> is the sole local DFM instance identity, so the same Name cannot represent multiple period lengths or input triangles. Origin Length and Development Length live inside the local JSON as <code>origin length</code> and <code>development length</code>. RPC bridge response/status files remain length-qualified because the remote data-engine request contract expects the requested lengths in <code>DataPath</code>.
+        </div>
         <h3>Initial DFM Request</h3>
         <p>The initial request includes all Details page fields plus the expected returned method JSON path.</p>
         <pre><code>Function = DFM
@@ -597,7 +601,7 @@ UserName = &lt;current_user&gt;</code></pre>
         <pre><code>&lt;server_root_path&gt;\projects\&lt;project_name&gt;\methods\RPC bridge\DFM@&lt;full_reserving_class_path&gt;@&lt;DFM Name&gt;@&lt;origin_length&gt;@&lt;development_length&gt;.json</code></pre>
 
         <h3>SyncDFM Request</h3>
-        <p><code>Update Remote DFM</code> sends a second request and waits for a status JSON.</p>
+        <p><code>Function = SyncDFM</code> is retained for explicit remote-update workflows. <code>Keep Using Local</code> does not send this request.</p>
         <pre><code>Function = SyncDFM
 ProjectName = &lt;project_name&gt;
 Path = &lt;full_reserving_class_path&gt;
@@ -649,6 +653,8 @@ UserName = &lt;current_user&gt;</code></pre>
   "name": "",
   "output type": "",
   "input triangle": "",
+  "origin length": 12,
+  "development length": 12,
   "decimal places": 4,
   "ultimate ratio decimal places": 2,
   "ratio basis dataset": "",
@@ -676,11 +682,11 @@ UserName = &lt;current_user&gt;</code></pre>
             </tr>
             <tr>
               <td><code>frontend/app_server/services/dfm_rpc_bridge_service.py</code></td>
-              <td>Path building, request writing, wait loops, JSON <code>last modified</code> compare, local overwrite, SyncDFM update, and RPC JSON deletion.</td>
+              <td>Path building, request writing, wait loops, JSON <code>last modified</code> compare, local overwrite, keep-local cleanup, optional SyncDFM update, and RPC JSON deletion.</td>
             </tr>
             <tr>
               <td><code>frontend/app_server/api/dfm_rpc_bridge_router.py</code></td>
-              <td>Thin router exposing sync, compare, apply, and update-remote routes.</td>
+              <td>Thin router exposing sync, compare, apply, keep-local, and update-remote routes.</td>
             </tr>
             <tr>
               <td>Router registration point</td>
@@ -711,6 +717,10 @@ UserName = &lt;current_user&gt;</code></pre>
               <td>Copy remote JSON over local JSON after <code>Update Local DFM</code>, return payload for reload.</td>
             </tr>
             <tr>
+              <td><code>POST /dfm/rpc-bridge/keep-local</code></td>
+              <td>Keep local JSON unchanged and remove the returned remote RPC JSON without writing a request file.</td>
+            </tr>
+            <tr>
               <td><code>POST /dfm/rpc-bridge/update-remote</code></td>
               <td>Write <code>Function = SyncDFM</code>, wait for status JSON, return pass/fail and message.</td>
             </tr>
@@ -727,7 +737,7 @@ UserName = &lt;current_user&gt;</code></pre>
           </div>
           <div class="card">
             <h3><code>dfm_rpc_bridge_dialog.js</code></h3>
-            <p>Render floating compare/status window with one contextual primary button.</p>
+            <p>Render floating compare window with one contextual primary button and a smaller same-style status message box after action selection.</p>
           </div>
           <div class="card">
             <h3><code>dfm_rpc_bridge_pathbar.js</code></h3>
@@ -821,9 +831,9 @@ UserName = &lt;current_user&gt;</code></pre>
           <div class="check-item">Timeout behavior when expected JSON is absent.</div>
           <div class="check-item">JSON <code>last modified</code> comparison states.</div>
           <div class="check-item">Remote-to-local overwrite with invalid, locked, and missing files.</div>
-          <div class="check-item">SyncDFM waits for status JSON and returns pass/fail message.</div>
+          <div class="check-item">Keep-local action removes remote RPC JSON without writing a <code>Function = SyncDFM</code> request.</div>
           <div class="check-item">RPC bridge JSON deletion after final actions.</div>
-          <div class="check-item">DFM filename order is <code>@&lt;origin_length&gt;@&lt;development_length&gt;</code>.</div>
+          <div class="check-item">Local DFM filename is <code>DFM@&lt;ReservingClass&gt;@&lt;Name&gt;.json</code>.</div>
         </div>
 
         <h3>Frontend</h3>
@@ -831,7 +841,7 @@ UserName = &lt;current_user&gt;</code></pre>
           <div class="check-item">Sync button appears in <code>dfmPathBar</code>.</div>
           <div class="check-item">Floating window shows local and remote JSON <code>last modified</code> timestamps, with Local fixed on the left and Remote Server fixed on the right.</div>
           <div class="check-item">Local/Remote Server cards show masked triangle ratio-pattern snapshots with wide cells, dark grey common exclusions, green newly excluded cells on the new card, red removed exclusions on the old card, Ratios-table origin/development cell tooltips, and notes snapshots with red deleted text and green added text.</div>
-          <div class="check-item">Selecting a local version triggers remote update.</div>
+          <div class="check-item">Selecting a local version keeps local JSON and does not send <code>Function = SyncDFM</code>.</div>
           <div class="check-item">Selecting a remote version triggers local update.</div>
           <div class="check-item">Equal state shows in-sync message with no action.</div>
           <div class="check-item">Remote missing state informs user with no action.</div>
@@ -855,16 +865,16 @@ UserName = &lt;current_user&gt;</code></pre>
               <td><code>DFM</code></td>
             </tr>
             <tr>
-              <td>Remote update request function</td>
-              <td><code>SyncDFM</code></td>
+              <td>Keep local action</td>
+              <td>No <code>Function = SyncDFM</code>; delete the returned remote RPC JSON.</td>
             </tr>
             <tr>
               <td>Request payload</td>
               <td>Details page fields plus <code>DataPath</code></td>
             </tr>
             <tr>
-              <td>Filename order</td>
-              <td><code>@&lt;origin_length&gt;@&lt;development_length&gt;</code></td>
+              <td>Local filename</td>
+              <td><code>DFM@&lt;ReservingClass&gt;@&lt;Name&gt;.json</code></td>
             </tr>
             <tr>
               <td>Timeout</td>

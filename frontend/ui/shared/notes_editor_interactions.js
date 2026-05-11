@@ -32,9 +32,11 @@ export function wireNotesEditorInteractions(deps = {}) {
   const tooltipClass = String(classes.tooltipClass || "dsNotesPathTooltip");
   const pathTokenClass = String(classes.pathTokenClass || "dsNotesPathToken");
   const hoverPathClass = String(classes.hoverPathClass || "isHoverPath");
-  const tooltipClickText = String(deps.tooltipClickText || "Click to open file");
+  const contextMenuClass = String(classes.contextMenuClass || "notesPathContextMenu");
+  const contextMenuItemClass = String(classes.contextMenuItemClass || "notesPathContextMenuItem");
+  const tooltipClickText = String(deps.tooltipClickText || "Right-click for file options");
   const tooltipClickWhenEditingText = String(
-    deps.tooltipClickWhenEditingText || "Exit editing, then click to open file",
+    deps.tooltipClickWhenEditingText || "Exit editing, then right-click for file options",
   );
 
   const notesInput = document.getElementById(inputId);
@@ -109,10 +111,46 @@ export function wireNotesEditorInteractions(deps = {}) {
   tooltipEl.className = tooltipClass;
   tooltipEl.textContent = tooltipClickText;
   document.body.appendChild(tooltipEl);
-  let skipNextClick = false;
+  const contextMenuEl = document.createElement("div");
+  contextMenuEl.className = contextMenuClass;
+  contextMenuEl.setAttribute("role", "menu");
+  contextMenuEl.innerHTML = `
+    <button type="button" class="${contextMenuItemClass}" data-notes-path-action="open" role="menuitem">Open File</button>
+    <button type="button" class="${contextMenuItemClass}" data-notes-path-action="copy" role="menuitem">Copy File Path</button>
+  `;
+  document.body.appendChild(contextMenuEl);
+  let contextMenuPath = "";
 
   const hidePathTooltip = () => {
     tooltipEl.classList.remove("show");
+  };
+
+  const hidePathContextMenu = () => {
+    contextMenuPath = "";
+    contextMenuEl.classList.remove("show");
+    contextMenuEl.style.left = "";
+    contextMenuEl.style.top = "";
+  };
+
+  const showPathContextMenu = (clientX, clientY, targetPath) => {
+    contextMenuPath = String(targetPath || "");
+    if (!contextMenuPath) return;
+    hidePathTooltip();
+    contextMenuEl.classList.add("show");
+    contextMenuEl.style.left = "0px";
+    contextMenuEl.style.top = "0px";
+    const pad = 8;
+    let left = Math.round(Number(clientX) || 0);
+    let top = Math.round(Number(clientY) || 0);
+    const rect = contextMenuEl.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth - pad) {
+      left = Math.max(pad, window.innerWidth - rect.width - pad);
+    }
+    if (top + rect.height > window.innerHeight - pad) {
+      top = Math.max(pad, window.innerHeight - rect.height - pad);
+    }
+    contextMenuEl.style.left = `${left}px`;
+    contextMenuEl.style.top = `${top}px`;
   };
 
   const showPathTooltip = (clientX, clientY, text) => {
@@ -472,6 +510,30 @@ export function wireNotesEditorInteractions(deps = {}) {
     }
   };
 
+  const copyDetectedPath = async (targetPath) => {
+    const text = String(targetPath || "");
+    if (!text) return;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const temp = document.createElement("textarea");
+        temp.value = text;
+        temp.setAttribute("readonly", "");
+        temp.style.position = "fixed";
+        temp.style.left = "-9999px";
+        temp.style.top = "0";
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        temp.remove();
+      }
+      setStatus("Copied file path.");
+    } catch (err) {
+      setStatus(`Copy file path failed: ${String(err?.message || err)}`);
+    }
+  };
+
   const getPathFromDecorToken = (tokenEl) => {
     const raw = tokenEl?.getAttribute?.("data-path") || "";
     if (!raw) return "";
@@ -516,6 +578,7 @@ export function wireNotesEditorInteractions(deps = {}) {
     syncDecorScroll();
     setHoverPathToken(null);
     hidePathTooltip();
+    hidePathContextMenu();
   });
   notesInput.addEventListener("mousemove", (e) => {
     if ((e.buttons & 1) === 1) {
@@ -630,26 +693,65 @@ export function wireNotesEditorInteractions(deps = {}) {
   });
 
   notesInput.addEventListener("mousedown", (e) => {
+    if (e.button === 2) {
+      if (notesPlainTextEditMode) return;
+      const token = getDecorTokenAtPoint(e.clientX, e.clientY);
+      const targetPath = getPathFromDecorToken(token);
+      if (!targetPath) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setHoverPathToken(token);
+      showPathContextMenu(e.clientX, e.clientY, targetPath);
+      return;
+    }
     if (e.button !== 0) return;
-    if (isNotesEditing()) return;
+    hidePathTooltip();
+    hidePathContextMenu();
+  });
+
+  notesInput.addEventListener("contextmenu", (e) => {
+    if (notesPlainTextEditMode) return;
     const token = getDecorTokenAtPoint(e.clientX, e.clientY);
     const targetPath = getPathFromDecorToken(token);
     if (!targetPath) return;
     e.preventDefault();
     e.stopPropagation();
-    skipNextClick = true;
-    hidePathTooltip();
-    void openDetectedPath(targetPath);
+    setHoverPathToken(token);
+    showPathContextMenu(e.clientX, e.clientY, targetPath);
   });
 
   notesInput.addEventListener("click", (e) => {
     rememberNotesSelection();
     if (e.button !== 0) return;
     hidePathTooltip();
-    if (skipNextClick) {
-      skipNextClick = false;
+  });
+
+  contextMenuEl.addEventListener("click", (e) => {
+    const actionBtn = e.target?.closest?.("[data-notes-path-action]");
+    if (!actionBtn || !contextMenuEl.contains(actionBtn)) return;
+    const action = String(actionBtn.getAttribute("data-notes-path-action") || "");
+    const targetPath = contextMenuPath;
+    e.preventDefault();
+    e.stopPropagation();
+    hidePathContextMenu();
+    if (action === "open") {
+      void openDetectedPath(targetPath);
+    } else if (action === "copy") {
+      void copyDetectedPath(targetPath);
     }
   });
+
+  const onDocumentMouseDown = (e) => {
+    if (contextMenuEl.contains(e.target)) return;
+    hidePathContextMenu();
+  };
+
+  const onWindowKeyDown = (e) => {
+    if (e.key === "Escape") hidePathContextMenu();
+  };
+
+  document.addEventListener("mousedown", onDocumentMouseDown);
+  window.addEventListener("keydown", onWindowKeyDown);
 
   notesSaveBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
@@ -672,13 +774,18 @@ export function wireNotesEditorInteractions(deps = {}) {
     notesResizeObserver.observe(notesWrap);
   }
   window.addEventListener("resize", syncNotesToolbarWidth);
+  window.addEventListener("resize", hidePathContextMenu);
 
   window.addEventListener("beforeunload", () => {
     window.removeEventListener("resize", syncNotesToolbarWidth);
+    window.removeEventListener("resize", hidePathContextMenu);
+    document.removeEventListener("mousedown", onDocumentMouseDown);
+    window.removeEventListener("keydown", onWindowKeyDown);
     try {
       notesResizeObserver?.disconnect();
     } catch {}
     tooltipEl.remove();
+    contextMenuEl.remove();
   }, { once: true });
 
   renderNotesDecor();

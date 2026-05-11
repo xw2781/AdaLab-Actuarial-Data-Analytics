@@ -181,7 +181,6 @@ export function initDfmRatios() {
     }
     if (e?.data?.type === "arcrho:dfm-request-state" || e?.data?.type === "arcrho:dfm-tab-activated") {
       notifyDfmEditState();
-      scheduleRatioSelectionLoad("tab-activated");
       return;
     }
     if (e?.data?.type === "arcrho:dfm-exclude-high") {

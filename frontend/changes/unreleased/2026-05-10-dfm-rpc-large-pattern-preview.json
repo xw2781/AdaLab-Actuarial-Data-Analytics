@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Fix DFM version compare ratio snapshots for large triangles.",
+  "details": [
+    "The DFM RPC Bridge comparison now sends the full ratio pattern and labels to the frontend instead of truncating the snapshot.",
+    "Ratio snapshot cells compact for large matrices so 40x40 patterns remain visible in the local/remote comparison cards.",
+    "Cells with `2` status inside the inferred active triangle diagonal are shown with a light yellow missing-data fill instead of being hidden as outside-triangle cells."
+  ]
+}

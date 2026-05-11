@@ -55,9 +55,16 @@ def _require_project_dir(project_name: str) -> str:
     return os.path.join(config.PROJECT_SETTINGS_DIR, sanitized)
 
 
-def _build_method_filename(req: DfmRpcBridgeRequest, prefix: str = DFM_FUNCTION_NAME) -> str:
+def _build_method_filename(
+    req: DfmRpcBridgeRequest,
+    prefix: str = DFM_FUNCTION_NAME,
+    *,
+    include_lengths: bool = True,
+) -> str:
     reserving_class = _sanitize_reserving_class_part(req.reserving_class, "ReservingClass")
     method_name = _sanitize_method_name_part(req.method_name, "Name")
+    if not include_lengths:
+        return f"{prefix}@{reserving_class}@{method_name}.json"
     origin = _sanitize_method_name_part(str(req.origin_length), "Origin")
     development = _sanitize_method_name_part(str(req.development_length), "Dev")
     return f"{prefix}@{reserving_class}@{method_name}@{origin}@{development}.json"
@@ -68,7 +75,7 @@ def build_paths(req: DfmRpcBridgeRequest) -> Dict[str, str]:
     methods_dir = os.path.join(project_dir, "methods")
     rpc_methods_dir = os.path.join(methods_dir, RPC_BRIDGE_DIR_NAME)
     request_dir = os.path.join(config.REQUEST_DIR, RPC_BRIDGE_DIR_NAME)
-    local_path = os.path.join(methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME))
+    local_path = os.path.join(methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME, include_lengths=False))
     remote_path = os.path.join(rpc_methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME))
     sync_status_path = os.path.join(rpc_methods_dir, _build_method_filename(req, SYNC_DFM_FUNCTION_NAME))
     return {
@@ -208,11 +215,11 @@ def _extract_pattern_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
     development_labels = payload.get("development labels")
     preview_origin_labels = [
         _clean_text(label)
-        for label in origin_labels[:12]
+        for label in origin_labels
     ] if isinstance(origin_labels, list) else []
     preview_development_labels = [
         _clean_text(label)
-        for label in development_labels[:24]
+        for label in development_labels
     ] if isinstance(development_labels, list) else []
     if not isinstance(pattern, list):
         return {
@@ -242,9 +249,8 @@ def _extract_pattern_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
                 if value == 1:
                     selected_count += 1
                 normalized_row.append(value)
-            if row_index < 12:
-                preview.append(normalized_row[:24])
-        elif row_index < 12:
+            preview.append(normalized_row)
+        else:
             preview.append([])
     return {
         "exists": True,
@@ -393,6 +399,18 @@ def apply_remote_to_local(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         "payload": payload,
         "local": local_meta,
         "remote_deleted": deleted,
+        "paths": paths,
+    }
+
+
+def keep_local(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
+    paths = build_paths(req)
+    remote_deleted = _try_remove(paths["remote_path"])
+    return {
+        "ok": True,
+        "status": "kept_local",
+        "message": "Kept local DFM JSON. Remote RPC JSON was removed." if remote_deleted else "Kept local DFM JSON. No remote RPC JSON was found to remove.",
+        "remote_deleted": remote_deleted,
         "paths": paths,
     }
 

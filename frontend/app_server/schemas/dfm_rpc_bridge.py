@@ -19,5 +19,9 @@ class DfmRpcBridgeApplyRequest(DfmRpcBridgeRequest):
     pass
 
 
+class DfmRpcBridgeKeepLocalRequest(DfmRpcBridgeRequest):
+    pass
+
+
 class DfmRpcBridgeUpdateRemoteRequest(DfmRpcBridgeRequest):
     pass

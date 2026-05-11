@@ -6,20 +6,11 @@ DFM Details Tab - method name, project selection, path bar, threshold reset
 import {
   getDfmInst,
   getDefaultMethodName,
-  getDfmIsDirty,
   markDfmDirty,
 } from "/ui/dfm/dfm_state.js";
-import {
-  getMethodNameKey,
-  loadMethodName,
-  saveMethodName,
-} from "/ui/dfm/dfm_storage.js";
 import { resetRatioChartThresholds } from "/ui/dfm/dfm_ratios_tab.js";
 import {
   scheduleRatioSelectionLoad,
-  saveRatioSelectionPattern,
-  loadDfmMethodNameIndexEntries,
-  deleteDfmMethodNameIndexEntriesByName,
 } from "/ui/dfm/dfm_persistence.js";
 import { openDatasetNamePicker } from "/ui/dataset/dataset_name_picker.js";
 import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_picker.js";
@@ -28,9 +19,7 @@ const outputTypeNamesByProject = new Map();
 const triangleInputNamesByProject = new Map();
 let outputTypeRequestSeq = 0;
 let triangleInputRequestSeq = 0;
-let methodNameRequestSeq = 0;
 let pendingOutputTypeFromUrl = null;
-const DFM_METHOD_NAME_INDEX_UPDATED_EVENT = "arcrho:dfm-method-name-index-updated";
 
 function toText(value) {
   return String(value ?? "").trim();
@@ -166,13 +155,6 @@ function closeOutputTypeDropdown() {
   dropdown.innerHTML = "";
 }
 
-function closeMethodNameDropdown() {
-  const dropdown = document.getElementById("dfmMethodNameDropdown");
-  if (!dropdown) return;
-  dropdown.classList.remove("open");
-  dropdown.innerHTML = "";
-}
-
 function closeTriangleTypeDropdown() {
   const dropdown = document.getElementById("dfmTriTypeDropdown");
   if (!dropdown) return;
@@ -195,200 +177,12 @@ function postDfmStatus(text, options = {}) {
   }
 }
 
-function getFilteredMethodNames(names, query) {
-  const list = Array.isArray(names) ? names : [];
-  const q = normalizeKey(query);
-  if (!q) return list;
-  return list.filter((name) => normalizeKey(name).includes(q));
-}
-
-function toMethodNameSuggestionList(entries) {
-  const list = Array.isArray(entries) ? entries : [];
-  const seen = new Set();
-  const out = [];
-  for (const entry of list) {
-    const name = toText(entry?.name);
-    const key = normalizeKey(name);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
-  }
-  return out;
-}
-
-function getMethodNameDropdownOptionValue(optionEl) {
-  if (!optionEl) return "";
-  const dataValue = toText(optionEl.dataset?.methodName);
-  if (dataValue) return dataValue;
-  const textEl = optionEl.querySelector?.(".dfmMethodNameOptionText");
-  if (textEl) return toText(textEl.textContent);
-  return toText(optionEl.textContent);
-}
-
-async function loadSavedCustomMethodNames(projectName, options = {}) {
-  const names = toMethodNameSuggestionList(
-    await loadDfmMethodNameIndexEntries(projectName, { forceReload: !!options?.forceReload }),
-  );
-  return names;
-}
-
-function renderMethodNameDropdown(names, options = {}) {
-  const dropdown = document.getElementById("dfmMethodNameDropdown");
-  const input = document.getElementById("dfmMethodName");
-  if (!dropdown || !input) return;
-
-  const query = toText(options?.query);
-  const filteredNames = getFilteredMethodNames(names, query);
-  dropdown.innerHTML = "";
-
-  if (!Array.isArray(names) || names.length === 0) {
-    const option = document.createElement("div");
-    option.className = "datasetOption";
-    option.textContent = "No saved DFM names.";
-    option.style.cursor = "default";
-    option.style.color = "#666";
-    dropdown.appendChild(option);
-    dropdown.classList.add("open");
-    return;
-  }
-  if (filteredNames.length === 0) {
-    const option = document.createElement("div");
-    option.className = "datasetOption";
-    option.textContent = "No matching saved names.";
-    option.style.cursor = "default";
-    option.style.color = "#666";
-    dropdown.appendChild(option);
-    dropdown.classList.add("open");
-    return;
-  }
-
-  const selectedKey = normalizeKey(input.value);
-  for (const name of filteredNames) {
-    const option = document.createElement("div");
-    option.className = "datasetOption";
-    option.dataset.methodName = name;
-    if (normalizeKey(name) === selectedKey) option.classList.add("active");
-    const row = document.createElement("div");
-    row.className = "dfmMethodNameOptionRow";
-
-    const textSpan = document.createElement("span");
-    textSpan.className = "dfmMethodNameOptionText";
-    textSpan.textContent = name;
-    textSpan.title = name;
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "dfmMethodNameDeleteBtn";
-    deleteBtn.title = `Delete saved name "${name}"`;
-    deleteBtn.setAttribute("aria-label", `Delete saved name ${name}`);
-    deleteBtn.textContent = "x";
-
-    option.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-    });
-    option.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const applied = await applyMethodNameSelection(name);
-      if (applied) closeMethodNameDropdown();
-    });
-    deleteBtn.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    deleteBtn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const projectName = toText(document.getElementById("projectSelect")?.value);
-      if (!projectName) {
-        postDfmStatus("Select a project before deleting a saved DFM name.", { tone: "warn" });
-        return;
-      }
-      const ok = window.confirm(
-        `Delete saved DFM name "${name}" from project "${projectName}"?\n\nThis removes related entries for this name from dfm_method_names.json.`,
-      );
-      if (!ok) return;
-      deleteBtn.disabled = true;
-      try {
-        const result = await deleteDfmMethodNameIndexEntriesByName(projectName, name);
-        if (!result?.ok) {
-          throw new Error(result?.error || "Failed to delete saved DFM name.");
-        }
-        const removedCount = Number(result?.removedCount || 0);
-        if (removedCount > 0) {
-          postDfmStatus(`Removed saved DFM name "${name}" (${removedCount} indexed record${removedCount === 1 ? "" : "s"}).`);
-        } else {
-          postDfmStatus(`No indexed records found for "${name}".`, { tone: "warn" });
-        }
-      } catch (err) {
-        console.error("Failed to delete saved DFM name:", err);
-        postDfmStatus(`Delete saved DFM name failed: ${String(err?.message || err)}`, { tone: "error" });
-      } finally {
-        deleteBtn.disabled = false;
-      }
-    });
-    row.appendChild(textSpan);
-    row.appendChild(deleteBtn);
-    option.appendChild(row);
-    dropdown.appendChild(option);
-  }
-  dropdown.classList.add("open");
-}
-
-async function confirmMethodNameSwitchWhenDirty(nextName) {
-  if (!getDfmIsDirty()) return true;
-  const current = toText(document.getElementById("dfmMethodName")?.value);
-  if (normalizeKey(current) === normalizeKey(nextName)) return true;
-
-  const saveFirst = window.confirm(
-    "Current DFM has unsaved changes.\n\nClick OK to save before switching Name.\nClick Cancel to choose discard/cancel.",
-  );
-  if (saveFirst) {
-    const result = await saveRatioSelectionPattern(false);
-    return !!result?.ok;
-  }
-  const discard = window.confirm(
-    "Discard unsaved changes and switch Name?\n\nClick OK to discard and continue.\nClick Cancel to keep current Name.",
-  );
-  return !!discard;
-}
-
-async function applyMethodNameSelection(value) {
-  const input = document.getElementById("dfmMethodName");
-  if (!input) return false;
-  const next = toText(value);
-  if (!next) return false;
-  if (!(await confirmMethodNameSwitchWhenDirty(next))) return false;
-
-  const prev = toText(input.value);
-  if (prev === next) {
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    return true;
-  }
-  input.value = next;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  return true;
-}
-
-function clearStoredMethodName(key) {
-  if (!key) return;
-  try {
-    localStorage.removeItem(key);
-  } catch {}
-}
-
 function syncMethodNameToOutputType(value, options = {}) {
   const next = toText(value);
   const methodInput = document.getElementById("dfmMethodName");
   if (!methodInput) return false;
   const changed = toText(methodInput.value) !== next;
   if (changed) methodInput.value = next;
-  const key = getMethodNameKey();
-  if (key) {
-    if (next) saveMethodName(key, next);
-    else clearStoredMethodName(key);
-  }
   updateAppTabTitle(next || getDefaultMethodName(), !options?.silent);
   if (changed && !options?.silent) {
     // Name is updated programmatically here, so the normal Name input change/blur
@@ -573,10 +367,9 @@ export function updateAppTabTitle(title, userAction) {
 export function syncMethodNameFromInputs() {
   const input = document.getElementById("dfmMethodName");
   if (!input) return;
-  const key = getMethodNameKey();
-  const stored = key ? toText(loadMethodName(key)) : "";
   const outputVector = toText(document.getElementById("dfmOutputVector")?.value);
-  const next = stored || outputVector || "";
+  const current = toText(input.value);
+  const next = current || outputVector || "";
   if (input.value !== next) input.value = next;
   updateAppTabTitle(next || getDefaultMethodName());
 }
@@ -599,16 +392,11 @@ export function wireMethodName() {
   let lastLookupCommittedValue = input.value.trim();
 
   const commitValue = (options = {}) => {
-    const key = getMethodNameKey();
     const raw = input.value.trim();
     const programmatic = input.dataset.programmatic === "1";
     if (programmatic) delete input.dataset.programmatic;
     const valueChanged = raw !== lastSeenValue;
     const lookupValueChanged = raw !== lastLookupCommittedValue;
-    if (key) {
-      if (raw) saveMethodName(key, raw);
-      else clearStoredMethodName(key);
-    }
     updateAppTabTitle(raw || getDefaultMethodName(), true);
     if (valueChanged) {
       if (!programmatic) markDfmDirty();
@@ -652,161 +440,13 @@ export function wireMethodName() {
   devLen?.addEventListener("change", markDirtyOnChange);
 
   const triggerLoad = () => scheduleRatioSelectionLoad("details-change");
-  triInput?.addEventListener("change", triggerLoad);
   pathInput?.addEventListener("change", triggerLoad);
   projectInput?.addEventListener("change", triggerLoad);
-  originLen?.addEventListener("change", triggerLoad);
-  devLen?.addEventListener("change", triggerLoad);
 
-  wireMethodNamePicker();
   wireReservingClassPicker();
   wireOutputTypePicker();
   wireTriangleTypePicker();
   updatePathBar();
-}
-
-function wireMethodNamePicker() {
-  const input = document.getElementById("dfmMethodName");
-  const button = document.getElementById("dfmMethodNameBtn");
-  const dropdown = document.getElementById("dfmMethodNameDropdown");
-  if (!input || !button || !dropdown || button.dataset.wired === "1") return;
-  button.dataset.wired = "1";
-
-  let pickerProjectKey = "";
-  let pickerNames = [];
-  let pickerLoaded = false;
-
-  const resetPickerCache = () => {
-    pickerProjectKey = "";
-    pickerNames = [];
-    pickerLoaded = false;
-  };
-
-  const ensurePickerNames = async (options = {}) => {
-    const projectName = toText(document.getElementById("projectSelect")?.value);
-    if (!projectName) {
-      resetPickerCache();
-      return { projectName: "", names: [] };
-    }
-    const projectKey = normalizeKey(projectName);
-    const forceReload = !!options?.forceReload;
-    const projectChanged = projectKey !== pickerProjectKey;
-    if (forceReload || projectChanged || !pickerLoaded) {
-      const requestSeq = ++methodNameRequestSeq;
-      const names = await loadSavedCustomMethodNames(projectName, {
-        forceReload: forceReload || projectChanged,
-      });
-      if (requestSeq !== methodNameRequestSeq) return null;
-      pickerProjectKey = projectKey;
-      pickerNames = Array.isArray(names) ? names : [];
-      pickerLoaded = true;
-    }
-    return { projectName, names: pickerNames };
-  };
-
-  const openPicker = async (options = {}) => {
-    const projectName = toText(document.getElementById("projectSelect")?.value);
-    if (!projectName) {
-      closeMethodNameDropdown();
-      return;
-    }
-    button.disabled = true;
-    try {
-      const out = await ensurePickerNames({ forceReload: !!options?.forceReload });
-      if (!out) return;
-      renderMethodNameDropdown(out.names, { query: input.value });
-    } catch (err) {
-      console.error("Failed to load saved DFM method names:", err);
-      closeMethodNameDropdown();
-    } finally {
-      button.disabled = false;
-    }
-  };
-
-  button.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (dropdown.classList.contains("open")) {
-      closeMethodNameDropdown();
-      return;
-    }
-    void openPicker({ forceReload: true });
-  });
-
-  input.addEventListener("click", (e) => {
-    e.stopPropagation();
-    void openPicker({ forceReload: false });
-  });
-
-  input.addEventListener("focus", () => {
-    void openPicker({ forceReload: false });
-  });
-
-  input.addEventListener("input", () => {
-    void openPicker({ forceReload: false });
-  });
-
-  input.addEventListener("blur", () => {
-    setTimeout(() => {
-      if (!dropdown.contains(document.activeElement) && !button.contains(document.activeElement)) {
-        closeMethodNameDropdown();
-      }
-    }, 0);
-  });
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeMethodNameDropdown();
-      return;
-    }
-    if (e.key === "ArrowDown" && !dropdown.classList.contains("open")) {
-      e.preventDefault();
-      void openPicker({ forceReload: false });
-      return;
-    }
-    if (e.key === "Enter" && dropdown.classList.contains("open")) {
-      const first = dropdown.querySelector(".datasetOption");
-      const text = getMethodNameDropdownOptionValue(first);
-      if (text && text !== "No saved DFM names." && text !== "No matching saved names.") {
-        e.preventDefault();
-        void applyMethodNameSelection(text).then((applied) => {
-          if (applied) closeMethodNameDropdown();
-        });
-      }
-    }
-  });
-
-  document.addEventListener("mousedown", (e) => {
-    if (!dropdown.classList.contains("open")) return;
-    const target = e.target;
-    if (dropdown.contains(target) || button.contains(target) || input.contains(target)) return;
-    closeMethodNameDropdown();
-  }, true);
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeMethodNameDropdown();
-  }, true);
-
-  const projectInput = document.getElementById("projectSelect");
-  projectInput?.addEventListener("change", () => {
-    resetPickerCache();
-    closeMethodNameDropdown();
-  });
-  projectInput?.addEventListener("input", () => {
-    resetPickerCache();
-    closeMethodNameDropdown();
-  });
-
-  window.addEventListener(DFM_METHOD_NAME_INDEX_UPDATED_EVENT, (e) => {
-    const projectName = toText(document.getElementById("projectSelect")?.value);
-    const updatedProject = toText(e?.detail?.project);
-    if (!projectName || !updatedProject) return;
-    if (normalizeKey(projectName) !== normalizeKey(updatedProject)) return;
-    resetPickerCache();
-    if (dropdown.classList.contains("open")) {
-      void openPicker({ forceReload: true });
-    }
-  });
 }
 
 function setDfmInstanceMissingNoticeVisible(visible) {

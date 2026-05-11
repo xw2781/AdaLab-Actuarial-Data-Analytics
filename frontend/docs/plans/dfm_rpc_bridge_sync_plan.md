@@ -46,13 +46,15 @@ Relevant current behavior:
    }
    ```
 
-5. Current DFM filename helper uses the old local order:
+5. DFM local method JSON filenames are name-only within a project/reserving-class pair:
 
    ```text
-   DFM@<reserving_class_path_with_caret_separators>@<DFM Name>@<development_length>@<origin_length>.json
+   DFM@<reserving_class_path_with_caret_separators>@<DFM Name>.json
    ```
 
-The new sync feature will standardize both local and RPC bridge DFM method filenames to origin length before development length:
+   Origin Length and Development Length are stored inside the local method JSON under the canonical keys `origin length` and `development length`. A DFM instance is identified solely by `Name` within the selected project/reserving-class pair, so the same Name cannot represent multiple DFMs with different period lengths or input triangles.
+
+RPC bridge response and status filenames remain length-qualified because the remote data-engine request contract still expects the requested period lengths in the expected return path:
 
 ```text
 DFM@<reserving_class_path_with_caret_separators>@<DFM Name>@<origin_length>@<development_length>.json
@@ -104,12 +106,13 @@ Old local DFM filenames and JSON files are explicitly out of scope.
    - Ratio-pattern snapshots preserve `0`/`1`/`2` values; `2` cells are masked, cells use a wide rectangular shape, common exclusions are dark grey, exclusions added in the new version are green only on the new card, exclusions removed from the old version are red only on the old card, the green legend appears only on the new card, the red legend appears only on the old card, and each visible cell tooltip shows the same origin/development labels used by the Ratios triangle table.
    - Notes snapshots highlight deleted text from the older source with a red background and newly added text from the newer source with a green background.
    - User can select either `Local` or `Remote Server`.
-   - If the selected version is local, the primary button says `Keep Using Local` and the app sends `Update Remote DFM`.
+   - If the selected version is local, the primary button says `Keep Using Local` and the app keeps the local JSON unchanged without sending `Function = SyncDFM`.
    - If the selected version is remote, the primary button says `Use Remote Version` and the app sends `Update Local DFM`.
+   - After the user chooses either version action, the comparison window closes and a smaller same-style DFM Sync message box shows waiting/final status.
    - If JSON `last modified` timestamps are equal: show `Local and remote are already in sync` and no primary action.
    - If remote JSON is missing: tell the user the remote DFM JSON is missing and show no primary action.
 10. User confirms the contextual action:
-   - `Update Remote DFM`: send another request file with `Function = SyncDFM` so remote data-engine can update its DFM status from the local Details page context, then wait for the `SyncDFM` status JSON and show pass/fail.
+   - `Keep Using Local`: keep the local JSON unchanged and delete the returned remote RPC JSON; do not send a `Function = SyncDFM` request.
    - `Update Local DFM`: overwrite local JSON with remote JSON, then reload/apply the method into the current DFM tab.
 11. Backend deletes the RPC bridge JSON file immediately after the user confirms a final local/remote action.
 12. App marks the DFM state clean after successful overwrite and reload.
@@ -142,7 +145,7 @@ The initial `Function = DFM` request file should include Details page informatio
 
 Confirmed request function name: `DFM`.
 
-`Update Remote DFM` uses a second request file with a different function name:
+`Function = SyncDFM` is retained only for explicit remote-update workflows. The `Keep Using Local` comparison action does not send this request.
 
 ```text
 Function = SyncDFM
@@ -204,6 +207,8 @@ Recommended canonical full payload:
   "name": "",
   "output type": "",
   "input triangle": "",
+  "origin length": 12,
+  "development length": 12,
   "decimal places": 4,
   "ultimate ratio decimal places": 2,
   "ratio basis dataset": "",
@@ -229,11 +234,10 @@ Add new files instead of putting feature logic into existing service files:
    - Build remote SyncDFM status path.
    - Build and write request file under `config.REQUEST_DIR\RPC bridge`.
    - Wait for expected returned JSON.
-   - Wait for expected `SyncDFM` status JSON when the user confirms `Update Remote DFM`.
+   - Keep local JSON unchanged and delete the returned remote RPC JSON when the user confirms `Keep Using Local`.
    - Read file metadata and JSON `last modified` metadata.
    - Compare JSON `last modified` timestamps.
    - Copy the remote version over local method JSON with an atomic replace when the user confirms `Update Local DFM`.
-   - Send a second `Function = SyncDFM` request when the user confirms `Update Remote DFM`.
    - Delete the remote RPC bridge JSON after the final user action.
 
 3. `frontend/app_server/api/dfm_rpc_bridge_router.py`
@@ -244,6 +248,7 @@ Add new files instead of putting feature logic into existing service files:
      POST /dfm/rpc-bridge/sync
      POST /dfm/rpc-bridge/compare
      POST /dfm/rpc-bridge/apply
+     POST /dfm/rpc-bridge/keep-local
      POST /dfm/rpc-bridge/update-remote
      ```
 
@@ -274,6 +279,11 @@ Backend route behavior:
    - Returns the request file path, status JSON path, pass/fail flag, and status message.
    - Deletes the existing remote RPC bridge JSON after the action completes.
 
+5. `POST /dfm/rpc-bridge/keep-local`
+   - Does not write a request file.
+   - Keeps local JSON and current in-app DFM state unchanged.
+   - Deletes the existing remote RPC bridge JSON after the action completes.
+
 Path rules:
 
 1. Use `app_server.config` for root, projects, and requests locations.
@@ -299,6 +309,7 @@ Add new files instead of placing new feature logic into existing DFM files:
    - Shows local and remote JSON `last modified` timestamps, with Local on the left and Remote Server on the right.
    - Shows a `NEW` seal on the latest version card.
    - Shows ratio-pattern differences with masked `2` cells, dark grey common exclusions, green newly excluded cells on the new card, and red removed exclusions on the old card.
+   - Closes the large comparison window after a version action is selected and shows a smaller same-style DFM Sync message box for waiting/final status.
    - Buttons: one contextual primary action, Refresh, Cancel.
    - Primary label proposal:
      - `Keep Using Local` when local JSON is newer.
@@ -332,16 +343,13 @@ Preferred reload strategy after remote overwrite:
 3. Frontend rerenders ratios/results/notes and posts a status message.
 4. Backend deletes the remote RPC bridge JSON after the final action completes.
 
-Preferred remote update strategy when local is newer:
+Preferred keep-local strategy when local is newer:
 
-1. Frontend asks the user to confirm `Update Remote DFM`.
-2. Backend writes a second `Function = SyncDFM` request file under `requests\RPC bridge`.
-3. The request contains Details page fields plus `DataPath`.
-4. `DataPath` points to a `SyncDFM...json` status file under `methods\RPC bridge`.
-5. Backend waits for the status JSON.
-6. Frontend leaves local JSON and in-app DFM state unchanged.
-7. Frontend shows the final pass/fail result from the status JSON message.
-8. Backend deletes the stale remote DFM RPC bridge JSON after the action completes.
+1. Frontend asks the user to confirm `Keep Using Local`.
+2. Backend deletes the stale remote DFM RPC bridge JSON.
+3. Backend does not write a `Function = SyncDFM` request.
+4. Frontend leaves local JSON and in-app DFM state unchanged.
+5. Frontend shows a final kept-local status message.
 
 ---
 
@@ -421,10 +429,9 @@ Backend tests:
 3. Timeout behavior when remote JSON is absent.
 4. JSON `last modified` comparison states.
 5. Remote-to-local overwrite with invalid/locked/missing files.
-6. Local-newer flow writes the second remote-update request with `Function = SyncDFM`.
-7. `SyncDFM` flow waits for the status JSON and returns pass/fail message.
-8. RPC bridge JSON deletion after `Update Remote DFM` and `Update Local DFM` actions.
-9. Local DFM filename generation uses `@<origin_length>@<development_length>`.
+6. Local-newer flow calls `keep-local` without writing a `Function = SyncDFM` request.
+7. RPC bridge JSON deletion after `Keep Using Local` and `Update Local DFM` actions.
+8. Local DFM filename generation uses `DFM@<ReservingClass>@<Name>.json`.
 
 Frontend tests/manual verification:
 
@@ -433,7 +440,7 @@ Frontend tests/manual verification:
 3. Floating compare window shows local and remote JSON `last modified` timestamps.
 4. When local JSON is newer, primary button label is `Keep Using Local`.
 5. When remote JSON is newer, primary button label is `Use Remote Version`.
-6. `Update Remote DFM` sends a second `Function = SyncDFM` request, waits for the status JSON, and leaves local JSON unchanged.
+6. `Keep Using Local` leaves local JSON unchanged, deletes the remote RPC JSON, and does not send `Function = SyncDFM`.
 7. `Update Local DFM` overwrites local JSON and updates ratios, averages, and notes in the current DFM tab.
 8. Dirty local DFM changes trigger a save-and-proceed prompt before request creation.
 9. Request files contain Details page fields plus `DataPath`.
@@ -480,14 +487,10 @@ Confirmed for implementation:
 8. Version selection is replaced by one contextual action button:
    - `Keep Using Local` when local JSON is newer.
    - `Use Remote Version` when remote JSON is newer.
-9. `Update Remote DFM` sends another request with `Function = SyncDFM`.
-10. `Function = SyncDFM` also includes Details page fields plus `DataPath`.
-11. `SyncDFM` `DataPath` points to an expected return JSON whose filename starts with `SyncDFM`.
-12. The `SyncDFM` return JSON includes a message telling the frontend whether the operation passed or failed.
-13. The app waits for the `Update Remote DFM` result and tells the user the final result.
-14. Equal `last modified` timestamps show `Local and remote are already in sync` with no primary action.
-15. Remote-missing state only informs the user; no action is shown.
-16. Local JSON should never be missing because the app saves the current DFM tab before proceeding.
+9. `Keep Using Local` does not send `Function = SyncDFM`; it keeps local JSON unchanged and deletes the remote RPC JSON.
+10. Equal `last modified` timestamps show `Local and remote are already in sync` with no primary action.
+11. Remote-missing state only informs the user; no action is shown.
+12. Local JSON should never be missing because the app saves the current DFM tab before proceeding.
 
 Remaining implementation assumptions:
 
@@ -512,7 +515,7 @@ Use these defaults unless changed before implementation:
 7. Use one contextual primary button instead of separate version-selection buttons:
    - `Keep Using Local` for local-newer comparisons.
    - `Use Remote Version` for remote-newer comparisons.
-8. `Update Remote DFM` sends another `Function = SyncDFM` request, waits for the `SyncDFM...json` status file, shows the pass/fail message, and leaves local JSON unchanged.
+8. `Keep Using Local` leaves local JSON unchanged, deletes the remote RPC JSON, and does not send `Function = SyncDFM`.
 9. `Update Local DFM` overwrites local JSON with the returned remote JSON and reloads the current DFM tab.
 10. Show the floating window immediately with waiting state, then update it when remote JSON arrives.
 11. Returned DFM JSON uses canonical keys only; old files and alias spellings are intentionally out of scope.

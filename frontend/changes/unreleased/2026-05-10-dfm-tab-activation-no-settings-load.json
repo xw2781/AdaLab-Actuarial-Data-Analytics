@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Stop DFM settings loading animation on tab activation.",
+  "details": [
+    "Switching back to an existing DFM tab now refreshes edit-state reporting without triggering a local method lookup or the Loading DFM Settings popup."
+  ]
+}

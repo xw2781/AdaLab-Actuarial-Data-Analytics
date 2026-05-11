@@ -5,7 +5,10 @@ import {
   state,
 } from "/ui/dfm/dfm_state.js";
 import { applyDfmMethodPayload, saveRatioSelectionPattern } from "/ui/dfm/dfm_persistence.js";
-import { createDfmRpcBridgeDialog } from "/ui/dfm/dfm_rpc_bridge_dialog.js";
+import {
+  createDfmRpcBridgeDialog,
+  createDfmRpcBridgeMessageBox,
+} from "/ui/dfm/dfm_rpc_bridge_dialog.js";
 
 let syncInFlight = false;
 
@@ -105,33 +108,44 @@ async function refreshComparison(dialog, payload) {
 
 async function runPrimaryAction(dialog, payload, action) {
   dialog.setBusy(true);
+  const statusDialog = createDfmRpcBridgeMessageBox("Preparing selected DFM version action...");
+  statusDialog.setBusy(true);
+  dialog.close();
   try {
     if (action === "update-local") {
-      dialog.setWaiting("Updating local DFM JSON from remote...");
+      statusDialog.setWaiting("Updating local DFM JSON from remote...");
       const data = await postJson("/dfm/rpc-bridge/apply", payload);
       const applied = await applyDfmMethodPayload(data?.payload);
       if (!applied?.ok) {
-        dialog.setMessage("Local JSON was overwritten, but the returned DFM payload could not be applied in the current tab.", "error");
+        statusDialog.setMessage("Updated, but could not reload this tab.", "error");
         postStatus("DFM sync: local JSON updated, but tab apply failed.", "warn");
         return;
       }
-      dialog.setMessage("Local DFM JSON updated from remote.", "ok");
+      statusDialog.setMessage("Local updated.", "ok");
       postStatus("DFM sync: local DFM JSON updated from remote.");
       return;
     }
+    if (action === "keep-local") {
+      statusDialog.setWaiting("Keeping local DFM JSON and removing remote RPC JSON...");
+      const data = await postJson("/dfm/rpc-bridge/keep-local", payload);
+      const message = data?.ok ? "No changes made on local." : (data?.message || "Keep local failed.");
+      statusDialog.setMessage(message, data?.ok ? "ok" : "error");
+      postStatus(`DFM sync: ${message}`, data?.ok ? "" : "warn");
+      return;
+    }
     if (action === "update-remote") {
-      dialog.setWaiting("Sending SyncDFM request and waiting for remote result...");
+      statusDialog.setWaiting("Sending SyncDFM request and waiting for remote result...");
       const data = await postJson("/dfm/rpc-bridge/update-remote", payload);
-      const message = data?.message || (data?.ok ? "Remote DFM status updated." : "Remote DFM update failed.");
-      dialog.setMessage(message, data?.ok ? "ok" : "error");
+      const message = data?.ok ? "Remote database updated" : (data?.message || "Remote update failed.");
+      statusDialog.setMessage(message, data?.ok ? "ok" : "error");
       postStatus(`DFM sync: ${message}`, data?.ok ? "" : "warn");
       return;
     }
   } catch (err) {
-    dialog.setMessage(String(err?.message || err), "error");
+    statusDialog.setMessage(String(err?.message || err), "error");
     postStatus(`DFM sync failed: ${String(err?.message || err)}`, "warn");
   } finally {
-    dialog.setBusy(false);
+    statusDialog.setBusy(false);
   }
 }
 

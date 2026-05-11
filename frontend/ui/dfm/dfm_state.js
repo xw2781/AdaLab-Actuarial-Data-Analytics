@@ -7,9 +7,7 @@ used across all DFM tab modules.
 import { state } from "/ui/shared/state.js";
 import {
   getSummaryConfigKey,
-  getMethodNameKey,
   loadCustomSummaryRows,
-  loadMethodName,
 } from "/ui/dfm/dfm_storage.js";
 
 // =============================================================================
@@ -265,15 +263,7 @@ export function getRatioSaveSuggestedName() {
     document.getElementById("dfmMethodName")?.value?.trim(),
     "Name",
   );
-  const devLen = sanitizeFileNamePart(
-    document.getElementById("devLenSelect")?.value?.trim(),
-    "Dev",
-  );
-  const originLen = sanitizeFileNamePart(
-    document.getElementById("originLenSelect")?.value?.trim(),
-    "Origin",
-  );
-  return `DFM@${reservingClass}@${methodName}@${originLen}@${devLen}.json`;
+  return `DFM@${reservingClass}@${methodName}.json`;
 }
 
 export async function getRatioSaveBaseDir() {

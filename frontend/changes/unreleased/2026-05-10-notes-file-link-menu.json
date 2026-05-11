@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "notes",
+  "audience": "user",
+  "summary": "Change Notes file links to use a right-click menu.",
+  "details": [
+    "Detected file paths in Dataset and DFM Notes now show `Open File` and `Copy File Path` from a right-click menu instead of opening on left click."
+  ]
+}

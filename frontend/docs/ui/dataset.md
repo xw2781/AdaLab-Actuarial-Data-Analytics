@@ -5,6 +5,7 @@
 Dataset editing and analysis page used inside shell tabs.
 It owns the Dataset workflow across Details, Data, Chart, Notes, and Audit Log views, with `Data` as the default tab.
 The page validates Project Name, Reserving Class, and Dataset Type before running ArcRhoTri, renders/caches the resulting triangle data, and publishes status/history updates back to the shell.
+Dataset Notes uses the shared notes editor behavior: detected file paths render as underlined links when not editing, and right-clicking a rendered path opens a small menu with `Open File` and `Copy File Path`.
 Implementation details should stay in the generated entrypoint/key-file sections or the focused behavior sections below, not in this overview.
 <!-- MANUAL:END -->
 

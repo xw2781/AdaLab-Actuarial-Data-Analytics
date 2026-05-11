@@ -1458,6 +1458,41 @@
       white-space: nowrap;
     }
     .dsNotesPathTooltip.show { display: block; }
+    .notesPathContextMenu {
+      position: fixed;
+      z-index: 2300;
+      display: none;
+      min-width: 150px;
+      padding: 5px;
+      border: 1px solid #bfc7d4;
+      border-radius: 6px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+      box-sizing: border-box;
+    }
+    .notesPathContextMenu.show {
+      display: block;
+    }
+    .notesPathContextMenuItem {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #1f2937;
+      font: 13px var(--app-font);
+      line-height: 1.25;
+      text-align: left;
+      padding: 7px 9px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .notesPathContextMenuItem:hover,
+    .notesPathContextMenuItem:focus {
+      background: #edf3ff;
+      color: #0b3d91;
+      outline: none;
+    }
     .dsPlaceholderBlock {
       border: 1px solid #e5e5e5;
       background: #fafafa;

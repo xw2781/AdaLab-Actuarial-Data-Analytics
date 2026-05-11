@@ -16,6 +16,7 @@ function ensureStyles() {
       position: fixed;
       width: min(980px, calc(100vw - 32px));
       min-width: min(620px, calc(100vw - 32px));
+      height: min(760px, calc(100vh - 96px));
       min-height: 360px;
       max-width: calc(100vw - 16px);
       max-height: calc(100vh - 96px);
@@ -29,6 +30,13 @@ function ensureStyles() {
       color: #172033;
       overflow: hidden;
       resize: both;
+    }
+    .dfmRpcMessageWindow {
+      width: min(520px, calc(100vw - 32px));
+      min-width: min(360px, calc(100vw - 32px));
+      min-height: 0;
+      height: auto;
+      resize: none;
     }
     .dfmRpcHeader {
       display: flex;
@@ -75,6 +83,11 @@ function ensureStyles() {
       padding: 16px;
       overflow: hidden;
     }
+    .dfmRpcMessageWindow .dfmRpcBody {
+      min-height: 0;
+      padding: 18px 20px;
+      overflow: visible;
+    }
     .dfmRpcStatus {
       margin: 0 0 14px;
       padding: 12px 14px;
@@ -99,6 +112,9 @@ function ensureStyles() {
       border-color: #b9dac9;
       background: #ecf8f1;
       color: #206246;
+    }
+    .dfmRpcMessageWindow .dfmRpcStatus {
+      margin: 0;
     }
     .dfmRpcGrid {
       display: grid;
@@ -193,8 +209,8 @@ function ensureStyles() {
       color: #4b5563;
     }
     .dfmRpcSnapshot {
-      display: grid;
-      grid-template-rows: auto auto auto auto auto minmax(42px, 1fr);
+      display: flex;
+      flex-direction: column;
       gap: 8px;
       flex: 1 1 auto;
       min-height: 0;
@@ -211,7 +227,7 @@ function ensureStyles() {
     }
     .dfmRpcPatternPreview {
       display: grid;
-      gap: 3px;
+      gap: var(--dfmRpcPatternGap, 3px);
       align-items: start;
       justify-content: start;
       max-width: 100%;
@@ -223,11 +239,11 @@ function ensureStyles() {
     }
     .dfmRpcPatternRow {
       display: flex;
-      gap: 3px;
+      gap: var(--dfmRpcPatternGap, 3px);
     }
     .dfmRpcPatternCell {
-      width: 20px;
-      height: 10px;
+      width: var(--dfmRpcPatternCellWidth, 20px);
+      height: var(--dfmRpcPatternCellHeight, 10px);
       flex: 0 0 auto;
       border: 1px solid #d8dee8;
       background: #f5f7fb;
@@ -243,6 +259,10 @@ function ensureStyles() {
     .dfmRpcPatternCell.excludedRemoved {
       border-color: #c34646;
       background: #e95a5a;
+    }
+    .dfmRpcPatternCell.missingInsideTriangle {
+      border-color: #e4c968;
+      background: #fff3b8;
     }
     .dfmRpcPatternCell.masked {
       visibility: hidden;
@@ -264,9 +284,10 @@ function ensureStyles() {
       line-height: 1.2;
     }
     .dfmRpcNotesPreview {
+      flex: 1 1 42px;
       min-height: 42px;
       max-height: 300px;
-      height: 100%;
+      height: auto;
       margin: 0;
       padding: 7px;
       border: 1px solid #e2e7ef;
@@ -274,6 +295,7 @@ function ensureStyles() {
       background: #fff;
       box-sizing: border-box;
       overflow: auto;
+      scrollbar-gutter: stable;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       color: #253046;
@@ -301,6 +323,9 @@ function ensureStyles() {
       padding: 12px 16px;
       border-top: 1px solid #e2e7ef;
       background: #f7f9fc;
+    }
+    .dfmRpcMessageWindow .dfmRpcActions {
+      padding: 10px 14px;
     }
     .dfmRpcBtn {
       min-height: 30px;
@@ -387,7 +412,7 @@ function getOrderedVersions(data) {
     source: "Local",
     meta: local,
     snapshot: data?.snapshots?.local || {},
-    action: "update-remote",
+    action: "keep-local",
   };
   const remoteVersion = {
     key: "remote",
@@ -412,6 +437,13 @@ function getPatternCellValue(pattern, rowIndex, colIndex) {
   return Number(row[colIndex] ?? 0);
 }
 
+function normalizePatternCellValue(value) {
+  const n = Number(value);
+  if (n === 1) return 1;
+  if (n === 2) return 2;
+  return 0;
+}
+
 function getPatternOriginLabel(pattern, rowIndex, labelFallbacks = {}) {
   const labels = Array.isArray(pattern?.origin_labels) ? pattern.origin_labels : [];
   const fallbackLabels = Array.isArray(labelFallbacks?.origin_labels) ? labelFallbacks.origin_labels : [];
@@ -424,15 +456,60 @@ function getPatternDevelopmentLabel(pattern, colIndex, labelFallbacks = {}) {
   return String(labels[colIndex] ?? fallbackLabels[colIndex] ?? "").trim();
 }
 
-function getPatternCellClass(value, otherValue, versionAge) {
-  if (value === 2) return "masked";
+function getPatternTriangleDiagonal(pattern) {
+  const rows = getPatternPreviewRows(pattern);
+  let latestDataRowIndex = -1;
+  let latestDataColIndex = -1;
+  rows.forEach((row, rowIndex) => {
+    if (!Array.isArray(row)) return;
+    let rowLastDataColIndex = -1;
+    row.forEach((cell, colIndex) => {
+      if (normalizePatternCellValue(cell) !== 2) {
+        rowLastDataColIndex = colIndex;
+      }
+    });
+    if (rowLastDataColIndex >= 0) {
+      latestDataRowIndex = rowIndex;
+      latestDataColIndex = rowLastDataColIndex;
+    }
+  });
+  return latestDataRowIndex >= 0 ? latestDataRowIndex + latestDataColIndex : -1;
+}
+
+function isPatternCellInsideTriangle(rowIndex, colIndex, diagonalIndex) {
+  return diagonalIndex >= 0 && rowIndex + colIndex <= diagonalIndex;
+}
+
+function patternHasMissingInsideTriangle(pattern, diagonalIndex) {
+  const rows = getPatternPreviewRows(pattern);
+  return rows.some((row, rowIndex) => Array.isArray(row) && row.some((cell, colIndex) => (
+    normalizePatternCellValue(cell) === 2 && isPatternCellInsideTriangle(rowIndex, colIndex, diagonalIndex)
+  )));
+}
+
+function getPatternCellClass(value, otherValue, versionAge, insideTriangle) {
+  if (value === 2) return insideTriangle ? "missingInsideTriangle" : "masked";
   if (value === 1 && otherValue === 1) return "excludedCommon";
   if (value === 1 && versionAge === "new") return "excludedAdded";
   if (value === 1 && versionAge === "old") return "excludedRemoved";
   return "";
 }
 
-function renderPatternLegend(versionAge) {
+function getPatternPreviewStyle(pattern) {
+  const columns = Math.max(1, Number(pattern?.columns || 0));
+  const gap = columns > 24 ? 2 : 3;
+  const targetWidth = 520;
+  const availableForCells = targetWidth - Math.max(0, columns - 1) * gap;
+  const cellWidth = Math.max(5, Math.min(20, Math.floor(availableForCells / columns)));
+  const cellHeight = Math.max(4, Math.round(cellWidth / 2));
+  return [
+    `--dfmRpcPatternGap:${gap}px`,
+    `--dfmRpcPatternCellWidth:${cellWidth}px`,
+    `--dfmRpcPatternCellHeight:${cellHeight}px`,
+  ].join(";");
+}
+
+function renderPatternLegend(versionAge, hasMissingInsideTriangle) {
   const legendItems = [
     '<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedCommon"></span>Common excluded</span>',
   ];
@@ -441,18 +518,29 @@ function renderPatternLegend(versionAge) {
   } else if (versionAge === "old") {
     legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedRemoved"></span>No longer excluded</span>');
   }
+  if (hasMissingInsideTriangle) {
+    legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell missingInsideTriangle"></span>Missing inside triangle</span>');
+  }
   return `<div class="dfmRpcPatternLegend">${legendItems.join("")}</div>`;
 }
 
 function renderPatternPreview(pattern, otherPattern, versionAge, labelFallbacks = {}) {
   if (!pattern?.exists) return `<div class="small">No ratio pattern in this JSON.</div>`;
   const rows = getPatternPreviewRows(pattern);
+  const style = getPatternPreviewStyle(pattern);
+  const diagonalIndex = getPatternTriangleDiagonal(pattern);
+  const hasMissingInsideTriangle = patternHasMissingInsideTriangle(pattern, diagonalIndex);
   const renderedRows = rows.map((row, rowIndex) => {
     const cells = (Array.isArray(row) ? row : [])
       .map((cell, colIndex) => {
-        const value = Number(cell ?? 0);
-        const otherValue = getPatternCellValue(otherPattern, rowIndex, colIndex);
-        const cls = getPatternCellClass(value, otherValue, versionAge);
+        const value = normalizePatternCellValue(cell);
+        const otherValue = normalizePatternCellValue(getPatternCellValue(otherPattern, rowIndex, colIndex));
+        const cls = getPatternCellClass(
+          value,
+          otherValue,
+          versionAge,
+          isPatternCellInsideTriangle(rowIndex, colIndex, diagonalIndex),
+        );
         const originLabel = getPatternOriginLabel(pattern, rowIndex, labelFallbacks);
         const developmentLabel = getPatternDevelopmentLabel(pattern, colIndex, labelFallbacks);
         const tooltip = originLabel || developmentLabel
@@ -465,13 +553,14 @@ function renderPatternPreview(pattern, otherPattern, versionAge, labelFallbacks 
   }).join("");
   return `
     <div class="small">${pattern.rows || 0} x ${pattern.columns || 0}; excluded cells: ${pattern.selected_count || 0}</div>
-    ${renderPatternLegend(versionAge)}
-    <div class="dfmRpcPatternPreview">${renderedRows || '<div class="small">Empty preview</div>'}</div>
+    ${renderPatternLegend(versionAge, hasMissingInsideTriangle)}
+    <div class="dfmRpcPatternPreview" style="${style}">${renderedRows || '<div class="small">Empty preview</div>'}</div>
   `;
 }
 
 function getSnapshotNotes(snapshot) {
-  return String(snapshot?.notes_preview || snapshot?.notes || "");
+  if (typeof snapshot?.notes === "string") return snapshot.notes;
+  return String(snapshot?.notes_preview || "");
 }
 
 function tokenizeNotes(text) {
@@ -789,6 +878,81 @@ export function createDfmRpcBridgeDialog() {
     close,
     setBusy,
     setComparison,
+    setMessage,
+    setWaiting,
+  };
+}
+
+export function createDfmRpcBridgeMessageBox(initialText = "", tone = "", options = {}) {
+  ensureStyles();
+  const overlay = document.createElement("div");
+  overlay.className = "dfmRpcOverlay";
+  const title = String(options?.title || "DFM Sync");
+  overlay.innerHTML = `
+    <div class="dfmRpcWindow dfmRpcMessageWindow" role="dialog" aria-modal="true" aria-labelledby="dfmRpcMessageTitle">
+      <div class="dfmRpcHeader">
+        <h2 class="dfmRpcTitle" id="dfmRpcMessageTitle">${escapeHtml(title)}</h2>
+        <button class="dfmRpcClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="dfmRpcBody"></div>
+      <div class="dfmRpcActions">
+        <button class="dfmRpcBtn" type="button" data-action="close">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const dialogWindow = overlay.querySelector(".dfmRpcWindow");
+  const header = overlay.querySelector(".dfmRpcHeader");
+  const body = overlay.querySelector(".dfmRpcBody");
+  const closeBtns = overlay.querySelectorAll(".dfmRpcClose, [data-action='close']");
+  let busyState = false;
+
+  placeDialogWindow(dialogWindow);
+  enableDialogDrag(dialogWindow, header);
+
+  function close() {
+    document.removeEventListener("keydown", onKeyDown);
+    overlay.remove();
+  }
+
+  function setBusy(busy) {
+    busyState = !!busy;
+    overlay.querySelectorAll("button").forEach((btn) => {
+      if (btn.classList.contains("dfmRpcClose")) return;
+      btn.disabled = !!busy;
+    });
+  }
+
+  function setMessage(text, nextTone = "") {
+    const toneClass = nextTone ? ` ${nextTone}` : "";
+    body.innerHTML = `<div class="dfmRpcStatus${toneClass}">${escapeHtml(text || "")}</div>`;
+  }
+
+  function setWaiting(text) {
+    setMessage(text || "Waiting...");
+  }
+
+  function closeIfIdle() {
+    if (!busyState) close();
+  }
+
+  function onKeyDown(event) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeIfIdle();
+  }
+
+  closeBtns.forEach((btn) => btn.addEventListener("click", close));
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeIfIdle();
+  });
+  document.addEventListener("keydown", onKeyDown);
+  setMessage(initialText || "Ready.", tone);
+
+  return {
+    close,
+    setBusy,
     setMessage,
     setWaiting,
   };
