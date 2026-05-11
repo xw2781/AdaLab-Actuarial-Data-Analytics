@@ -1,22 +1,30 @@
 # ArcRho
-### Actuarial Reserving Automation Platform
 
 ArcRho is an actuarial data automation platform focused on loss reserving analytics, with an emphasis on streamlining the end-to-end data preparation pipeline.
 It provides a structured framework for transforming raw insurance loss data into reproducible reserving workflows — eliminating manual data handling, accelerating turnaround, and giving actuaries full transparency and control over their assumptions.
 
 ## Background & Motivation
 
-Reserving teams face shifting claims patterns, extraordinary loss events, and rapid operational changes, but their tools often lag behind. The typical workflow still combines a rigid vendor platform with Excel worksheets and manual handoffs.
+Reserving teams face shifting claims patterns, extraordinary loss events, and rapid operational changes, but their tools often lag behind. Workflows still rely on rigid vendor platforms, Excel worksheets, and manual handoffs.
 
-The core problem is structural: traditional project hierarchies require pre-computing datasets before use, store thousands of rarely used outputs, and demand manual updates when coverage or company structures change. Automation APIs exist, but often require specialized scripting knowledge.
+The core problem is structural: traditional project hierarchies require pre-computing datasets, store thousands of rarely used outputs, and need manual updates when coverage or company structures change.
 
-ArcRho replaces that model with on-demand queries against flat source tables, exposed through familiar Excel formulas. It reduces manual data transfer, removes vendor dependency, and gives reserving teams faster ways to respond to emerging trends.
+ArcRho replaces that model with on-demand queries against analytics-ready source data, exposed through familiar Excel formulas. It reduces manual transfer, removes vendor dependency, and helps reserving teams respond faster.
 
 ## Modernized Web UI for a Seamless User Experience
 ![Screenshot](./assets/images/UI_Plots.png)
 
+ArcRho's web UI gives actuaries a flexible workspace for customizing, retrieving, and reviewing triangle datasets without rebuilding a project structure. Users can pull any configured dataset at the level or segment they need, switch assumptions quickly, and use multiple built-in visualization presets to inspect trends, compare patterns, and validate selections before moving deeper into the analysis.
+
 ## Discover New Ways to Interact with Reserving Methods
 ![Screenshot](./assets/images/UI_ChainLadder.png)
+
+ArcRho keeps familiar actuarial methods at the center, then equips them with modern, user-friendly tools that make method review faster and more transparent. The goal is not only to provide accurate data, but to help actuaries reach more accurate insights through clearer assumptions, easier interaction, and more productive review workflows.
+
+## Compare and Sync Reserving Method Versions
+![DFM version comparison](./assets/images/version_control.png)
+
+Method Version Compare helps teams review any two historical versions of a chain-ladder method before adopting changes. The comparison view highlights which version is newer, shows side-by-side snapshots of ratio selections, formulas, and notes, and lets users choose which version to keep. This gives actuaries a clear review step before overwriting assumptions, reducing accidental drift while keeping collaboration fast.
 
 ---
 
