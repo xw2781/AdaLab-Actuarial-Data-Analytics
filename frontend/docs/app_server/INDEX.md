@@ -48,7 +48,7 @@ High-risk files that must follow contracts:
 
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
-- Public interface is HTTP routes mounted by `app_server/main.py`.
+- Public interface is HTTP routes mounted by `app_server/main.py`; the frontend shell is served under `/ui` and shared icon assets under `/icons`.
 - Internal interface is router -> service -> filesystem/state helpers.
 <!-- MANUAL:END -->
 

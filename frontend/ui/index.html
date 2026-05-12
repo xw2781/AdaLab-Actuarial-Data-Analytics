@@ -396,6 +396,7 @@
       cursor: grab;
       z-index: 9000;
       padding: 0;
+      overflow: hidden;
       touch-action: none;
       opacity: 1;
       transform: scale(1);
@@ -424,21 +425,27 @@
       transform: scale(0.82);
       pointer-events: none;
     }
-    #aiAssistantLauncher svg {
-      width: 22px;
-      height: 22px;
-      stroke: currentColor;
-      stroke-width: 1.8;
-      fill: none;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      transform: translate(var(--ai-icon-x, 0), var(--ai-icon-y, 0));
+    #aiAssistantLauncher .arcbot-mini-img {
+      width: 42px;
+      height: 42px;
+      display: block;
+      object-fit: cover;
+      transform: rotate(var(--ai-icon-rotate-x, var(--ai-icon-rotate-y, 0deg)));
+      transform-origin: center;
       transition: transform 120ms ease;
     }
-    #aiAssistantLauncher.tucked-left { --ai-icon-x: 9px; }
-    #aiAssistantLauncher.tucked-right { --ai-icon-x: -9px; }
-    #aiAssistantLauncher.tucked-top { --ai-icon-y: 9px; }
-    #aiAssistantLauncher.tucked-bottom { --ai-icon-y: -9px; }
+    #aiAssistantLauncher.tucked-left {
+      --ai-icon-rotate-x: 90deg;
+    }
+    #aiAssistantLauncher.tucked-right {
+      --ai-icon-rotate-x: -90deg;
+    }
+    #aiAssistantLauncher.tucked-top {
+      --ai-icon-rotate-y: 180deg;
+    }
+    #aiAssistantLauncher.tucked-bottom {
+      --ai-icon-rotate-y: 0deg;
+    }
     #aiAssistantPanel {
       position: fixed;
       right: 18px;
@@ -2029,14 +2036,7 @@
 
   <div class="content" id="content"></div>
   <button id="aiAssistantLauncher" class="host-nodrag" type="button" title="ArcBot" aria-label="ArcBot">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="5" y="8" width="14" height="10" rx="3"></rect>
-      <path d="M12 8V5"></path>
-      <path d="M9 5h6"></path>
-      <path d="M8.5 12h.01"></path>
-      <path d="M15.5 12h.01"></path>
-      <path d="M9.5 15h5"></path>
-    </svg>
+    <img class="arcbot-mini-img" src="/icons/ArcBot%20mini.png" alt="" aria-hidden="true" draggable="false">
   </button>
   <section id="aiAssistantPanel" class="host-nodrag" aria-label="ArcBot">
     <div id="aiAssistantHeader">

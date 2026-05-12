@@ -266,72 +266,120 @@ function getLauncherDefaultPosition(launcher) {
   };
 }
 
-function loadLauncherPosition(launcher) {
+function readLauncherPosition() {
   try {
     const parsed = JSON.parse(localStorage.getItem(ASSISTANT_LAUNCHER_POSITION_KEY) || "null");
-    if (parsed && Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) {
-      return adaptLauncherPositionToWindow(launcher, parsed);
-    }
+    if (parsed && Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) return parsed;
   } catch {}
+  return null;
+}
+
+function loadLauncherPosition(launcher) {
+  const parsed = readLauncherPosition();
+  if (parsed) return adaptLauncherPositionToWindow(launcher, parsed);
   return getLauncherDefaultPosition(launcher);
 }
 
 function saveLauncherPosition(launcher, left, top) {
   const tucked = getLauncherTuckedEdges(launcher, left, top);
+  const anchor = getLauncherResizeAnchor(launcher, left, top, tucked);
+  const payload = {
+    left: Math.round(left),
+    top: Math.round(top),
+    tuckedX: tucked.x,
+    tuckedY: tucked.y,
+  };
+  if (anchor) {
+    payload.anchorCornerX = anchor.cornerX;
+    payload.anchorCornerY = anchor.cornerY;
+    payload.anchorOffsetX = anchor.offsetX;
+    payload.anchorOffsetY = anchor.offsetY;
+  }
   try {
-    localStorage.setItem(ASSISTANT_LAUNCHER_POSITION_KEY, JSON.stringify({
-      left: Math.round(left),
-      top: Math.round(top),
-      tuckedX: tucked.x,
-      tuckedY: tucked.y,
-    }));
+    localStorage.setItem(ASSISTANT_LAUNCHER_POSITION_KEY, JSON.stringify(payload));
   } catch {}
 }
 
-function getLauncherTuckedEdges(launcher, left, top) {
+function getLauncherMetrics(launcher) {
   const rect = launcher.getBoundingClientRect();
   const width = rect.width || 42;
   const height = rect.height || 42;
   const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
   return {
-    x: left < 0 ? "left" : (left + width > window.innerWidth ? "right" : ""),
-    y: top < 0 ? "top" : (top + height > window.innerHeight - statusbarHeight ? "bottom" : ""),
+    width,
+    height,
+    halfWidth: Math.round(width / 2),
+    halfHeight: Math.round(height / 2),
+    viewportWidth: Math.max(0, window.innerWidth),
+    viewportHeight: Math.max(0, window.innerHeight - statusbarHeight),
+  };
+}
+
+function getLauncherTuckedEdges(launcher, left, top) {
+  const metrics = getLauncherMetrics(launcher);
+  return {
+    x: left < 0 ? "left" : (left + metrics.width > metrics.viewportWidth ? "right" : ""),
+    y: top < 0 ? "top" : (top + metrics.height > metrics.viewportHeight ? "bottom" : ""),
+  };
+}
+
+function getLauncherResizeAnchor(launcher, left, top, tucked) {
+  if (!tucked?.x && !tucked?.y) return null;
+  const metrics = getLauncherMetrics(launcher);
+  const centerX = left + metrics.halfWidth;
+  const centerY = top + metrics.halfHeight;
+  const cornerX = tucked.x || (centerX <= metrics.viewportWidth / 2 ? "left" : "right");
+  const cornerY = tucked.y || (centerY <= metrics.viewportHeight / 2 ? "top" : "bottom");
+  return {
+    cornerX,
+    cornerY,
+    offsetX: Math.round(Math.max(0, cornerX === "right" ? metrics.viewportWidth - centerX : centerX)),
+    offsetY: Math.round(Math.max(0, cornerY === "bottom" ? metrics.viewportHeight - centerY : centerY)),
   };
 }
 
 function adaptLauncherPositionToWindow(launcher, position) {
-  const rect = launcher.getBoundingClientRect();
-  const width = rect.width || 42;
-  const height = rect.height || 42;
-  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
-  const halfWidth = Math.round(width / 2);
-  const halfHeight = Math.round(height / 2);
+  const metrics = getLauncherMetrics(launcher);
   let left = Number(position?.left || 0);
   let top = Number(position?.top || 0);
-  if (position?.tuckedX === "left") left = -halfWidth;
-  else if (position?.tuckedX === "right") left = window.innerWidth - halfWidth;
-  if (position?.tuckedY === "top") top = -halfHeight;
-  else if (position?.tuckedY === "bottom") top = window.innerHeight - statusbarHeight - halfHeight;
+  const hasAnchor = ["left", "right"].includes(position?.anchorCornerX)
+    && ["top", "bottom"].includes(position?.anchorCornerY)
+    && Number.isFinite(position?.anchorOffsetX)
+    && Number.isFinite(position?.anchorOffsetY);
+  if (hasAnchor && (position?.tuckedX || position?.tuckedY)) {
+    let centerX = position.anchorCornerX === "right"
+      ? metrics.viewportWidth - Math.max(0, Number(position.anchorOffsetX))
+      : Math.max(0, Number(position.anchorOffsetX));
+    let centerY = position.anchorCornerY === "bottom"
+      ? metrics.viewportHeight - Math.max(0, Number(position.anchorOffsetY))
+      : Math.max(0, Number(position.anchorOffsetY));
+    if (position.tuckedX === "left") centerX = 0;
+    else if (position.tuckedX === "right") centerX = metrics.viewportWidth;
+    if (position.tuckedY === "top") centerY = 0;
+    else if (position.tuckedY === "bottom") centerY = metrics.viewportHeight;
+    left = centerX - metrics.halfWidth;
+    top = centerY - metrics.halfHeight;
+  } else {
+    if (position?.tuckedX === "left") left = -metrics.halfWidth;
+    else if (position?.tuckedX === "right") left = metrics.viewportWidth - metrics.halfWidth;
+    if (position?.tuckedY === "top") top = -metrics.halfHeight;
+    else if (position?.tuckedY === "bottom") top = metrics.viewportHeight - metrics.halfHeight;
+  }
   return { left, top };
 }
 
 function clampLauncherPosition(launcher, left, top, options = {}) {
   const { snap = true } = options;
-  const rect = launcher.getBoundingClientRect();
-  const width = rect.width || 42;
-  const height = rect.height || 42;
-  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
-  const halfWidth = Math.round(width / 2);
-  const halfHeight = Math.round(height / 2);
-  const fullMaxLeft = Math.max(0, window.innerWidth - width);
-  const fullMaxTop = Math.max(0, window.innerHeight - statusbarHeight - height);
-  let nextLeft = Math.min(Math.max(left, -halfWidth), window.innerWidth - halfWidth);
-  let nextTop = Math.min(Math.max(top, -halfHeight), window.innerHeight - statusbarHeight - halfHeight);
+  const metrics = getLauncherMetrics(launcher);
+  const fullMaxLeft = Math.max(0, metrics.viewportWidth - metrics.width);
+  const fullMaxTop = Math.max(0, metrics.viewportHeight - metrics.height);
+  let nextLeft = Math.min(Math.max(left, -metrics.halfWidth), metrics.viewportWidth - metrics.halfWidth);
+  let nextTop = Math.min(Math.max(top, -metrics.halfHeight), metrics.viewportHeight - metrics.halfHeight);
   if (snap) {
-    if (nextLeft < 0) nextLeft = -halfWidth;
-    else if (nextLeft > fullMaxLeft) nextLeft = window.innerWidth - halfWidth;
-    if (nextTop < 0) nextTop = -halfHeight;
-    else if (nextTop > fullMaxTop) nextTop = window.innerHeight - statusbarHeight - halfHeight;
+    if (nextLeft < 0) nextLeft = -metrics.halfWidth;
+    else if (nextLeft > fullMaxLeft) nextLeft = metrics.viewportWidth - metrics.halfWidth;
+    if (nextTop < 0) nextTop = -metrics.halfHeight;
+    else if (nextTop > fullMaxTop) nextTop = metrics.viewportHeight - metrics.halfHeight;
   }
   return {
     left: nextLeft,
@@ -410,14 +458,7 @@ function initAssistantLauncherDrag(launcher) {
   launcher.addEventListener("pointercancel", endDrag);
   window.addEventListener("resize", () => {
     if (!isAiAssistantLauncherVisible()) return;
-    const rect = launcher.getBoundingClientRect();
-    const tucked = getLauncherTuckedEdges(launcher, rect.left, rect.top);
-    const next = applyLauncherPosition(launcher, {
-      left: rect.left,
-      top: rect.top,
-      tuckedX: tucked.x,
-      tuckedY: tucked.y,
-    });
+    const next = applyLauncherPosition(launcher, loadLauncherPosition(launcher));
     saveLauncherPosition(launcher, next.left, next.top);
   });
 }
