@@ -75,6 +75,7 @@ Detected `arcrho:*` message types in key JS files:
 - The home sidebar brand reads the Windows username from the Electron host bridge when available, then renders the username and a generated SVG initial mark; plain browser sessions keep the default ArcRho brand.
 - Uses Electron host bridge for Server Connection folder browsing and first-time `ArcRho Server` drive detection.
 - Uses Electron host bridge for desktop-only ArcBot Codex CLI status, install, login, and `codex exec` requests; for Edit Mode, the host writes the active page JSON into a local ArcBot session folder, lets Codex edit only that temporary copy, then validates the target path against the configured Server Connection root, backs up the original JSON under the method `history` folder or the active page snapshot when direct read is denied, applies the edited temp copy, and can revert the latest ArcBot edit from that backup.
+- The View menu includes a global Show/Hide AI Bot Icon action that controls the ArcBot launcher without affecting the assistant chat history; the launcher can be freely dragged within the app window, smoothly snaps to either fully visible or exactly halfway tucked offscreen at window edges, preserves tucked edge attachment during window resize, hides while the ArcBot chat panel is open, and fades back in when the panel closes.
 - Saving Server Connection updates `/workspace_paths` without restarting the app, then broadcasts `arcrho:server-connection-updated` to open feature iframes so page-local path caches can refresh.
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.
 - Receives `arcrho:open-dataset-from-history` from Browsing History tab to open dataset tabs with selected inputs.
@@ -85,6 +86,7 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Persists tab state, docked/floating layout, floating window position/size/z-order, zoom, and toggles in `localStorage`.
 - Persists dataset browsing history entries (latest 15) via `browsing_history.js`.
+- Persists the ArcBot launcher icon visibility and position in `localStorage`.
 - Keeps ArcBot messages in memory for the current app session only; local ArcBot edit-session JSON copies are written under the user `Documents\ArcRho\ArcBot\sessions` folder, and latest ArcBot edit metadata is stored under Electron user data so a later `revert latest` request can restore the backed-up method JSON when the file has not changed again.
 <!-- MANUAL:END -->
 

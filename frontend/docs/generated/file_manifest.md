@@ -15,4 +15,4 @@ Excluded directories: `__pycache__`, `dist`, `node-portable`, `node-v24.13.0-win
 | `electron` | 2 |
 | `icons` | 17 |
 | `tools` | 2 |
-| `ui` | 189 |
+| `ui` | 196 |

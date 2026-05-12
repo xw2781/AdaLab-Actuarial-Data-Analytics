@@ -1,4 +1,5 @@
 import { shell } from "./shell_context.js?v=20260510a";
+import { isAiAssistantLauncherVisible, toggleAiAssistantLauncherVisible } from "./ai_assistant.js?v=20260510a";
 
 const fileMenuBtn = document.querySelector('.menu[data-menu="file"]');
 const fileMenuDropdown = document.getElementById("fileMenuDropdown");
@@ -146,6 +147,8 @@ export function updateViewMenuState() {
   applyScopedMenuVisibility(viewMenuDropdown);
   const isWorkflow = isActiveWorkflowTab();
   const isScripting = isActiveScriptingTab();
+  const aiBotIconLabel = viewMenuDropdown.querySelector('.menuItem[data-action="toggle-ai-bot-icon"] > span:not(.menuShortcut)');
+  if (aiBotIconLabel) aiBotIconLabel.textContent = isAiAssistantLauncherVisible() ? "Hide AI Bot Icon" : "Show AI Bot Icon";
   viewMenuDropdown.querySelectorAll(".menuItem").forEach((el) => {
     if (el.hidden) { el.classList.remove("disabled"); return; }
     const action = el.getAttribute("data-action") || "";
@@ -200,7 +203,22 @@ export function initShellMenus() {
     else if (action === "restart-app") shell.restartApplication?.();
     else if (action === "shutdown-app") shell.shutdownApplication?.();
   });
-  viewMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action || item.classList.contains("disabled")) return; toggleViewMenu(false); if (action === "toggle-nav") toggleNavigationPanel(); else if (action === "toggle-line-numbers") sendScriptingCommand("arcrho:scripting-toggle-line-numbers"); else if (action === "toggle-exec-time") sendScriptingCommand("arcrho:scripting-toggle-exec-time"); });
+  viewMenuDropdown?.addEventListener("click", (e) => {
+    const item = e.target?.closest?.(".menuItem");
+    const action = item?.getAttribute("data-action");
+    if (!action || item.classList.contains("disabled")) return;
+    toggleViewMenu(false);
+    if (action === "toggle-ai-bot-icon") {
+      const visible = toggleAiAssistantLauncherVisible();
+      shell.updateStatusBar?.(`AI bot icon ${visible ? "shown" : "hidden"}.`);
+    } else if (action === "toggle-nav") {
+      toggleNavigationPanel();
+    } else if (action === "toggle-line-numbers") {
+      sendScriptingCommand("arcrho:scripting-toggle-line-numbers");
+    } else if (action === "toggle-exec-time") {
+      sendScriptingCommand("arcrho:scripting-toggle-exec-time");
+    }
+  });
   settingsMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action) return; toggleSettingsMenu(false); if (action === "font-settings") shell.openFontSettingsModal?.(); else if (action === "root-path-settings") shell.openRootPathSettingsModal?.(); else if (action === "force-rebuild-settings") shell.openForceRebuildSettingsModal?.(); else if (action === "refresh-page") shell.refreshActiveTab?.(); else if (action === "clear-cache-reload") shell.clearCacheAndReload?.(); });
   editMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action || item.classList.contains("disabled")) return; toggleEditMenu(false); if (action === "dfm-exclude-high") sendDFMCommand("arcrho:dfm-exclude-high"); else if (action === "dfm-exclude-low") sendDFMCommand("arcrho:dfm-exclude-low"); else if (action === "dfm-include-all") sendDFMCommand("arcrho:dfm-include-all"); else if (action === "render-all-markdown") sendScriptingCommand("arcrho:scripting-render-all-markdown"); });
   document.addEventListener("pointerdown", (e) => { const hit = e.target?.closest?.(".menu, .menuDropdown, .tabMenu, .plusTab, #tabCtxMenu"); if (!hit) closeAllShellMenus(); }, true);

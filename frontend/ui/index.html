@@ -393,13 +393,36 @@
       align-items: center;
       justify-content: center;
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-      cursor: pointer;
+      cursor: grab;
       z-index: 9000;
       padding: 0;
+      touch-action: none;
+      opacity: 1;
+      transform: scale(1);
+      transition:
+        left 160ms ease,
+        top 160ms ease,
+        opacity 150ms ease,
+        transform 150ms ease,
+        background 120ms ease,
+        border-color 120ms ease,
+        box-shadow 120ms ease;
     }
     #aiAssistantLauncher:hover {
       background: #eef5ff;
       border-color: #6f96d4;
+    }
+    #aiAssistantLauncher.dragging {
+      cursor: grabbing;
+      transition: none;
+    }
+    #aiAssistantLauncher.tucked {
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+    }
+    #aiAssistantLauncher.assistant-open {
+      opacity: 0;
+      transform: scale(0.82);
+      pointer-events: none;
     }
     #aiAssistantLauncher svg {
       width: 22px;
@@ -409,7 +432,13 @@
       fill: none;
       stroke-linecap: round;
       stroke-linejoin: round;
+      transform: translate(var(--ai-icon-x, 0), var(--ai-icon-y, 0));
+      transition: transform 120ms ease;
     }
+    #aiAssistantLauncher.tucked-left { --ai-icon-x: 9px; }
+    #aiAssistantLauncher.tucked-right { --ai-icon-x: -9px; }
+    #aiAssistantLauncher.tucked-top { --ai-icon-y: 9px; }
+    #aiAssistantLauncher.tucked-bottom { --ai-icon-y: -9px; }
     #aiAssistantPanel {
       position: fixed;
       right: 18px;
@@ -417,19 +446,35 @@
       width: min(420px, calc(100vw - 36px));
       height: min(560px, calc(100vh - 132px));
       min-height: 340px;
-      display: none;
+      display: flex;
       flex-direction: column;
       background: #f8f8f8;
       border: 1px solid #aeb7c3;
       box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
       z-index: 9001;
       overflow: hidden;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(12px) scale(0.98);
+      transform-origin: bottom right;
+      transition:
+        opacity 170ms ease,
+        transform 170ms ease,
+        visibility 0s linear 170ms;
     }
     body.win11-frame #aiAssistantPanel {
       border-radius: 8px;
     }
     #aiAssistantPanel.open {
-      display: flex;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+      transition:
+        opacity 170ms ease,
+        transform 170ms ease,
+        visibility 0s linear 0s;
     }
     #aiAssistantHeader {
       height: 34px;
@@ -1947,6 +1992,8 @@
   </div>
 
   <div id="viewMenuDropdown" class="menuDropdown" data-requires-page-scope="1">
+    <div class="menuItem" data-action="toggle-ai-bot-icon" data-page-scopes="*"><span>Hide AI Bot Icon</span></div>
+    <div class="menuSep"></div>
     <div class="menuItem" data-action="toggle-nav" data-page-scopes="workflow"><span>Hide/Show Navigation Panel</span><span class="menuShortcut">Ctrl+Shift+F</span></div>
     <div class="menuItem" data-action="toggle-line-numbers" data-page-scopes="scripting"><span>Toggle Line Numbers</span><span class="menuShortcut">Ctrl+Shift+L</span></div>
     <div class="menuItem" data-action="toggle-exec-time" data-page-scopes="scripting"><span>Toggle Execution Time</span><span class="menuShortcut">Ctrl+Shift+E</span></div>

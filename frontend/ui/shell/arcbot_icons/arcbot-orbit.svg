@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-labelledby="title desc">
+  <title id="title">ArcBot Orbit</title>
+  <desc id="desc">A compact bot head with an orbital arc and spark node.</desc>
+  <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 10.2c0-1.8 1.4-3.2 3.2-3.2h3.6c1.8 0 3.2 1.4 3.2 3.2v3.6c0 1.8-1.4 3.2-3.2 3.2h-3.6C8.4 17 7 15.6 7 13.8z"/>
+    <path d="M12 7V4.8"/>
+    <path d="M9.8 4.8h4.4"/>
+    <path d="M10 12h.01"/>
+    <path d="M14 12h.01"/>
+    <path d="M10.5 14.3h3"/>
+    <path d="M3.8 13.2c1.8 4.2 6.7 6.2 10.9 4.4 2.4-1 4-2.9 4.8-5.1"/>
+    <path d="M20.2 10.8c-1.8-4.2-6.7-6.2-10.9-4.4-2.4 1-4 2.9-4.8 5.1"/>
+    <path d="M19.8 5.2v2.7h2.7"/>
+  </g>
+</svg>

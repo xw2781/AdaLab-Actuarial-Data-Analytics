@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-labelledby="title desc">
+  <title id="title">ArcBot Arc A</title>
+  <desc id="desc">A stylized ArcRho A mark blended with a small assistant face.</desc>
+  <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.6 18.5L10.2 5.6c.7-1.5 2.9-1.5 3.6 0l5.6 12.9"/>
+    <path d="M8 14.2h8"/>
+    <path d="M9.4 11.1c.6-1.4 1.1-2.6 1.4-3.4.5-1.1 1.9-1.1 2.4 0 .3.8.8 2 1.4 3.4"/>
+    <path d="M7.2 18.5c1.2 1 2.8 1.6 4.8 1.6s3.6-.6 4.8-1.6"/>
+    <path d="M10.4 16.3h.01"/>
+    <path d="M13.6 16.3h.01"/>
+    <path d="M10.9 18h2.2"/>
+    <path d="M18.6 6.1c1.1.9 1.9 2 2.4 3.4"/>
+    <path d="M3 9.5c.5-1.4 1.3-2.5 2.4-3.4"/>
+  </g>
+</svg>

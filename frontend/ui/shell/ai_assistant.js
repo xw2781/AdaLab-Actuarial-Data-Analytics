@@ -3,9 +3,12 @@ import { $, getHostApi, shell } from "./shell_context.js?v=20260510a";
 const assistantMessages = [];
 let assistantMode = "edit";
 const ASSISTANT_MODEL = "codex";
+const ASSISTANT_LAUNCHER_VISIBLE_KEY = "arcrho_ai_assistant_launcher_visible";
+const ASSISTANT_LAUNCHER_POSITION_KEY = "arcrho_ai_assistant_launcher_position";
 let assistantReady = false;
 let assistantBusy = false;
 let assistantStatusChecked = false;
+let suppressLauncherClick = false;
 
 function setText(el, text) {
   if (el) el.textContent = text || "";
@@ -27,6 +30,37 @@ function setSetup({ open = false, text = "", install = false, login = false } = 
   setText(setupText, text);
   if (installBtn) installBtn.style.display = install ? "inline-block" : "none";
   if (loginBtn) loginBtn.style.display = login ? "inline-block" : "none";
+}
+
+export function isAiAssistantLauncherVisible() {
+  try {
+    return localStorage.getItem(ASSISTANT_LAUNCHER_VISIBLE_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setAiAssistantLauncherVisible(visible) {
+  const show = !!visible;
+  try {
+    localStorage.setItem(ASSISTANT_LAUNCHER_VISIBLE_KEY, show ? "1" : "0");
+  } catch {}
+  const launcher = $("aiAssistantLauncher");
+  const panel = $("aiAssistantPanel");
+  if (launcher) launcher.style.display = show ? "" : "none";
+  if (show && launcher) applyLauncherPosition(launcher, loadLauncherPosition(launcher));
+  if (!show) {
+    launcher?.classList.remove("assistant-open");
+    panel?.classList.remove("open");
+  } else if (panel?.classList.contains("open")) {
+    launcher?.classList.add("assistant-open");
+  }
+  shell.updateViewMenuState?.();
+  return show;
+}
+
+export function toggleAiAssistantLauncherVisible() {
+  return setAiAssistantLauncherVisible(!isAiAssistantLauncherVisible());
 }
 
 function getModeLabel() {
@@ -167,6 +201,7 @@ async function refreshAssistantStatus() {
 }
 
 function openAssistant() {
+  $("aiAssistantLauncher")?.classList.add("assistant-open");
   $("aiAssistantPanel")?.classList.add("open");
   renderEmptyHint();
   if (!assistantStatusChecked) refreshAssistantStatus();
@@ -174,6 +209,7 @@ function openAssistant() {
 }
 
 function closeAssistant() {
+  if (isAiAssistantLauncherVisible()) $("aiAssistantLauncher")?.classList.remove("assistant-open");
   $("aiAssistantPanel")?.classList.remove("open");
 }
 
@@ -217,6 +253,173 @@ function toggleModelMenu(forceOpen) {
 function showUnavailableModel(name) {
   closeModelMenu();
   window.alert(`${name} is not currently available. ArcBot will continue using Codex.`);
+}
+
+function getLauncherDefaultPosition(launcher) {
+  const rect = launcher.getBoundingClientRect();
+  const width = rect.width || 42;
+  const height = rect.height || 42;
+  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
+  return {
+    left: window.innerWidth - width - 18,
+    top: window.innerHeight - statusbarHeight - height - 18,
+  };
+}
+
+function loadLauncherPosition(launcher) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ASSISTANT_LAUNCHER_POSITION_KEY) || "null");
+    if (parsed && Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) {
+      return adaptLauncherPositionToWindow(launcher, parsed);
+    }
+  } catch {}
+  return getLauncherDefaultPosition(launcher);
+}
+
+function saveLauncherPosition(launcher, left, top) {
+  const tucked = getLauncherTuckedEdges(launcher, left, top);
+  try {
+    localStorage.setItem(ASSISTANT_LAUNCHER_POSITION_KEY, JSON.stringify({
+      left: Math.round(left),
+      top: Math.round(top),
+      tuckedX: tucked.x,
+      tuckedY: tucked.y,
+    }));
+  } catch {}
+}
+
+function getLauncherTuckedEdges(launcher, left, top) {
+  const rect = launcher.getBoundingClientRect();
+  const width = rect.width || 42;
+  const height = rect.height || 42;
+  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
+  return {
+    x: left < 0 ? "left" : (left + width > window.innerWidth ? "right" : ""),
+    y: top < 0 ? "top" : (top + height > window.innerHeight - statusbarHeight ? "bottom" : ""),
+  };
+}
+
+function adaptLauncherPositionToWindow(launcher, position) {
+  const rect = launcher.getBoundingClientRect();
+  const width = rect.width || 42;
+  const height = rect.height || 42;
+  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
+  const halfWidth = Math.round(width / 2);
+  const halfHeight = Math.round(height / 2);
+  let left = Number(position?.left || 0);
+  let top = Number(position?.top || 0);
+  if (position?.tuckedX === "left") left = -halfWidth;
+  else if (position?.tuckedX === "right") left = window.innerWidth - halfWidth;
+  if (position?.tuckedY === "top") top = -halfHeight;
+  else if (position?.tuckedY === "bottom") top = window.innerHeight - statusbarHeight - halfHeight;
+  return { left, top };
+}
+
+function clampLauncherPosition(launcher, left, top, options = {}) {
+  const { snap = true } = options;
+  const rect = launcher.getBoundingClientRect();
+  const width = rect.width || 42;
+  const height = rect.height || 42;
+  const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
+  const halfWidth = Math.round(width / 2);
+  const halfHeight = Math.round(height / 2);
+  const fullMaxLeft = Math.max(0, window.innerWidth - width);
+  const fullMaxTop = Math.max(0, window.innerHeight - statusbarHeight - height);
+  let nextLeft = Math.min(Math.max(left, -halfWidth), window.innerWidth - halfWidth);
+  let nextTop = Math.min(Math.max(top, -halfHeight), window.innerHeight - statusbarHeight - halfHeight);
+  if (snap) {
+    if (nextLeft < 0) nextLeft = -halfWidth;
+    else if (nextLeft > fullMaxLeft) nextLeft = window.innerWidth - halfWidth;
+    if (nextTop < 0) nextTop = -halfHeight;
+    else if (nextTop > fullMaxTop) nextTop = window.innerHeight - statusbarHeight - halfHeight;
+  }
+  return {
+    left: nextLeft,
+    top: nextTop,
+  };
+}
+
+function updateLauncherTuckedState(launcher, left, top) {
+  const tucked = getLauncherTuckedEdges(launcher, left, top);
+  const nearLeft = tucked.x === "left";
+  const nearRight = tucked.x === "right";
+  const nearTop = tucked.y === "top";
+  const nearBottom = tucked.y === "bottom";
+  launcher.classList.toggle("tucked", nearLeft || nearRight || nearTop || nearBottom);
+  launcher.classList.toggle("tucked-left", nearLeft);
+  launcher.classList.toggle("tucked-right", nearRight);
+  launcher.classList.toggle("tucked-top", nearTop);
+  launcher.classList.toggle("tucked-bottom", nearBottom);
+}
+
+function applyLauncherPosition(launcher, position, options = {}) {
+  const next = clampLauncherPosition(launcher, Number(position?.left || 0), Number(position?.top || 0), options);
+  launcher.style.left = `${Math.round(next.left)}px`;
+  launcher.style.top = `${Math.round(next.top)}px`;
+  launcher.style.right = "auto";
+  launcher.style.bottom = "auto";
+  updateLauncherTuckedState(launcher, next.left, next.top);
+  return next;
+}
+
+function initAssistantLauncherDrag(launcher) {
+  let dragState = null;
+  launcher.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const rect = launcher.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      moved: false,
+    };
+    try { launcher.setPointerCapture(event.pointerId); } catch {}
+  });
+
+  launcher.addEventListener("pointermove", (event) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    if (!dragState.moved && Math.hypot(dx, dy) < 4) return;
+    dragState.moved = true;
+    launcher.classList.add("dragging");
+    applyLauncherPosition(launcher, {
+      left: dragState.left + dx,
+      top: dragState.top + dy,
+    }, { snap: false });
+    event.preventDefault();
+  });
+
+  const endDrag = (event) => {
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    try { launcher.releasePointerCapture(event.pointerId); } catch {}
+    launcher.classList.remove("dragging");
+    if (dragState.moved) {
+      const rect = launcher.getBoundingClientRect();
+      const next = applyLauncherPosition(launcher, { left: rect.left, top: rect.top });
+      saveLauncherPosition(launcher, next.left, next.top);
+      suppressLauncherClick = true;
+      setTimeout(() => { suppressLauncherClick = false; }, 150);
+    }
+    dragState = null;
+  };
+
+  launcher.addEventListener("pointerup", endDrag);
+  launcher.addEventListener("pointercancel", endDrag);
+  window.addEventListener("resize", () => {
+    if (!isAiAssistantLauncherVisible()) return;
+    const rect = launcher.getBoundingClientRect();
+    const tucked = getLauncherTuckedEdges(launcher, rect.left, rect.top);
+    const next = applyLauncherPosition(launcher, {
+      left: rect.left,
+      top: rect.top,
+      tuckedX: tucked.x,
+      tuckedY: tucked.y,
+    });
+    saveLauncherPosition(launcher, next.left, next.top);
+  });
 }
 
 function clampPanelPosition(panel, left, top) {
@@ -399,8 +602,13 @@ export function initAiAssistant() {
     launcher.style.display = "none";
     return;
   }
+  setAiAssistantLauncherVisible(isAiAssistantLauncherVisible());
 
-  launcher.addEventListener("click", () => {
+  launcher.addEventListener("click", (event) => {
+    if (suppressLauncherClick) {
+      event.preventDefault();
+      return;
+    }
     if (panel.classList.contains("open")) closeAssistant();
     else openAssistant();
   });
@@ -450,5 +658,6 @@ export function initAiAssistant() {
     if (event.key === "Escape") closeSelectMenus();
   }, true);
   initAssistantDrag(panel);
+  initAssistantLauncherDrag(launcher);
   setComposerEnabled(false);
 }
