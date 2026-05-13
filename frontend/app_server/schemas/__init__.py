@@ -24,6 +24,8 @@ from .audit_log import AuditLogWriteRequest
 from .workspace_paths import WorkspacePathsUpdateRequest
 from .scripting import ScriptRunRequest, ScriptDeleteVarRequest, ScriptNotebookSaveRequest, ScriptNotebookLoadRequest
 from .dfm_rpc_bridge import DfmRpcBridgeRequest, DfmRpcBridgeApplyRequest, DfmRpcBridgeUpdateRemoteRequest
+from .dfm_method_index import DfmMethodIndexRefreshRequest
+from .project_user_preferences import ProjectUserPreferencesUpdateRequest
 
 __all__ = [
     "WorkflowSaveRequest", "WorkflowSaveAsRequest", "WorkflowLoadRequest",

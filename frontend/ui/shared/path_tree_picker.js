@@ -31,6 +31,14 @@ function ensureStyles(doc) {
       resize: both;
       overscroll-behavior: contain;
     }
+    .ptree-window.ptree-refresh-enter {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ptree-window.ptree-refresh-ready {
+      opacity: 1;
+      transition: opacity 90ms ease-out;
+    }
     .ptree-window::after {
       content: "";
       position: absolute;
@@ -170,6 +178,12 @@ function ensureStyles(doc) {
       font-style: normal;
     }
     .ptree-node { user-select: none; }
+    .ptree-node.ptree-removing {
+      overflow: hidden;
+      opacity: 0;
+      max-height: 0 !important;
+      transition: max-height 140ms ease, opacity 120ms ease;
+    }
     .ptree-folder {
       display: flex;
       align-items: center;
@@ -771,6 +785,7 @@ function renderNode(doc, node, depth, options, onSelect, context) {
         path: String(currentNode?.path || ""),
         node: currentNode,
         element: leaf,
+        nodeElement: nodeEl,
         hasChildren: false,
         isExpanded: () => false,
         expand: async () => {},
@@ -906,6 +921,7 @@ function renderNode(doc, node, depth, options, onSelect, context) {
       path: String(currentNode?.path || ""),
       node: currentNode,
       element: folder,
+      nodeElement: nodeEl,
       hasChildren: true,
       isExpanded: () => arrow.classList.contains("expanded"),
       expand: async () => setExpanded(true),
@@ -997,17 +1013,22 @@ async function collapseDeepestExpandedNodes(nodeControls, delimiter = "\\") {
   return { collapsedCount, depth: maxDepth };
 }
 
-export function closeFloatingPathTreePicker(reason = "programmatic") {
-  if (!activePicker) return;
-  const { doc, win, onEsc, onClose, onBeforeClose, onWheelGuard, getExpandedPaths } = activePicker;
-  if (typeof onBeforeClose === "function") {
+function disposeFloatingPathTreePicker(picker, reason = "programmatic", options = {}) {
+  if (!picker) return;
+  const { doc, win, onEsc, onClose, onBeforeClose, onWheelGuard, getExpandedPaths } = picker;
+  if (options?.beforeClose !== false && typeof onBeforeClose === "function") {
     let rect = null;
+    let body = null;
     try {
       rect = win && typeof win.getBoundingClientRect === "function"
         ? win.getBoundingClientRect()
         : null;
+      body = win && typeof win.querySelector === "function"
+        ? win.querySelector(".ptree-body")
+        : null;
     } catch {
       rect = null;
+      body = null;
     }
     try {
       onBeforeClose({
@@ -1018,6 +1039,8 @@ export function closeFloatingPathTreePicker(reason = "programmatic") {
         top: Number(rect?.top),
         width: Number(rect?.width),
         height: Number(rect?.height),
+        scrollTop: Number(body?.scrollTop || 0),
+        scrollLeft: Number(body?.scrollLeft || 0),
         expandedPaths: typeof getExpandedPaths === "function" ? getExpandedPaths() : [],
       });
     } catch {}
@@ -1027,16 +1050,54 @@ export function closeFloatingPathTreePicker(reason = "programmatic") {
     try { onWheelGuard(); } catch {}
   }
   if (win && win.parentNode) win.parentNode.removeChild(win);
-  activePicker = null;
-  if (typeof onClose === "function") {
+  if (activePicker === picker) activePicker = null;
+  if (options?.close !== false && typeof onClose === "function") {
     try { onClose(reason); } catch {}
   }
+}
+
+function getVisibleTreeNodeCount(body) {
+  if (!body || typeof body.querySelectorAll !== "function") return 0;
+  return Array.from(body.querySelectorAll(".ptree-node"))
+    .filter((node) => node && node.parentNode && !node.classList?.contains("ptree-removing"))
+    .length;
+}
+
+function animateRemoveTreeNode(nodeEl) {
+  if (!nodeEl || !nodeEl.parentNode) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const startHeight = Math.max(1, Math.ceil(nodeEl.getBoundingClientRect?.().height || nodeEl.scrollHeight || 1));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (nodeEl.parentNode) nodeEl.parentNode.removeChild(nodeEl);
+      resolve(true);
+    };
+    nodeEl.style.maxHeight = `${startHeight}px`;
+    nodeEl.offsetHeight;
+    nodeEl.classList.add("ptree-removing");
+    setTimeout(finish, 170);
+  });
+}
+
+export function closeFloatingPathTreePicker(reason = "programmatic") {
+  if (!activePicker) return;
+  disposeFloatingPathTreePicker(activePicker, reason);
 }
 
 export function openFloatingPathTreePicker(options = {}) {
   const doc = options?.document || window.document;
   ensureStyles(doc);
-  closeFloatingPathTreePicker("replaced");
+  const previousPicker = activePicker;
+  const smoothReplaceExisting = !!previousPicker && options?.smoothReplaceExisting === true;
+  if (smoothReplaceExisting) {
+    try {
+      previousPicker.win.style.pointerEvents = "none";
+    } catch {}
+  } else {
+    closeFloatingPathTreePicker("replaced");
+  }
 
   const delimiter = String(options?.delimiter || "\\");
   const makePathKey = (rawPath) => normalizePath(rawPath, delimiter).toLowerCase();
@@ -1052,6 +1113,19 @@ export function openFloatingPathTreePicker(options = {}) {
   const rootNodes = rawRootNodes.map((node) => normalizePickerNode(node, options));
   const expandedPathMap = new Map();
   const rawExpandedPaths = Array.isArray(options?.expandedPaths) ? options.expandedPaths : null;
+  const initialScrollTopRaw = Number(options?.initialScrollTop);
+  const initialScrollLeftRaw = Number(options?.initialScrollLeft);
+  const hasInitialScrollPosition =
+    Number.isFinite(initialScrollTopRaw) || Number.isFinite(initialScrollLeftRaw);
+  const restoreInitialScrollPosition = () => {
+    if (!hasInitialScrollPosition) return;
+    if (Number.isFinite(initialScrollTopRaw)) {
+      body.scrollTop = Math.max(0, initialScrollTopRaw);
+    }
+    if (Number.isFinite(initialScrollLeftRaw)) {
+      body.scrollLeft = Math.max(0, initialScrollLeftRaw);
+    }
+  };
   if (rawExpandedPaths) {
     for (const raw of rawExpandedPaths) {
       const path = normalizePath(raw, delimiter);
@@ -1080,6 +1154,9 @@ export function openFloatingPathTreePicker(options = {}) {
 
   const win = doc.createElement("div");
   win.className = "ptree-window";
+  if (smoothReplaceExisting) {
+    win.classList.add("ptree-refresh-enter");
+  }
 
   const bar = doc.createElement("div");
   bar.className = "ptree-titlebar";
@@ -1126,6 +1203,29 @@ export function openFloatingPathTreePicker(options = {}) {
       }
     });
     tools.appendChild(collapseBtn);
+  }
+
+  if (typeof options?.onHiddenPathsClick === "function" || options?.showHiddenPathsButton) {
+    const hiddenBtn = doc.createElement("button");
+    hiddenBtn.type = "button";
+    hiddenBtn.className = "ptree-toolbtn ptree-hidden-paths";
+    if (options?.hiddenPathsButtonActive) hiddenBtn.classList.add("active");
+    hiddenBtn.title = String(options?.hiddenPathsButtonTitle || "Hidden Paths");
+    hiddenBtn.setAttribute("aria-label", String(options?.hiddenPathsButtonTitle || "Hidden Paths"));
+    hiddenBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="3"/></svg>';
+    hiddenBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        options.onHiddenPathsClick({
+          event: e,
+          buttonElement: hiddenBtn,
+          pickerElement: win,
+          titlebarElement: bar,
+        });
+      } catch {}
+    });
+    tools.appendChild(hiddenBtn);
   }
 
   if (typeof options?.onFilterClick === "function" || options?.showFilterButton) {
@@ -1283,6 +1383,20 @@ export function openFloatingPathTreePicker(options = {}) {
       lastControl.element.scrollIntoView({ block: "nearest" });
     }
   };
+  const finishInitialRender = () => {
+    if (!smoothReplaceExisting) return;
+    requestAnimationFrame(() => {
+      win.classList.add("ptree-refresh-ready");
+      win.classList.remove("ptree-refresh-enter");
+      setTimeout(() => {
+        disposeFloatingPathTreePicker(previousPicker, "replaced", {
+          beforeClose: false,
+          close: false,
+        });
+      }, 110);
+    });
+  };
+
   if (hasExpandedPathsOverride || initialPath) {
     setTimeout(() => {
       void (async () => {
@@ -1292,7 +1406,14 @@ export function openFloatingPathTreePicker(options = {}) {
           await autoExpandPath();
         }
         applyActivePathClasses();
+        restoreInitialScrollPosition();
+        finishInitialRender();
       })();
+    }, 0);
+  } else if (hasInitialScrollPosition || smoothReplaceExisting) {
+    setTimeout(() => {
+      restoreInitialScrollPosition();
+      finishInitialRender();
     }, 0);
   }
 
@@ -1313,8 +1434,32 @@ export function openFloatingPathTreePicker(options = {}) {
     getExpandedPaths: () => collectExpandedPaths(renderContext.nodeControls, delimiter),
   };
 
+  const removePath = async (rawPath) => {
+    const pathKey = makePathKey(rawPath || "");
+    if (!pathKey) return { removed: false, remaining: getVisibleTreeNodeCount(body) };
+    const control = renderContext.nodeControls.get(pathKey);
+    const nodeEl = control?.nodeElement || control?.element?.closest?.(".ptree-node");
+    if (!nodeEl || !nodeEl.parentNode) {
+      return { removed: false, remaining: getVisibleTreeNodeCount(body) };
+    }
+
+    const descendantPrefix = `${pathKey}${delimiter}`;
+    for (const key of Array.from(renderContext.nodeControls.keys())) {
+      if (key === pathKey || key.startsWith(descendantPrefix)) {
+        renderContext.nodeControls.delete(key);
+      }
+    }
+
+    await animateRemoveTreeNode(nodeEl);
+    if (typeof renderContext.refreshActivePath === "function") {
+      renderContext.refreshActivePath();
+    }
+    return { removed: true, remaining: getVisibleTreeNodeCount(body) };
+  };
+
   return {
     close: () => closeFloatingPathTreePicker("api"),
     element: win,
+    removePath,
   };
 }

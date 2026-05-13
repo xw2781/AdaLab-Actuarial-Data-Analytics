@@ -159,7 +159,7 @@ def get_reserving_class_hidden_paths(project_name: str) -> Dict[str, Any]:
     except ValueError as e:
         raise HTTPException(400, str(e))
     except PermissionError:
-        raise HTTPException(423, "Hidden-path cache file is locked. Please retry.")
+        raise HTTPException(423, "Project user preference file is locked. Please retry.")
     except Exception as e:
         raise HTTPException(500, f"Failed to read reserving class hidden paths: {str(e)}")
 
@@ -181,7 +181,7 @@ def save_reserving_class_hidden_paths(req: ReservingClassHiddenPathsSaveRequest)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except PermissionError:
-        raise HTTPException(423, "Hidden-path cache file is locked. Please retry.")
+        raise HTTPException(423, "Project user preference file is locked. Please retry.")
     except Exception as e:
         raise HTTPException(500, f"Failed to save reserving class hidden paths: {str(e)}")
 
@@ -206,7 +206,7 @@ def get_reserving_class_filter_spec(project_name: str) -> Dict[str, Any]:
     except ValueError as e:
         raise HTTPException(400, str(e))
     except PermissionError:
-        raise HTTPException(423, "Filter preference cache file is locked. Please retry.")
+        raise HTTPException(423, "Filter preference file is locked. Please retry.")
     except Exception as e:
         raise HTTPException(500, f"Failed to read reserving class filter spec: {str(e)}")
 
@@ -231,7 +231,7 @@ def save_reserving_class_filter_spec(req: ReservingClassFilterSpecSaveRequest) -
     except ValueError as e:
         raise HTTPException(400, str(e))
     except PermissionError:
-        raise HTTPException(423, "Filter preference cache file is locked. Please retry.")
+        raise HTTPException(423, "Filter preference file is locked. Please retry.")
     except Exception as e:
         raise HTTPException(500, f"Failed to save reserving class filter spec: {str(e)}")
 

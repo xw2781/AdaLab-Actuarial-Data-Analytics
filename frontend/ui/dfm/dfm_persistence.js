@@ -69,6 +69,10 @@ import {
   getDfmAverageFormulaSelectedIndex,
   getDfmAverageFormulaValues,
 } from "/ui/dfm/dfm_average_formula_rows.js?v=20260513b";
+import {
+  recordCurrentDfmObjectSnapshot,
+  refreshDfmMethodIndex,
+} from "/ui/dfm/dfm_startup_state.js";
 
 let ratioLoadTimer = null;
 let ratioLoadPendingReason = "";
@@ -932,6 +936,10 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
     markMethodSaved();
     markDfmClean();
     emitDfmInstancePresence("found");
+    const objectSnapshot = recordCurrentDfmObjectSnapshot();
+    refreshDfmMethodIndex(objectSnapshot.project).catch((err) => {
+      console.warn("Failed to refresh DFM method index:", err);
+    });
     const time = new Date().toLocaleTimeString();
     let statusText = `Method saved at ${time}: ${result.path}`;
     if (baseCsvSaved) {

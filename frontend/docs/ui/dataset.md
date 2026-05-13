@@ -11,7 +11,7 @@ Implementation details should stay in the generated entrypoint/key-file sections
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.dataset.entry_points -->
-- `ui/dataset/dataset_viewer.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260512a`, `/ui/dataset/dataset_shared.js`.
+- `ui/dataset/dataset_viewer.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260513a`, `/ui/dataset/dataset_shared.js`.
 
 Detected `fetch(...)` targets in key JS files:
 - `${config.API_BASE}/dataset/${dsId}/patch`
@@ -48,7 +48,7 @@ Detected `arcrho:*` message types in key JS files:
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
 - Calls app-server dataset/arcrho endpoints plus valid-value list endpoints (`/dataset_types`, `/reserving_class_*`, `/arcrho/projects`).
-- Uses `/scripting/preferences` to persist and restore the last resolved Project + Reserving Class pair in APPDATA.
+- Uses `/project-user-preferences` to persist and restore the project-specific last Reserving Class and Dataset Name in `projects/<project>/users/<windows-login>/preferences.json`.
 - Sends status/hotkey/close signals to parent shell.
 - Publishes dataset input updates and browsing-history updates to shell via `arcrho:dataset-settings-changed` and `arcrho:browsing-history-updated`.
 <!-- MANUAL:END -->
@@ -63,9 +63,12 @@ Detected `arcrho:*` message types in key JS files:
 - Reserving-class path normalization preserves literal `/` characters inside a class name; only `\` is treated as the segment delimiter for validation/history keys.
 - Dataset-side reserving path list loading does not auto-crawl `/reserving_class_path_tree/children`; child-path hydration is opt-in to avoid background request storms.
 - Caches reserving-class type names from `/reserving_class_types` and validates input paths by segment membership in the Name column.
-- Reserving-class tree view toggle preferences (auto-expand/auto-close/double-click) are shared globally across projects.
+- Reserving-class tree view toggle preferences (auto-expand/auto-close/double-click), picker window sizing/favorites, and hidden path list are stored per project/user in `projects/<project>/users/<windows-login>/preferences.json`.
+- Reserving-class tree hide removes the hidden node in place with a short collapse animation instead of rebuilding the full tree. The tree toolbar includes an eye button next to the filter button, and the tree node right-click menu also includes `Hidden Paths...`; both open a small live-updating window listing hidden paths with multi-select `Unhide Selected` and `Unhide All` actions. Full tree refreshes, such as unhide actions, preserve the current tree scroll offset and expanded paths, then swap in the refreshed tree after it is laid out so the visible area remains stable instead of jumping back to the top or visibly flickering.
+- Dataset Type picker preferences (`Double Click to Select`, `Close Window after Selection`) are also stored per project/user so they copy with project duplication.
 - On project switch, current Reserving Class input is revalidated against the new project's reserving-class type names; valid paths are retained and invalid paths are cleared.
-- Stores last resolved Project + Reserving Class defaults in APPDATA and reuses them as fallback when no scoped/query/workflow values exist.
+- New standalone Dataset tabs read the last selected Project Name from local AppData first, then load that project's `datasetViewer` preference from `projects/<project>/users/<windows-login>/preferences.json` to restore the last Reserving Class and Dataset Name for that project.
+- Stores project-specific last Reserving Class and Dataset Name in the server project user preference file and reuses them after a project is selected when no query/workflow values override the inputs.
 - Persists last-viewed dataset inputs globally and restores them when opening a new Dataset tab.
 - Stores latest browsing history entries via `browsing_history.js` (project + reserving class + dataset).
 - Rejects invalid typed values on change/Enter and blocks ArcRhoTri requests until all 3 inputs are valid.

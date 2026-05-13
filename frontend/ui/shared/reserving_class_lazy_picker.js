@@ -4,7 +4,6 @@ const LOOKUP_MODEL_CACHE = new Map();
 const HIDDEN_PATHS_CACHE = new Map();
 const FILTER_SPEC_CACHE = new Map();
 const FILTER_PREFS_CACHE = new Map();
-const GLOBAL_FILTER_PREFS_CACHE_KEY = "__global__";
 const TREE_FILTER_PREFERENCE_DEFAULTS = Object.freeze({
   autoExpandSingleChild: true,
   autoCloseOnSelect: true,
@@ -72,6 +71,10 @@ function normalizeTreePathKey(rawPath, delimiter = "\\") {
   return splitPath(rawPath, delimiter)
     .map((part) => part.toLowerCase())
     .join(delimiter);
+}
+
+function getFilterPrefsCacheKey(projectName) {
+  return toText(projectName).toLowerCase();
 }
 
 function parsePositiveInt(value) {
@@ -1137,6 +1140,7 @@ let activeFilterWindow = null;
 let activePreferencesWindow = null;
 let activeTreeNodeMenu = null;
 let activeFilterValuesMenu = null;
+let activeHiddenPathsWindow = null;
 
 function ensureFilterWindowStyles(doc) {
   if (!doc || doc.getElementById(FILTER_STYLE_ID)) return;
@@ -1557,6 +1561,123 @@ function ensureTreeNodeMenuStyles(doc) {
     .rctm-item:disabled:hover {
       background: transparent;
     }
+    .rchp-window {
+      position: fixed;
+      top: 144px;
+      left: 50%;
+      width: min(460px, 92vw);
+      max-height: min(420px, 82vh);
+      background: #fff;
+      border: 1px solid #cfcfcf;
+      border-radius: 8px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+      z-index: 5450;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .rchp-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px 8px 12px;
+      background: #f6f6f6;
+      border-bottom: 1px solid #e1e1e1;
+      cursor: grab;
+      user-select: none;
+    }
+    .rchp-titlebar:active { cursor: grabbing; }
+    .rchp-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: #2e2e2e;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .rchp-close {
+      width: 26px;
+      height: 26px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #666;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .rchp-close:hover { background: #e8e8e8; }
+    .rchp-close svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .rchp-body {
+      min-height: 120px;
+      overflow: auto;
+      padding: 8px;
+    }
+    .rchp-empty {
+      color: #777;
+      font-size: 12px;
+      padding: 8px 4px;
+    }
+    .rchp-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 5px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #222;
+    }
+    .rchp-row:hover { background: #eef3ff; }
+    .rchp-row input {
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .rchp-path {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+    }
+    .rchp-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px;
+      border-top: 1px solid #e5e5e5;
+      background: #fafafa;
+    }
+    .rchp-btn {
+      border: 1px solid #cfcfcf;
+      border-radius: 6px;
+      background: #fff;
+      color: #222;
+      font-size: 12px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .rchp-btn:hover { background: #f2f2f2; }
+    .rchp-btn.primary {
+      border-color: #8db5ff;
+      background: #eef4ff;
+      color: #174ea6;
+    }
+    .rchp-btn:disabled {
+      color: #999;
+      border-color: #e0e0e0;
+      background: #fbfbfb;
+      cursor: not-allowed;
+    }
   `;
   doc.head.appendChild(style);
 }
@@ -1851,6 +1972,159 @@ function closeReservingClassTreeNodeMenu(reason = "programmatic") {
   activeTreeNodeMenu = null;
 }
 
+function closeHiddenPathsWindow(reason = "programmatic") {
+  if (!activeHiddenPathsWindow) return;
+  const { doc, win, onEsc, onWheelGuard } = activeHiddenPathsWindow;
+  if (doc && onEsc) doc.removeEventListener("keydown", onEsc, true);
+  if (typeof onWheelGuard === "function") {
+    try { onWheelGuard(); } catch {}
+  }
+  if (win && win.parentNode) win.parentNode.removeChild(win);
+  activeHiddenPathsWindow = null;
+}
+
+function refreshHiddenPathsWindow() {
+  if (typeof activeHiddenPathsWindow?.refresh === "function") {
+    try { activeHiddenPathsWindow.refresh(); } catch {}
+  }
+}
+
+function openHiddenPathsWindow(options = {}) {
+  const doc = options?.document || window.document;
+  ensureTreeNodeMenuStyles(doc);
+  closeHiddenPathsWindow("replaced");
+
+  const readPaths = () => {
+    const rawPaths = typeof options?.getPaths === "function"
+      ? options.getPaths()
+      : options?.paths;
+    return Array.isArray(rawPaths)
+      ? rawPaths.map((path) => splitPath(path, "\\").join("\\")).filter(Boolean)
+      : [];
+  };
+  let paths = readPaths();
+  const selected = new Set();
+
+  const win = doc.createElement("div");
+  win.className = "rchp-window";
+
+  const bar = doc.createElement("div");
+  bar.className = "rchp-titlebar";
+  const title = doc.createElement("div");
+  title.className = "rchp-title";
+  title.textContent = `Hidden Paths${paths.length ? ` (${paths.length})` : ""}`;
+  const closeBtn = doc.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "rchp-close";
+  closeBtn.title = "Close";
+  closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+  closeBtn.addEventListener("click", () => closeHiddenPathsWindow("close_button"));
+  bar.append(title, closeBtn);
+  win.appendChild(bar);
+
+  const body = doc.createElement("div");
+  body.className = "rchp-body";
+  const footer = doc.createElement("div");
+  footer.className = "rchp-footer";
+  const unhideSelectedBtn = doc.createElement("button");
+  unhideSelectedBtn.type = "button";
+  unhideSelectedBtn.className = "rchp-btn primary";
+  unhideSelectedBtn.textContent = "Unhide Selected";
+  unhideSelectedBtn.disabled = true;
+  const unhideAllBtn = doc.createElement("button");
+  unhideAllBtn.type = "button";
+  unhideAllBtn.className = "rchp-btn";
+  unhideAllBtn.textContent = "Unhide All";
+  unhideAllBtn.disabled = paths.length < 1;
+  const updateButtons = () => {
+    unhideSelectedBtn.disabled = selected.size < 1;
+    unhideAllBtn.disabled = paths.length < 1;
+  };
+
+  const renderBody = () => {
+    paths = readPaths();
+    const pathSet = new Set(paths);
+    for (const path of Array.from(selected.values())) {
+      if (!pathSet.has(path)) selected.delete(path);
+    }
+    title.textContent = `Hidden Paths${paths.length ? ` (${paths.length})` : ""}`;
+    body.innerHTML = "";
+    if (!paths.length) {
+      const empty = doc.createElement("div");
+      empty.className = "rchp-empty";
+      empty.textContent = "No hidden paths.";
+      body.appendChild(empty);
+      updateButtons();
+      return;
+    }
+    paths.forEach((path) => {
+      const row = doc.createElement("label");
+      row.className = "rchp-row";
+      const chk = doc.createElement("input");
+      chk.type = "checkbox";
+      chk.value = path;
+      chk.checked = selected.has(path);
+      chk.addEventListener("change", () => {
+        if (chk.checked) selected.add(path);
+        else selected.delete(path);
+        updateButtons();
+      });
+      const text = doc.createElement("span");
+      text.className = "rchp-path";
+      text.textContent = path;
+      row.append(chk, text);
+      body.appendChild(row);
+    });
+    updateButtons();
+  };
+
+  unhideSelectedBtn.addEventListener("click", async () => {
+    if (!selected.size || typeof options?.onUnhideSelected !== "function") return;
+    const selectedPaths = Array.from(selected.values());
+    try { await options.onUnhideSelected(selectedPaths); } catch {}
+    renderBody();
+  });
+  unhideAllBtn.addEventListener("click", async () => {
+    if (!paths.length || typeof options?.onUnhideAll !== "function") return;
+    try { await options.onUnhideAll(); } catch {}
+    renderBody();
+  });
+
+  footer.append(unhideSelectedBtn, unhideAllBtn);
+  win.append(body, footer);
+  doc.body.appendChild(win);
+  makeFloatingWindowDraggable(doc, win, bar, ".rchp-close, .rchp-btn, input, label");
+
+  const anchor = options?.anchorElement;
+  const view = doc.defaultView || window;
+  if (anchor && typeof anchor.getBoundingClientRect === "function") {
+    const anchorRect = anchor.getBoundingClientRect();
+    const winRect = win.getBoundingClientRect();
+    const viewportW = Number(view?.innerWidth || doc.documentElement.clientWidth || 0);
+    const viewportH = Number(view?.innerHeight || doc.documentElement.clientHeight || 0);
+    let left = anchorRect.right + 10;
+    if (left + winRect.width > viewportW - 8) left = Math.max(8, anchorRect.left - winRect.width - 10);
+    let top = Math.max(8, anchorRect.top);
+    if (top + winRect.height > viewportH - 8) top = Math.max(8, viewportH - winRect.height - 8);
+    applyWindowPositionWithinFrame(doc, win, left, top);
+  } else {
+    const winRect = win.getBoundingClientRect();
+    const viewportW = Number(view?.innerWidth || doc.documentElement.clientWidth || 0);
+    applyWindowPositionWithinFrame(doc, win, Math.max(8, (viewportW - winRect.width) / 2), 144);
+  }
+
+  const onEsc = (evt) => {
+    if (String(evt?.key || "") !== "Escape") return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    closeHiddenPathsWindow("escape");
+  };
+  doc.addEventListener("keydown", onEsc, true);
+  const onWheelGuard = isolateWheelScroll(doc, win);
+  activeHiddenPathsWindow = { doc, win, onEsc, onWheelGuard, refresh: renderBody };
+  renderBody();
+}
+
 function closeReservingClassFilterValuesMenu(reason = "programmatic") {
   if (!activeFilterValuesMenu) return;
   const { doc, menu, onMouseDown, onEsc, onContextMenu } = activeFilterValuesMenu;
@@ -2014,6 +2288,11 @@ function openReservingClassTreeNodeMenu(options = {}) {
     "Unhide All",
     options?.onUnhideAll,
     !options?.canUnhideAll || typeof options?.onUnhideAll !== "function",
+  );
+  addMenuItem(
+    "Hidden Paths...",
+    options?.onHiddenPaths,
+    typeof options?.onHiddenPaths !== "function",
   );
 
   doc.body.appendChild(menu);
@@ -2632,6 +2911,7 @@ export async function openLazyReservingClassPicker(options = {}) {
   }
 
   closeReservingClassTreeNodeMenu("reopen");
+  closeHiddenPathsWindow("reopen");
   closeReservingClassFilterWindow("reopen");
   closeReservingClassPreferencesWindow("reopen");
   closeFloatingPathTreePicker("reopen");
@@ -2647,22 +2927,23 @@ export async function openLazyReservingClassPicker(options = {}) {
       if (cacheKey) LOOKUP_MODEL_CACHE.set(cacheKey, model);
     }
 
+    const filterPrefsCacheKey = getFilterPrefsCacheKey(projectName);
     let treeFilterPreferences = normalizeReservingClassFilterPreferences(
-      FILTER_PREFS_CACHE.get(GLOBAL_FILTER_PREFS_CACHE_KEY) || {},
+      FILTER_PREFS_CACHE.get(filterPrefsCacheKey) || {},
     );
 
     if (!preserveFilters) {
       let initialFilterSpec = {};
 
       const hasCachedSpec = !!(cacheKey && FILTER_SPEC_CACHE.has(cacheKey));
-      const hasCachedPrefs = FILTER_PREFS_CACHE.has(GLOBAL_FILTER_PREFS_CACHE_KEY);
+      const hasCachedPrefs = FILTER_PREFS_CACHE.has(filterPrefsCacheKey);
 
       if (hasCachedSpec) {
         initialFilterSpec = normalizeReservingClassFilterSpec(FILTER_SPEC_CACHE.get(cacheKey));
       }
       if (hasCachedPrefs) {
         treeFilterPreferences = normalizeReservingClassFilterPreferences(
-          FILTER_PREFS_CACHE.get(GLOBAL_FILTER_PREFS_CACHE_KEY),
+          FILTER_PREFS_CACHE.get(filterPrefsCacheKey),
         );
       }
 
@@ -2674,7 +2955,7 @@ export async function openLazyReservingClassPicker(options = {}) {
           if (cacheKey) {
             FILTER_SPEC_CACHE.set(cacheKey, initialFilterSpec);
           }
-          FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, treeFilterPreferences);
+          FILTER_PREFS_CACHE.set(filterPrefsCacheKey, treeFilterPreferences);
         } catch (err) {
           // Filter preferences are optional; continue with no filters when unavailable.
           console.warn("Failed to load reserving-class filter preference:", err);
@@ -2694,11 +2975,11 @@ export async function openLazyReservingClassPicker(options = {}) {
       if (cacheKey && !FILTER_SPEC_CACHE.has(cacheKey) && typeof model.getActiveFilterSpec === "function") {
         FILTER_SPEC_CACHE.set(cacheKey, normalizeReservingClassFilterSpec(model.getActiveFilterSpec()));
       }
-      if (!FILTER_PREFS_CACHE.has(GLOBAL_FILTER_PREFS_CACHE_KEY)) {
+      if (!FILTER_PREFS_CACHE.has(filterPrefsCacheKey)) {
         try {
           const loaded = await fetchReservingClassFilterSpec(projectName);
           treeFilterPreferences = normalizeReservingClassFilterPreferences(loaded?.preferences || {});
-          FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, treeFilterPreferences);
+          FILTER_PREFS_CACHE.set(filterPrefsCacheKey, treeFilterPreferences);
           if (!FILTER_SPEC_CACHE.has(cacheKey)) {
             FILTER_SPEC_CACHE.set(
               cacheKey,
@@ -2707,7 +2988,7 @@ export async function openLazyReservingClassPicker(options = {}) {
           }
         } catch (err) {
           console.warn("Failed to load reserving-class filter preference:", err);
-          FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, treeFilterPreferences);
+          FILTER_PREFS_CACHE.set(filterPrefsCacheKey, treeFilterPreferences);
         }
       }
     }
@@ -2762,12 +3043,58 @@ export async function openLazyReservingClassPicker(options = {}) {
       hiddenPathMap.clear();
       for (const raw of saved) addHiddenPath(raw);
       if (cacheKey) HIDDEN_PATHS_CACHE.set(cacheKey, Array.from(hiddenPathMap.values()));
+      refreshHiddenPathsWindow();
       return Array.from(hiddenPathMap.values());
+    };
+    const getHiddenPathsList = () => Array.from(hiddenPathMap.values())
+      .sort((a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: "base", numeric: true }));
+    const unhideSelectedPaths = async (paths) => {
+      const values = Array.isArray(paths) ? paths : [];
+      if (!values.length) return false;
+      let changed = false;
+      for (const raw of values) {
+        const key = normalizeTreePathKey(raw, delimiter);
+        if (!key || !hiddenPathMap.has(key)) continue;
+        hiddenPathMap.delete(key);
+        changed = true;
+      }
+      if (!changed) return false;
+      try {
+        await persistHiddenPaths();
+      } catch (err) {
+        console.error("Failed to save hidden reserving-class paths:", err);
+        setStatus("Failed to save hidden path preference.");
+        return false;
+      }
+      openTreeWindow({ smoothReplaceExisting: true });
+      return true;
+    };
+    const unhideAllHiddenPaths = async () => {
+      if (!hiddenPathMap.size) return false;
+      hiddenPathMap.clear();
+      try {
+        await persistHiddenPaths();
+      } catch (err) {
+        console.error("Failed to clear hidden reserving-class paths:", err);
+        setStatus("Failed to reset hidden path preference.");
+        return false;
+      }
+      openTreeWindow({ smoothReplaceExisting: true });
+      return true;
+    };
+    const openHiddenPathsPanel = (anchorElement = null) => {
+      openHiddenPathsWindow({
+        document: window.document,
+        anchorElement,
+        getPaths: getHiddenPathsList,
+        onUnhideSelected: (paths) => unhideSelectedPaths(paths),
+        onUnhideAll: () => unhideAllHiddenPaths(),
+      });
     };
     const persistFilterSpec = (rawSpec) => {
       const normalized = normalizeReservingClassFilterSpec(rawSpec);
       if (cacheKey) FILTER_SPEC_CACHE.set(cacheKey, normalized);
-      FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, treeFilterPreferences);
+      FILTER_PREFS_CACHE.set(filterPrefsCacheKey, treeFilterPreferences);
       void (async () => {
         try {
           const saved = await saveReservingClassFilterSpec(projectName, normalized, treeFilterPreferences);
@@ -2777,7 +3104,7 @@ export async function openLazyReservingClassPicker(options = {}) {
           if (cacheKey) {
             FILTER_SPEC_CACHE.set(cacheKey, savedSpec);
           }
-          FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, savedPrefs);
+          FILTER_PREFS_CACHE.set(filterPrefsCacheKey, savedPrefs);
         } catch (err) {
           console.error("Failed to save reserving-class filter preference:", err);
           setStatus("Failed to save filter preference.");
@@ -2792,7 +3119,7 @@ export async function openLazyReservingClassPicker(options = {}) {
         ...nextPrefs,
       });
       treeFilterPreferences = normalizedPrefs;
-      FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, normalizedPrefs);
+      FILTER_PREFS_CACHE.set(filterPrefsCacheKey, normalizedPrefs);
 
       const currentSpec = normalizeReservingClassFilterSpec(
         (typeof model.getActiveFilterSpec === "function")
@@ -2810,7 +3137,7 @@ export async function openLazyReservingClassPicker(options = {}) {
           if (cacheKey) {
             FILTER_SPEC_CACHE.set(cacheKey, savedSpec);
           }
-          FILTER_PREFS_CACHE.set(GLOBAL_FILTER_PREFS_CACHE_KEY, savedPrefs);
+          FILTER_PREFS_CACHE.set(filterPrefsCacheKey, savedPrefs);
         } catch (err) {
           console.error("Failed to save reserving-class tree preferences:", err);
           setStatus("Failed to save tree preferences.");
@@ -2926,10 +3253,12 @@ export async function openLazyReservingClassPicker(options = {}) {
       return out;
     };
     let treeWindowPosition = null;
+    let treeWindowScroll = null;
     let treeWindowElement = null;
+    let treeWindowPicker = null;
     let treeExpandedPaths = null;
 
-    const openTreeWindow = () => {
+    const openTreeWindow = (refreshOptions = {}) => {
       const rootChildrenRaw = model.getRootNodes();
       const rootChildren = filterHiddenNodes(rootChildrenRaw);
       if (!rootChildren.length) {
@@ -2953,6 +3282,9 @@ export async function openLazyReservingClassPicker(options = {}) {
         levelLabels,
         delimiter: "\\",
         expandedPaths: Array.isArray(treeExpandedPaths) ? treeExpandedPaths : undefined,
+        initialScrollTop: Number.isFinite(Number(treeWindowScroll?.top)) ? Number(treeWindowScroll.top) : undefined,
+        initialScrollLeft: Number.isFinite(Number(treeWindowScroll?.left)) ? Number(treeWindowScroll.left) : undefined,
+        smoothReplaceExisting: !!refreshOptions?.smoothReplaceExisting,
         initialPath: activePath,
         defaultExpandedDepth: Number.isInteger(options?.defaultExpandedDepth)
           ? Number(options.defaultExpandedDepth)
@@ -2984,11 +3316,22 @@ export async function openLazyReservingClassPicker(options = {}) {
           openTreeWindow();
         },
         allowBranchSelect: !!options?.allowBranchSelect,
+        showHiddenPathsButton: true,
+        hiddenPathsButtonTitle: "Hidden Paths",
+        hiddenPathsButtonActive: hiddenPathMap.size > 0,
+        onHiddenPathsClick: (ctx) => {
+          closeReservingClassTreeNodeMenu("open_hidden_paths");
+          closeReservingClassFilterWindow("open_hidden_paths");
+          closeReservingClassPreferencesWindow("open_hidden_paths");
+          treeWindowPosition = readWindowPosition(ctx?.pickerElement || treeWindowElement) || treeWindowPosition;
+          openHiddenPathsPanel(ctx?.buttonElement || ctx?.pickerElement || null);
+        },
         showFilterButton: true,
         filterButtonTitle: "Filter",
         filterButtonActive: model.hasActiveFilters(),
         onFilterClick: (ctx) => {
           closeReservingClassTreeNodeMenu("open_filter");
+          closeHiddenPathsWindow("open_filter");
           closeReservingClassPreferencesWindow("open_filter");
           treeWindowPosition = readWindowPosition(ctx?.pickerElement || treeWindowElement) || treeWindowPosition;
           openReservingClassFilterWindow({
@@ -3024,6 +3367,7 @@ export async function openLazyReservingClassPicker(options = {}) {
         preferencesButtonActive: !isDefaultReservingClassFilterPreferences(treeFilterPreferences),
         onPreferencesClick: (ctx) => {
           closeReservingClassTreeNodeMenu("open_preferences");
+          closeHiddenPathsWindow("open_preferences");
           closeReservingClassFilterWindow("open_preferences");
           treeWindowPosition = readWindowPosition(ctx?.pickerElement || treeWindowElement) || treeWindowPosition;
           openReservingClassPreferencesWindow({
@@ -3068,19 +3412,10 @@ export async function openLazyReservingClassPicker(options = {}) {
             },
             canUnhideAll: hiddenPathMap.size > 0,
             onUnhideAll: () => {
-              if (!hiddenPathMap.size) return;
-              hiddenPathMap.clear();
-              void (async () => {
-                try {
-                  await persistHiddenPaths();
-                } catch (err) {
-                  console.error("Failed to clear hidden reserving-class paths:", err);
-                  setStatus("Failed to reset hidden path preference.");
-                  return;
-                }
-                closeFloatingPathTreePicker(internalCloseReason);
-                openTreeWindow();
-              })();
+              void unhideAllHiddenPaths();
+            },
+            onHiddenPaths: () => {
+              openHiddenPathsPanel(pickerEl);
             },
             onHide: () => {
               addHiddenPath(hidePath);
@@ -3092,8 +3427,14 @@ export async function openLazyReservingClassPicker(options = {}) {
                   setStatus("Failed to save hidden path preference.");
                   return;
                 }
-                closeFloatingPathTreePicker(internalCloseReason);
-                openTreeWindow();
+                closeReservingClassTreeNodeMenu("hide_path");
+                const removeResult = typeof treeWindowPicker?.removePath === "function"
+                  ? await treeWindowPicker.removePath(hidePath)
+                  : null;
+                if (removeResult?.removed && Number(removeResult?.remaining || 0) > 0) {
+                  return;
+                }
+                openTreeWindow({ smoothReplaceExisting: true });
               })();
             },
           });
@@ -3108,6 +3449,7 @@ export async function openLazyReservingClassPicker(options = {}) {
         onSelect: (path, node) => {
           activePath = toText(path);
           closeReservingClassTreeNodeMenu("selected");
+          closeHiddenPathsWindow("selected");
           closeReservingClassFilterWindow("selected");
           closeReservingClassPreferencesWindow("selected");
           if (onSelect) onSelect(toText(path), node);
@@ -3120,18 +3462,27 @@ export async function openLazyReservingClassPicker(options = {}) {
           if (Array.isArray(ctx?.expandedPaths)) {
             treeExpandedPaths = normalizeExpandedTreePaths(ctx.expandedPaths);
           }
+          const scrollTop = Number(ctx?.scrollTop);
+          const scrollLeft = Number(ctx?.scrollLeft);
+          treeWindowScroll = {
+            top: Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0,
+            left: Number.isFinite(scrollLeft) ? Math.max(0, scrollLeft) : 0,
+          };
         },
         onClose: (reason) => {
           treeWindowElement = null;
+          treeWindowPicker = null;
           if (reason !== internalCloseReason) {
             persistTreeWindowSize(treeWindowSize);
             closeReservingClassTreeNodeMenu(reason || "tree_closed");
+            closeHiddenPathsWindow(reason || "tree_closed");
             closeReservingClassFilterWindow(reason || "tree_closed");
             closeReservingClassPreferencesWindow(reason || "tree_closed");
             if (onClose) onClose(reason);
           }
         },
       });
+      treeWindowPicker = picker || null;
       treeWindowElement = picker?.element || null;
       if (treeWindowElement) {
         applyWindowSize(treeWindowElement, treeWindowSize);
@@ -3158,6 +3509,7 @@ export async function openLazyReservingClassPicker(options = {}) {
   } catch (err) {
     const statusCode = Number(err?.status || 0);
     closeReservingClassTreeNodeMenu("error");
+    closeHiddenPathsWindow("error");
     closeReservingClassFilterWindow("error");
     closeReservingClassPreferencesWindow("error");
     if (statusCode === 404) {

@@ -21,13 +21,11 @@ from app_server.config import (
     RESERVING_CLASS_TYPES_FILE_COLUMNS,
     RESERVING_CLASS_PATH_TREE_MAX_GENERATED,
     _RESERVING_CLASS_PATH_TREE_LOCK,
-    _RESERVING_CLASS_HIDDEN_PATHS_LOCK,
     _RESERVING_CLASS_FILTER_SPEC_LOCK,
     get_reserving_class_types_path,
     get_reserving_class_values_path,
     get_reserving_class_combinations_path,
     get_reserving_class_path_tree_path,
-    get_reserving_class_hidden_paths_pref_path,
     get_reserving_class_filter_spec_pref_path,
     get_project_settings_workbook_path,
     get_cache_path,
@@ -51,64 +49,53 @@ from app_server.services.dataset_types_service import (
     _replace_formula_components_with_sources,
     _extract_formula_components,
 )
+from app_server.services.project_user_preferences_service import (
+    get_preferences as get_project_user_preferences,
+    update_preferences as update_project_user_preferences,
+)
+
+PROJECT_USER_RESERVING_CLASS_TREE_KEY = "reservingClassTree"
 
 
 # ---------------------------------------------------------------------------
-# Hidden paths store
+# Project-user reserving class tree preferences
 # ---------------------------------------------------------------------------
 
-def _load_reserving_hidden_paths_store(filepath: str) -> Dict[str, Any]:
-    default_store: Dict[str, Any] = {"projects": {}}
-    if not os.path.exists(filepath):
-        return default_store
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-    except Exception:
-        return default_store
+def _project_user_preference_data(project_name: str) -> Tuple[Dict[str, Any], str]:
+    out = get_project_user_preferences(project_name)
+    data = out.get("data", {}) if isinstance(out, dict) else {}
+    path = str(out.get("path", "") or "") if isinstance(out, dict) else ""
+    return (data if isinstance(data, dict) else {}), path
 
-    if not isinstance(raw, dict):
-        return default_store
-    projects_raw = raw.get("projects", {})
-    if not isinstance(projects_raw, dict):
-        projects_raw = {}
 
-    projects_norm: Dict[str, Dict[str, Any]] = {}
-    for project_key_raw, entry_raw in projects_raw.items():
-        project_key = str(project_key_raw or "").strip().lower()
-        if not project_key:
-            continue
-        entry = entry_raw if isinstance(entry_raw, dict) else {}
-        hidden_paths = _normalize_reserving_hidden_path_list(entry.get("hidden_paths", []))
-        projects_norm[project_key] = {
-            "project_name": str(entry.get("project_name", "") or "").strip(),
-            "updated_at": str(entry.get("updated_at", "") or "").strip(),
-            "hidden_paths": hidden_paths,
-        }
+def _project_user_reserving_tree_section(project_name: str) -> Tuple[Dict[str, Any], str]:
+    data, path = _project_user_preference_data(project_name)
+    section = data.get(PROJECT_USER_RESERVING_CLASS_TREE_KEY, {})
+    return (section if isinstance(section, dict) else {}), path
 
-    return {
-        "updated_at": str(raw.get("updated_at", "") or "").strip(),
-        "projects": projects_norm,
-    }
 
-def _write_reserving_hidden_paths_store(filepath: str, payload: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    tmp_path = filepath + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-    os.replace(tmp_path, filepath)
+def _read_reserving_class_tree_preferences(project_name: str) -> Dict[str, Any]:
+    section, _path = _project_user_reserving_tree_section(project_name)
+    return _normalize_reserving_filter_preferences(section.get("preferences", {}))
+
+
+def _write_reserving_class_tree_preferences(project_name: str, preferences: Any) -> Dict[str, Any]:
+    preferences_norm = _normalize_reserving_filter_preferences(preferences)
+    update_project_user_preferences(project_name, {
+        PROJECT_USER_RESERVING_CLASS_TREE_KEY: {
+            "preferences": preferences_norm,
+            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        },
+    })
+    return preferences_norm
 
 def get_hidden_paths_for_project(project_name: str) -> Dict[str, Any]:
     key = _canon_project_pref_key(project_name)
     if not key:
         raise ValueError("project_name is required")
-    filepath = get_reserving_class_hidden_paths_pref_path()
-    with _RESERVING_CLASS_HIDDEN_PATHS_LOCK:
-        store = _load_reserving_hidden_paths_store(filepath)
-    projects = store.get("projects", {}) if isinstance(store, dict) else {}
-    entry = projects.get(key, {}) if isinstance(projects, dict) else {}
+    section, filepath = _project_user_reserving_tree_section(project_name)
     hidden_paths = _normalize_reserving_hidden_path_list(
-        entry.get("hidden_paths", []) if isinstance(entry, dict) else []
+        section.get("hiddenPaths", []) if isinstance(section, dict) else []
     )
     return {
         "path": filepath,
@@ -121,31 +108,17 @@ def save_hidden_paths_for_project(project_name: str, hidden_paths: Any) -> Dict[
     if not key:
         raise ValueError("project_name is required")
 
-    filepath = get_reserving_class_hidden_paths_pref_path()
     hidden_paths_norm = _normalize_reserving_hidden_path_list(hidden_paths)
     now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
-
-    with _RESERVING_CLASS_HIDDEN_PATHS_LOCK:
-        store = _load_reserving_hidden_paths_store(filepath)
-        projects = store.get("projects", {})
-        if not isinstance(projects, dict):
-            projects = {}
-
-        if hidden_paths_norm:
-            projects[key] = {
-                "project_name": str(project_name or "").strip(),
-                "updated_at": now_iso,
-                "hidden_paths": hidden_paths_norm,
-            }
-        else:
-            projects.pop(key, None)
-
-        store["projects"] = projects
-        store["updated_at"] = now_iso
-        _write_reserving_hidden_paths_store(filepath, store)
+    out = update_project_user_preferences(project_name, {
+        PROJECT_USER_RESERVING_CLASS_TREE_KEY: {
+            "hiddenPaths": hidden_paths_norm,
+            "updated_at": now_iso,
+        },
+    })
 
     return {
-        "path": filepath,
+        "path": str(out.get("path", "") or "") if isinstance(out, dict) else "",
         "project_key": key,
         "hidden_paths": hidden_paths_norm,
     }
@@ -155,39 +128,9 @@ def save_hidden_paths_for_project(project_name: str, hidden_paths: Any) -> Dict[
 # Filter spec store
 # ---------------------------------------------------------------------------
 
-_RESERVING_FILTER_PREF_TOGGLE_KEYS = (
-    "auto_expand_single_child",
-    "auto_close_on_select",
-    "select_on_double_click",
-)
-
-def _normalize_reserving_global_filter_preferences(raw_prefs: Any) -> Dict[str, Any]:
-    prefs_norm = _normalize_reserving_filter_preferences(raw_prefs)
-    out: Dict[str, Any] = {}
-    for key in _RESERVING_FILTER_PREF_TOGGLE_KEYS:
-        out[key] = bool(prefs_norm.get(key, True))
-    return out
-
-def _normalize_reserving_project_filter_preferences(raw_prefs: Any) -> Dict[str, Any]:
-    prefs_norm = _normalize_reserving_filter_preferences(raw_prefs)
-    for key in _RESERVING_FILTER_PREF_TOGGLE_KEYS:
-        prefs_norm.pop(key, None)
-    return prefs_norm
-
-def _merge_reserving_filter_preferences(global_prefs: Any, project_prefs: Any) -> Dict[str, Any]:
-    merged: Dict[str, Any] = {}
-    merged.update(_normalize_reserving_project_filter_preferences(project_prefs))
-    merged.update(_normalize_reserving_global_filter_preferences(global_prefs))
-    return _normalize_reserving_filter_preferences(merged)
-
-def _has_project_scoped_reserving_filter_preferences(raw_prefs: Any) -> bool:
-    prefs = _normalize_reserving_project_filter_preferences(raw_prefs)
-    return bool(prefs)
-
 def _default_reserving_filter_spec_store() -> Dict[str, Any]:
     return {
         "projects": {},
-        "global_preferences": _normalize_reserving_global_filter_preferences({}),
     }
 
 def _normalize_reserving_filter_spec_store_payload(raw_store: Any) -> Dict[str, Any]:
@@ -198,24 +141,6 @@ def _normalize_reserving_filter_spec_store_payload(raw_store: Any) -> Dict[str, 
     projects_raw = raw_store.get("projects", {})
     if not isinstance(projects_raw, dict):
         projects_raw = {}
-    raw_global_preferences = raw_store.get("global_preferences", None)
-    if raw_global_preferences is None:
-        raw_global_preferences = raw_store.get("preferences", None)
-    if raw_global_preferences is None:
-        latest_prefs: Dict[str, Any] = {}
-        latest_updated_at = ""
-        for entry_raw in projects_raw.values():
-            entry = entry_raw if isinstance(entry_raw, dict) else {}
-            prefs_candidate = entry.get("preferences", {})
-            if not isinstance(prefs_candidate, dict):
-                continue
-            updated_at = str(entry.get("updated_at", "") or "").strip()
-            if not latest_prefs or updated_at >= latest_updated_at:
-                latest_prefs = prefs_candidate
-                latest_updated_at = updated_at
-        raw_global_preferences = latest_prefs
-    global_preferences = _normalize_reserving_global_filter_preferences(raw_global_preferences)
-
     projects_norm: Dict[str, Dict[str, Any]] = {}
     for project_key_raw, entry_raw in projects_raw.items():
         project_key = str(project_key_raw or "").strip().lower()
@@ -223,18 +148,15 @@ def _normalize_reserving_filter_spec_store_payload(raw_store: Any) -> Dict[str, 
             continue
         entry = entry_raw if isinstance(entry_raw, dict) else {}
         filter_spec = _normalize_reserving_filter_spec(entry.get("filter_spec", {}))
-        preferences = _normalize_reserving_project_filter_preferences(entry.get("preferences", {}))
         projects_norm[project_key] = {
             "project_name": str(entry.get("project_name", "") or "").strip(),
             "updated_at": str(entry.get("updated_at", "") or "").strip(),
             "filter_spec": filter_spec,
-            "preferences": preferences,
         }
 
     return {
         "updated_at": str(raw_store.get("updated_at", "") or "").strip(),
         "projects": projects_norm,
-        "global_preferences": global_preferences,
     }
 
 def _load_reserving_filter_spec_store(filepath: str) -> Dict[str, Any]:
@@ -280,17 +202,11 @@ def get_filter_spec_for_project(project_name: str) -> Dict[str, Any]:
     with _RESERVING_CLASS_FILTER_SPEC_LOCK:
         store = _load_and_cleanup_reserving_filter_spec_store(filepath)
     projects = store.get("projects", {}) if isinstance(store, dict) else {}
-    global_preferences = _normalize_reserving_global_filter_preferences(
-        store.get("global_preferences", {}) if isinstance(store, dict) else {}
-    )
     entry = projects.get(key, {}) if isinstance(projects, dict) else {}
     filter_spec = _normalize_reserving_filter_spec(
         entry.get("filter_spec", {}) if isinstance(entry, dict) else {}
     )
-    project_preferences = _normalize_reserving_project_filter_preferences(
-        entry.get("preferences", {}) if isinstance(entry, dict) else {}
-    )
-    preferences = _merge_reserving_filter_preferences(global_preferences, project_preferences)
+    preferences = _read_reserving_class_tree_preferences(project_name)
     return {
         "path": filepath,
         "project_key": key,
@@ -310,46 +226,32 @@ def save_filter_spec_for_project(
     filepath = get_reserving_class_filter_spec_pref_path()
     filter_spec_norm = _normalize_reserving_filter_spec(filter_spec)
     now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    preferences_out = (
+        _write_reserving_class_tree_preferences(project_name, preferences)
+        if preferences is not None
+        else _read_reserving_class_tree_preferences(project_name)
+    )
 
     with _RESERVING_CLASS_FILTER_SPEC_LOCK:
         store = _load_and_cleanup_reserving_filter_spec_store(filepath)
         projects = store.get("projects", {})
         if not isinstance(projects, dict):
             projects = {}
-        global_preferences_existing = _normalize_reserving_global_filter_preferences(
-            store.get("global_preferences", {}) if isinstance(store, dict) else {}
-        )
 
-        existing_entry = projects.get(key, {}) if isinstance(projects, dict) else {}
-        existing_project_preferences = _normalize_reserving_project_filter_preferences(
-            existing_entry.get("preferences", {}) if isinstance(existing_entry, dict) else {}
-        )
-        if preferences is None:
-            global_preferences_norm = global_preferences_existing
-            project_preferences_norm = existing_project_preferences
-        else:
-            preferences_norm_raw = _normalize_reserving_filter_preferences(preferences)
-            global_preferences_norm = _normalize_reserving_global_filter_preferences(preferences_norm_raw)
-            project_preferences_norm = _normalize_reserving_project_filter_preferences(preferences_norm_raw)
-
-        should_keep_entry = bool(filter_spec_norm) or _has_project_scoped_reserving_filter_preferences(project_preferences_norm)
-
-        if should_keep_entry:
+        if filter_spec_norm:
             projects[key] = {
                 "project_name": str(project_name or "").strip(),
                 "updated_at": now_iso,
                 "filter_spec": filter_spec_norm,
-                "preferences": project_preferences_norm,
+                "preferences": {},
             }
         else:
             projects.pop(key, None)
 
         store["projects"] = projects
-        store["global_preferences"] = global_preferences_norm
         store["updated_at"] = now_iso
         _write_reserving_filter_spec_store(filepath, store)
 
-    preferences_out = _merge_reserving_filter_preferences(global_preferences_norm, project_preferences_norm)
     return {
         "path": filepath,
         "project_key": key,

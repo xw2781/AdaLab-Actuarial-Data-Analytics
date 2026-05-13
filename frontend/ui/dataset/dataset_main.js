@@ -17,6 +17,10 @@ import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_pi
 import { openProjectNameTreePicker } from "/ui/shared/project_name_tree_picker.js";
 import { openDatasetNamePicker } from "/ui/dataset/dataset_name_picker.js";
 import {
+  loadProjectUserPreferences,
+  scheduleProjectUserPreferencesSave,
+} from "/ui/shared/project_user_preferences.js";
+import {
   loadProjectValidValueList,
   loadDatasetValidValueList,
   loadReservingClassValidValueList,
@@ -38,6 +42,8 @@ const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
 const ZOOM_MODE_KEY = "arcrho_zoom_mode";
 const FONT_STORAGE_KEY = "arcrho_app_font";
 const FORCE_REBUILD_KEY = "arcrho_force_rebuild_enabled";
+const SCRIPTING_PREFS_ENDPOINT = "/scripting/preferences";
+const LOCAL_DATASET_VIEWER_PREFS_KEY = "dataset_viewer_local_prefs_v1";
 
 function applyZoomValue(v) {
   try {
@@ -213,8 +219,6 @@ const WF_GLOBAL_CTRL_PREFIX = "arcrho_workflow_global_ctrl_v1::";
 const DEFAULT_DISPLAY = "Default";
 const DEFAULT_TOKEN = "__DEFAULT__";
 const BROWSING_HISTORY_MAX_ENTRIES = 15;
-const APPDATA_PREFS_ENDPOINT = "/scripting/preferences";
-const APPDATA_LAST_PROJECT_PATH_KEY = "dataset_last_project_path_v1";
 const LEN_DROPDOWN_CONFIG = {
   originLenSelect: {
     wrapId: "originLenWrap",
@@ -244,11 +248,9 @@ let datasetRunController = null;
 let reservingClassPathByKey = new Map();
 let reservingClassPathPartByKey = new Map();
 let lastReservingClassSelection = "";
-let appDataProjectPathDefaults = null;
-let appDataProjectPathLoadPromise = null;
-let appDataProjectPathSaveTimer = null;
-let appDataProjectPathPending = null;
-let appDataProjectPathLastSavedSig = "";
+const datasetProjectPrefs = new Map();
+let localDatasetViewerPrefsLoadPromise = null;
+let localDatasetViewerProjectSaved = "";
 let notesContextKey = "";
 let notesContextPayload = null;
 let notesDirty = false;
@@ -300,99 +302,98 @@ function normalizeProjectText(s) {
   return String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function normalizeProjectPathDefaults(raw) {
+function normalizeDatasetViewerPrefs(raw, projectFallback = "") {
   if (!raw || typeof raw !== "object") return null;
+  const project = String(raw.project || raw.project_name || projectFallback || "").trim();
+  const path = normalizeReservingClassPath(raw.path || raw.reservingClass || raw.reserving_class || "");
+  const tri = String(raw.tri || raw.datasetName || raw.dataset_name || "").trim();
+  if (!project) return null;
+  return { project, path, tri };
+}
+
+function normalizeLocalDatasetViewerPrefs(raw) {
+  const prefs = raw && typeof raw === "object" ? raw : {};
   const project = String(
-    raw.project
-    || raw.project_name
-    || raw.projectName
+    prefs.projectName
+    || prefs.project_name
+    || prefs.project
     || "",
   ).trim();
-  const path = normalizeReservingClassPath(
-    raw.path
-    || raw.reservingClass
-    || raw.reserving_class
-    || raw.class
-    || "",
-  );
-  if (!project || !path) return null;
-  return { project, path };
+  return { project };
 }
 
-function buildProjectPathSignature(value) {
-  const normalized = normalizeProjectPathDefaults(value);
-  if (!normalized) return "";
-  return `${normalizeProjectText(normalized.project)}||${normalizeReservingClassPathKey(normalized.path)}`;
-}
-
-async function ensureAppDataProjectPathDefaultsLoaded() {
-  if (appDataProjectPathLoadPromise) return appDataProjectPathLoadPromise;
-
-  appDataProjectPathLoadPromise = (async () => {
+async function loadLastDatasetViewerProjectFromAppData() {
+  if (window.ADA_DFM_CONTEXT) return "";
+  if (localDatasetViewerPrefsLoadPromise) return localDatasetViewerPrefsLoadPromise;
+  localDatasetViewerPrefsLoadPromise = (async () => {
     try {
-      const res = await fetch(APPDATA_PREFS_ENDPOINT, { cache: "no-store" });
-      if (!res.ok) return null;
+      const res = await fetch(SCRIPTING_PREFS_ENDPOINT, { cache: "no-store" });
+      if (!res.ok) return "";
       const payload = await res.json().catch(() => ({}));
-      const normalized = normalizeProjectPathDefaults(payload?.[APPDATA_LAST_PROJECT_PATH_KEY]);
-      appDataProjectPathDefaults = normalized;
-      appDataProjectPathLastSavedSig = buildProjectPathSignature(normalized);
-      return normalized;
+      const normalized = normalizeLocalDatasetViewerPrefs(payload?.[LOCAL_DATASET_VIEWER_PREFS_KEY]);
+      localDatasetViewerProjectSaved = normalized.project;
+      return normalized.project;
     } catch {
-      return null;
+      return "";
+    } finally {
+      localDatasetViewerPrefsLoadPromise = null;
     }
   })();
-
-  try {
-    return await appDataProjectPathLoadPromise;
-  } finally {
-    appDataProjectPathLoadPromise = null;
-  }
+  return localDatasetViewerPrefsLoadPromise;
 }
 
-function getCachedAppDataProjectPathDefaults() {
-  return normalizeProjectPathDefaults(appDataProjectPathDefaults);
+function saveLastDatasetViewerProjectToAppData(projectName) {
+  if (window.ADA_DFM_CONTEXT) return;
+  const project = String(projectName || "").trim();
+  if (!project || normalizeProjectText(project) === normalizeProjectText(localDatasetViewerProjectSaved)) return;
+  localDatasetViewerProjectSaved = project;
+  void (async () => {
+    try {
+      const res = await fetch(SCRIPTING_PREFS_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          [LOCAL_DATASET_VIEWER_PREFS_KEY]: {
+            projectName: project,
+            updated_at: new Date().toISOString(),
+          },
+        }),
+      });
+      if (!res.ok) localDatasetViewerProjectSaved = "";
+    } catch {
+      localDatasetViewerProjectSaved = "";
+    }
+  })();
 }
 
-async function flushAppDataProjectPathDefaultsSave() {
-  const normalized = normalizeProjectPathDefaults(appDataProjectPathPending);
-  appDataProjectPathPending = null;
-  if (!normalized) return;
-
-  const signature = buildProjectPathSignature(normalized);
-  if (!signature || signature === appDataProjectPathLastSavedSig) return;
-
+async function loadDatasetProjectPrefs(projectName, options = {}) {
+  const project = String(projectName || "").trim();
+  if (!project) return null;
+  const key = normalizeProjectText(project);
+  if (!options?.forceReload && datasetProjectPrefs.has(key)) return datasetProjectPrefs.get(key);
   try {
-    const res = await fetch(APPDATA_PREFS_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        [APPDATA_LAST_PROJECT_PATH_KEY]: {
-          project: normalized.project,
-          path: normalized.path,
-          updated_at: new Date().toISOString(),
-        },
-      }),
-    });
-    if (!res.ok) return;
-    appDataProjectPathDefaults = normalized;
-    appDataProjectPathLastSavedSig = signature;
+    const prefs = await loadProjectUserPreferences(project, options);
+    const normalized = normalizeDatasetViewerPrefs(prefs?.datasetViewer, project);
+    datasetProjectPrefs.set(key, normalized);
+    return normalized;
   } catch {
-    // ignore save failures
+    datasetProjectPrefs.set(key, null);
+    return null;
   }
 }
 
-function scheduleAppDataProjectPathDefaultsSave(raw) {
-  const normalized = normalizeProjectPathDefaults(raw);
+function saveDatasetProjectPrefs(raw) {
+  const normalized = normalizeDatasetViewerPrefs(raw);
   if (!normalized) return;
-  const signature = buildProjectPathSignature(normalized);
-  if (!signature || signature === appDataProjectPathLastSavedSig) return;
-
-  appDataProjectPathPending = normalized;
-  if (appDataProjectPathSaveTimer) clearTimeout(appDataProjectPathSaveTimer);
-  appDataProjectPathSaveTimer = setTimeout(() => {
-    appDataProjectPathSaveTimer = null;
-    void flushAppDataProjectPathDefaultsSave();
-  }, 250);
+  const key = normalizeProjectText(normalized.project);
+  datasetProjectPrefs.set(key, normalized);
+  scheduleProjectUserPreferencesSave(normalized.project, {
+    datasetViewer: {
+      reservingClass: normalized.path,
+      datasetName: normalized.tri,
+      updated_at: new Date().toISOString(),
+    },
+  });
 }
 
 function buildDefaultDisplayValue(raw) {
@@ -1439,13 +1440,11 @@ function saveTriInputsToStorage() {
       path: getResolvedReservingClassValue(),
       tri: String(triInput?.value || "").trim(),
     });
-    const resolvedProjectPathDefaults = normalizeProjectPathDefaults({
-      project: getResolvedProjectValue(),
-      path: getResolvedReservingClassValue(),
-    });
     localStorage.setItem(scopedKey(LS_FORM_KEY), JSON.stringify(payload));
-    if (resolvedProjectPathDefaults) {
-      scheduleAppDataProjectPathDefaultsSave(resolvedProjectPathDefaults);
+    if (!window.ADA_DFM_CONTEXT) {
+      saveDatasetProjectPrefs(resolvedInputs);
+      const matchedProject = findExactProjectMatch(getResolvedProjectValue());
+      if (matchedProject) saveLastDatasetViewerProjectToAppData(matchedProject);
     }
     if (!window.ADA_DFM_CONTEXT && resolvedInputs) {
       setLastViewedDatasetInputs(resolvedInputs);
@@ -1465,7 +1464,7 @@ function saveTriInputsToStorage() {
   }
 }
 
-function restoreTriInputsFromStorage() {
+async function restoreTriInputsFromStorage() {
   let s = null;
   try {
     const raw = localStorage.getItem(scopedKey(LS_FORM_KEY)) || "";
@@ -1473,17 +1472,36 @@ function restoreTriInputsFromStorage() {
   } catch {
     s = null;
   }
-  if (!s || typeof s !== "object") {
-    const appDataDefaults = getCachedAppDataProjectPathDefaults();
-    if (appDataDefaults) {
+  if (!window.ADA_DFM_CONTEXT && !workflowId) {
+    const localProject = await loadLastDatasetViewerProjectFromAppData();
+    const matchedProject = findExactProjectMatch(localProject);
+    if (matchedProject) {
+      const base = s && typeof s === "object" ? s : {};
+      const sameBaseProject = normalizeProjectText(base.project) === normalizeProjectText(matchedProject);
+      const prefs = await loadDatasetProjectPrefs(matchedProject);
       s = {
-        project: appDataDefaults.project,
-        path: appDataDefaults.path,
+        ...base,
+        project: matchedProject,
+        path: prefs?.path || (sameBaseProject ? (base.path || "") : ""),
+        tri: prefs?.tri || (sameBaseProject ? (base.tri || "") : ""),
+      };
+    }
+  }
+  if (s && typeof s === "object") {
+    const project = String(s.project || "").trim();
+    const prefs = await loadDatasetProjectPrefs(project);
+    if (prefs) {
+      s = {
+        ...s,
+        path: prefs.path || s.path || "",
+        tri: prefs.tri || s.tri || "",
       };
     }
   }
   if ((!s || typeof s !== "object") && !window.ADA_DFM_CONTEXT) {
     s = getLastViewedDatasetInputs();
+    const prefs = await loadDatasetProjectPrefs(s?.project || "");
+    if (prefs) s = prefs;
   }
   if (!s || typeof s !== "object") return;
 
@@ -2322,6 +2340,9 @@ async function handleProjectSelection(value, options = {}) {
   if (project === lastProjectSelection) return true;
 
   lastProjectSelection = project;
+  if (!window.ADA_DFM_CONTEXT) {
+    saveLastDatasetViewerProjectToAppData(project);
+  }
 
   if (projectInput) projectInput.value = project;
   showProjectDropdown(false);
@@ -2336,6 +2357,19 @@ async function handleProjectSelection(value, options = {}) {
     await ensureDevHeadersForProject(project);
     await refreshDatasetTypesForProject(project);
     await refreshReservingClassPathsForProject(project);
+
+    if (options?.applyProjectUserPreferences !== false && !window.ADA_DFM_CONTEXT) {
+      const prefs = await loadDatasetProjectPrefs(project);
+      const pathInputForPrefs = document.getElementById("pathInput");
+      const triInputForPrefs = document.getElementById("triInput");
+      if (prefs?.path && pathInputForPrefs && !isInputDefaultBound(pathInputForPrefs)) {
+        pathInputForPrefs.value = prefs.path;
+      }
+      if (prefs?.tri && triInputForPrefs) {
+        triInputForPrefs.value = prefs.tri;
+        setLastDatasetSelection(prefs.tri);
+      }
+    }
 
     const pathInput = document.getElementById("pathInput");
     if (pathInput) {
@@ -2481,17 +2515,19 @@ function wireEvents() {
 async function boot() {
   fillLenDropdowns();
   await loadProjectsDropdown();
-  await ensureAppDataProjectPathDefaultsLoaded();
 
   applyWorkflowDefaultsIfNew();
 
   // restore user inputs AFTER dropdown options are populated
-  restoreTriInputsFromStorage();
+  await restoreTriInputsFromStorage();
   applyTriInputsFromQueryParams();
   enforceDevLenRule();
   const projectResult = validateAndNormalizeProjectInput({ strict: true, showMessage: false });
   if (projectResult.ok) {
     lastProjectSelection = projectResult.value;
+    if (!window.ADA_DFM_CONTEXT) {
+      saveLastDatasetViewerProjectToAppData(projectResult.value);
+    }
     await refreshDatasetTypesForProject(projectResult.value);
     await refreshReservingClassPathsForProject(projectResult.value);
   } else {

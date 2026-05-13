@@ -11,6 +11,7 @@ Index cache/data files and refresh points used by app-server services.
 | --- | --- | --- | --- |
 | `POST` | `/arcrho/headers/cache/clear` | `arcrho` | `clear_arcrho_headers_cache` |
 | `POST` | `/arcrho/tri/refresh` | `arcrho` | `arcrho_tri_refresh` |
+| `POST` | `/dfm/method-index/refresh` | `dfm_method_index` | `refresh_dfm_method_index` |
 | `POST` | `/reserving_class_values/refresh` | `reserving_class` | `refresh_reserving_class_values` |
 | `GET` | `/table_summary` | `table_summary` | `get_table_summary` |
 | `POST` | `/table_summary/refresh` | `table_summary` | `refresh_table_summary` |
@@ -29,14 +30,12 @@ Cache/lock constants detected:
 - `PROJECT_SETTINGS_XLSX_FILE`
 - `RESERVING_CLASS_COMBINATIONS_FILE`
 - `RESERVING_CLASS_FILTER_SPEC_PREF_FILE`
-- `RESERVING_CLASS_HIDDEN_PATHS_PREF_FILE`
 - `RESERVING_CLASS_PATH_TREE_FILE`
 - `RESERVING_CLASS_TYPES_FILE`
 - `RESERVING_CLASS_VALUES_FILE`
 - `SCRIPTING_PREFS_FILE`
 - `_AUDIT_LOG_LOCK`
 - `_RESERVING_CLASS_FILTER_SPEC_LOCK`
-- `_RESERVING_CLASS_HIDDEN_PATHS_LOCK`
 - `_RESERVING_CLASS_PATH_TREE_LOCK`
 <!-- AUTO-GEN:END -->
 

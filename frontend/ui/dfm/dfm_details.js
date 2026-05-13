@@ -11,7 +11,7 @@ import {
 import { resetRatioChartThresholds } from "/ui/dfm/dfm_ratios_tab.js";
 import {
   scheduleRatioSelectionLoad,
-} from "/ui/dfm/dfm_persistence.js?v=20260513c";
+} from "/ui/dfm/dfm_persistence.js?v=20260513e";
 import { openDatasetNamePicker } from "/ui/dataset/dataset_name_picker.js";
 import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_picker.js";
 

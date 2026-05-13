@@ -16,6 +16,7 @@ import {
   getDfmIsDirty,
   isRatiosTabVisible,
   isResultsTabVisible,
+  markDfmClean,
   notifyDfmEditState,
   buildRatioSavePath,
 } from "/ui/dfm/dfm_state.js";
@@ -49,9 +50,10 @@ import {
   saveDfmTemplate,
   loadDfmTemplate,
   buildDfmAssistantContextPayload,
-} from "/ui/dfm/dfm_persistence.js?v=20260513c";
+} from "/ui/dfm/dfm_persistence.js?v=20260513e";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
 import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js?v=20260513d";
+import { openDfmStartupChooser } from "/ui/dfm/dfm_startup_dialog.js?v=20260513e";
 
 function handleDatasetUpdated() {
   if (isRatiosTabVisible()) renderRatioTable();
@@ -188,8 +190,23 @@ export function initDfmRatios() {
     syncMethodNameFromInputs();
     syncOutputTypeFromProject({ forceReload: true });
     updatePathBar();
-    setTimeout(() => scheduleRatioSelectionLoad("init"), 300);
   }
+
+  setTimeout(() => {
+    void openDfmStartupChooser({
+      onLoad: () => {
+        syncMethodNameFromInputs();
+        updatePathBar();
+        scheduleRatioSelectionLoad("startup");
+      },
+      onNew: () => {
+        syncMethodNameFromInputs();
+        updatePathBar();
+        markDfmClean();
+        window.parent.postMessage({ type: "arcrho:status", text: "Ready: New DFM object." }, "*");
+      },
+    });
+  }, 100);
 
   window.addEventListener("message", (e) => {
     /* Respond to workflow requesting DFM step settings for snapshot */

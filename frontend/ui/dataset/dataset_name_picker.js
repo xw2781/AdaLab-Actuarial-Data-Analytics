@@ -15,21 +15,21 @@ import {
   matchesDatasetTypeNameSearch,
   tokenizeDatasetTypeNameSearch,
 } from "/ui/dataset/dataset_types_view_model.js";
+import {
+  loadProjectUserPreferences,
+  scheduleProjectUserPreferencesSave,
+} from "/ui/shared/project_user_preferences.js";
 
 const STYLE_ID = "arcrho-dataset-name-picker-style";
 const WINDOW_MARGIN_PX = 8;
 const PREFS_KEY = "arcrho_dataset_name_picker_prefs_v1";
-const APPDATA_PREFS_ENDPOINT = "/scripting/preferences";
-const APPDATA_PREFS_KEY = "dataset_name_picker_prefs_v1";
-const PREFS_SAVE_DEBOUNCE_MS = 250;
+const PROJECT_USER_PREFS_KEY = "datasetNamePicker";
 
 let DATASET_NAME_CACHE = new Map();
 let activeDatasetNamePicker = null;
-let pickerPrefsCache = null;
-let pickerPrefsLoadPromise = null;
-let pickerPrefsSaveTimer = null;
-let pickerPrefsPending = null;
-let pickerPrefsLastSavedSig = "";
+let pickerPrefsCacheByProject = new Map();
+let pickerPrefsLoadPromiseByProject = new Map();
+let pickerPrefsLastSavedSigByProject = new Map();
 
 function getDefaultPickerPrefs() {
   return {
@@ -80,85 +80,67 @@ function savePickerPrefsToLocalStorage(rawPrefs) {
   }
 }
 
-async function loadPickerPrefs() {
-  if (pickerPrefsCache) return normalizePickerPrefs(pickerPrefsCache);
-  if (pickerPrefsLoadPromise) return pickerPrefsLoadPromise;
+async function loadPickerPrefs(projectName) {
+  const project = toText(projectName);
+  const cacheKey = normalizeKey(project);
+  if (!project) return loadPickerPrefsFromLocalStorage();
+  if (pickerPrefsCacheByProject.has(cacheKey)) {
+    return normalizePickerPrefs(pickerPrefsCacheByProject.get(cacheKey));
+  }
+  if (pickerPrefsLoadPromiseByProject.has(cacheKey)) {
+    return pickerPrefsLoadPromiseByProject.get(cacheKey);
+  }
 
-  pickerPrefsLoadPromise = (async () => {
+  const loadPromise = (async () => {
     const fallback = loadPickerPrefsFromLocalStorage();
     let normalized = normalizePickerPrefs(fallback);
-    let hasAppDataPrefs = false;
+    let hasProjectPrefs = false;
 
     try {
-      const res = await fetch(APPDATA_PREFS_ENDPOINT, { cache: "no-store" });
-      if (res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        const hasKey = payload
-          && typeof payload === "object"
-          && Object.prototype.hasOwnProperty.call(payload, APPDATA_PREFS_KEY);
-        if (hasKey) {
-          normalized = normalizePickerPrefs(payload?.[APPDATA_PREFS_KEY]);
-          hasAppDataPrefs = true;
-        }
+      const payload = await loadProjectUserPreferences(project);
+      const hasKey = payload
+        && typeof payload === "object"
+        && Object.prototype.hasOwnProperty.call(payload, PROJECT_USER_PREFS_KEY);
+      if (hasKey) {
+        normalized = normalizePickerPrefs(payload?.[PROJECT_USER_PREFS_KEY]);
+        hasProjectPrefs = true;
       }
     } catch {
       // keep local fallback
     }
 
-    pickerPrefsCache = normalized;
-    pickerPrefsLastSavedSig = hasAppDataPrefs ? getPickerPrefsSignature(normalized) : "";
+    pickerPrefsCacheByProject.set(cacheKey, normalized);
+    pickerPrefsLastSavedSigByProject.set(cacheKey, hasProjectPrefs ? getPickerPrefsSignature(normalized) : "");
     savePickerPrefsToLocalStorage(normalized);
-    if (!hasAppDataPrefs) schedulePickerPrefsSave(normalized);
+    if (!hasProjectPrefs) schedulePickerPrefsSave(project, normalized);
     return normalizePickerPrefs(normalized);
   })();
+  pickerPrefsLoadPromiseByProject.set(cacheKey, loadPromise);
 
   try {
-    return await pickerPrefsLoadPromise;
+    return await loadPromise;
   } finally {
-    pickerPrefsLoadPromise = null;
+    pickerPrefsLoadPromiseByProject.delete(cacheKey);
   }
 }
 
-async function flushPickerPrefsSave() {
-  if (!pickerPrefsPending) return;
-  const normalized = normalizePickerPrefs(pickerPrefsPending);
-  pickerPrefsPending = null;
-  const signature = getPickerPrefsSignature(normalized);
-  if (signature === pickerPrefsLastSavedSig) return;
-
-  try {
-    const res = await fetch(APPDATA_PREFS_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        [APPDATA_PREFS_KEY]: {
-          doubleClickToSelect: normalized.doubleClickToSelect,
-          closeAfterSelection: normalized.closeAfterSelection,
-          updated_at: new Date().toISOString(),
-        },
-      }),
-    });
-    if (!res.ok) return;
-    pickerPrefsLastSavedSig = signature;
-  } catch {
-    // ignore save failures
-  }
-}
-
-function schedulePickerPrefsSave(rawPrefs) {
+function schedulePickerPrefsSave(projectName, rawPrefs) {
+  const project = toText(projectName);
+  const cacheKey = normalizeKey(project);
   const normalized = normalizePickerPrefs(rawPrefs);
-  pickerPrefsCache = normalized;
+  if (cacheKey) pickerPrefsCacheByProject.set(cacheKey, normalized);
   savePickerPrefsToLocalStorage(normalized);
 
   const signature = getPickerPrefsSignature(normalized);
-  if (signature === pickerPrefsLastSavedSig) return;
-  pickerPrefsPending = normalized;
-
-  if (pickerPrefsSaveTimer) clearTimeout(pickerPrefsSaveTimer);
-  pickerPrefsSaveTimer = setTimeout(() => {
-    pickerPrefsSaveTimer = null;
-    void flushPickerPrefsSave();
-  }, PREFS_SAVE_DEBOUNCE_MS);
+  if (!project || signature === pickerPrefsLastSavedSigByProject.get(cacheKey)) return;
+  pickerPrefsLastSavedSigByProject.set(cacheKey, signature);
+  scheduleProjectUserPreferencesSave(project, {
+    [PROJECT_USER_PREFS_KEY]: {
+      doubleClickToSelect: normalized.doubleClickToSelect,
+      closeAfterSelection: normalized.closeAfterSelection,
+      updated_at: new Date().toISOString(),
+    },
+  });
 }
 
 function toText(value) {
@@ -1352,7 +1334,7 @@ export async function openDatasetNamePicker(options = {}) {
   const onSelect = typeof options?.onSelect === "function" ? options.onSelect : null;
   const onClose = typeof options?.onClose === "function" ? options.onClose : null;
   const onError = typeof options?.onError === "function" ? options.onError : null;
-  const savedPrefs = await loadPickerPrefs();
+  const savedPrefs = await loadPickerPrefs(projectName);
   const initialPrefs = {
     doubleClickToSelect: typeof options?.doubleClickToSelect === "boolean"
       ? options.doubleClickToSelect
@@ -1566,7 +1548,7 @@ export async function openDatasetNamePicker(options = {}) {
 
     const setPref = (key, value) => {
       state.prefs[key] = !!value;
-      schedulePickerPrefsSave(state.prefs);
+      schedulePickerPrefsSave(projectName, state.prefs);
       rerender();
     };
 

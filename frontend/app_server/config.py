@@ -211,7 +211,6 @@ RESERVING_CLASS_COMBINATIONS_FILE = "reserving_class_combinations_cache.json"
 RESERVING_CLASS_TYPES_FILE = "reserving_class_types.json"
 RESERVING_CLASS_PATH_TREE_FILE = "reserving_class_path_tree_cache.json"
 RESERVING_CLASS_PATH_TREE_MAX_GENERATED = 250000
-RESERVING_CLASS_HIDDEN_PATHS_PREF_FILE = "reserving_class_hidden_paths.json"
 RESERVING_CLASS_FILTER_SPEC_PREF_FILE = "reserving_class_filter_spec.json"
 SCRIPTING_PREFS_FILE = "scripting_prefs.json"
 DATASET_TYPES_FILE = "dataset_types.json"
@@ -231,7 +230,6 @@ GENERAL_SETTINGS_FILE = "general_settings.json"
 
 _AUDIT_LOG_LOCK = threading.Lock()
 _RESERVING_CLASS_PATH_TREE_LOCK = threading.Lock()
-_RESERVING_CLASS_HIDDEN_PATHS_LOCK = threading.Lock()
 _RESERVING_CLASS_FILTER_SPEC_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
@@ -345,10 +343,6 @@ def get_reserving_class_path_tree_path(project_name: str) -> str:
 
 def _get_user_appdata_cache_dir() -> str:
     return os.path.join(_get_user_appdata_dir(), "cache")
-
-
-def get_reserving_class_hidden_paths_pref_path() -> str:
-    return os.path.join(_get_user_appdata_cache_dir(), RESERVING_CLASS_HIDDEN_PATHS_PREF_FILE)
 
 
 def get_reserving_class_filter_spec_pref_path() -> str:

@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Added a startup chooser for DFM objects.",
+  "details": [
+    "Opening a DFM tab now prompts the user to continue the last DFM object, select an existing object from a cached project methods index grouped by reserving class, or create a new blank object using the last project and reserving class. DFM saves refresh the project method index cache so newly created objects are available in the chooser."
+  ]
+}

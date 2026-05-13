@@ -29,7 +29,6 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
   - `get_project_settings_workbook_path`
   - `get_reserving_class_combinations_path`
   - `get_reserving_class_filter_spec_pref_path`
-  - `get_reserving_class_hidden_paths_pref_path`
   - `get_reserving_class_path_tree_path`
   - `get_reserving_class_types_path`
   - `get_reserving_class_values_path`

@@ -1,0 +1,13 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Kept the reserving-class tree view from jumping to the top after hiding or unhiding paths.",
+  "details": [
+    "The tree picker now preserves its expanded path list and scroll offset when it rebuilds after a hide/unhide action.",
+    "Hide/unhide refreshes now prepare the replacement tree before swapping it into view, reducing visible refresh flicker.",
+    "Single-node hide actions now remove the hidden node in place with a short collapse animation instead of rebuilding the whole tree.",
+    "The tree toolbar now includes an eye button next to Filter that opens the same live-updating Hidden Paths window as the right-click menu.",
+    "Tree refresh replacement now paints the refreshed picker before removing the previous picker to reduce flicker when unhiding paths."
+  ]
+}

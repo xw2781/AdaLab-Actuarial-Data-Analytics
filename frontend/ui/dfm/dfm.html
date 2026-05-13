@@ -1682,13 +1682,13 @@
   <script type="module">
     (async () => {
       window.ADA_DFM_CONTEXT = true;
-      await import("/ui/dataset/dataset_main.js?v=20260512a");
+      await import("/ui/dataset/dataset_main.js?v=20260513a");
       try {
         await window.ADA_DATASET_READY;
       } catch (err) {
         console.error("Dataset boot failed before DFM initialization:", err);
       }
-      await import("/ui/dfm/dfm_main.js?v=20260513d");
+      await import("/ui/dfm/dfm_main.js?v=20260513e");
     })();
   </script>
 </body>
