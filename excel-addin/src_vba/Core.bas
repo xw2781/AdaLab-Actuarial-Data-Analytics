@@ -29,7 +29,7 @@ Public doubleRefresh As Boolean
 Public disableWatcher As Boolean
 
 ' UI Select Dataset
-Public Const VP_SETTINGS_PATH As String = "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx"
+Public Const VP_SETTINGS_PATH As String = "E:\ADAS\Virtual Projects\RPC Channel.xlsx"
 Public Const VP_SETTINGS_SHEET As String = "Dataset Types"
 
 Public triangle_tool_row As Long
@@ -308,7 +308,7 @@ Public Function SetDefaultProject(ByVal ProjectName As String)
     Dim tmpName As String
     ' SetProjectName
     If ProjectName = "Default" Then
-        tmpName = ActiveWorkbook.Sheets("ResQ Settings").Range("B7").Value
+        tmpName = ActiveWorkbook.Sheets("RPC Settings").Range("B7").Value
     Else
         tmpName = ProjectName
     End If

@@ -126,10 +126,10 @@ async function runPrimaryAction(dialog, payload, action) {
   let actionPayload = payload;
   if (action === "update-remote") {
     const confirmed = window.confirm(
-      "This action will write the selected DFM settings into ResQ. Continue?",
+      "This action will write the selected DFM settings to the RPC server. Continue?",
     );
     if (!confirmed) return;
-    actionPayload = { ...payload, resq_write_confirmed: true };
+    actionPayload = { ...payload, rpc_server_write_confirmed: true };
   }
 
   dialog.setBusy(true);

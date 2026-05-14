@@ -115,7 +115,7 @@ print("\n> Shortcut created:", lnk); time.sleep(0.5)
 print('\n> Start Applications ...')
 
 os.startfile(str(resolve_app_exe("orchestrator")))
-os.startfile(r"E:\ResQ\Excel Add-ins\URA master\dist\URA master.exe")
+os.startfile(r"E:\ArcRho\Excel Add-ins\URA master\dist\URA master.exe")
 
 print('\n> Done'); time.sleep(2)
 

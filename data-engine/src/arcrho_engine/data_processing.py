@@ -404,7 +404,7 @@ def _get_dataset_info(arg):
 
     df = _get_df(project_name)
 
-    # Set user defined name (ResQ) to actual SQL table col names
+    # Set user-defined dataset name to actual SQL table column names.
     df_info = PROJECT_CONFIG[project_name]['Dataset Types']
     
     if dataset_name in df_info['Name'].values:

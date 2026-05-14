@@ -24,4 +24,4 @@ class DfmRpcBridgeKeepLocalRequest(DfmRpcBridgeRequest):
 
 
 class DfmRpcBridgeUpdateRemoteRequest(DfmRpcBridgeRequest):
-    resq_write_confirmed: bool = False
+    rpc_server_write_confirmed: bool = False

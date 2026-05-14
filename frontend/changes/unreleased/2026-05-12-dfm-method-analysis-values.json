@@ -4,6 +4,6 @@
   "audience": "user",
   "summary": "Added DFM analysis snapshots to saved method JSON and ArcBot context.",
   "details": [
-    "DFM method saves and ArcBot active DFM context now include rounded 4-decimal input data triangle values, ratio values, average formula value arrays, and the input triangle CSV path inside the canonical grouped method JSON; method restore behavior remains driven by the existing selection fields, analysis arrays trim trailing null cells from each row, excluded ratio rows are clipped to the corresponding ratio-value row shape, average formula values live under the average formulas object, RPC/ResQ sync can keep full triangle snapshots empty while carrying only the first User Entry stored-value row, and all 2D arrays are written with one compact child row per JSON line."
+    "DFM method saves and ArcBot active DFM context now include rounded 4-decimal input data triangle values, ratio values, average formula value arrays, and the input triangle CSV path inside the canonical grouped method JSON; method restore behavior remains driven by the existing selection fields, analysis arrays trim trailing null cells from each row, excluded ratio rows are clipped to the corresponding ratio-value row shape, average formula values live under the average formulas object, RPC server sync can keep full triangle snapshots empty while carrying only the first User Entry stored-value row, and all 2D arrays are written with one compact child row per JSON line."
   ]
 }

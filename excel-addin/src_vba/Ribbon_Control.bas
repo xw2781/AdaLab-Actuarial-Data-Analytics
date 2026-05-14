@@ -34,7 +34,7 @@ Sub uiInsertFunction(control As IRibbonControl)
 End Sub
 
 ' Clear Formulas
-Sub uiClearResQFormulae2(control As IRibbonControl)
+Sub uiClearLegacyFormulae2(control As IRibbonControl)
     MsgBox "NaN"
 End Sub
 

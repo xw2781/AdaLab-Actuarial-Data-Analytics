@@ -38,7 +38,7 @@ Numeric snapshot values are rounded to 4 decimals. For triangle-shaped arrays, e
 
 These analysis snapshots are ignored when restoring editable method selections. Editable restore behavior remains driven by `ratios tab`.`ratio triangle`.`excluded`, `ratios tab`.`average formulas`.`selected`, and related canonical selection fields.
 
-`ratios tab`.`ratio triangle`.`excluded` uses the same row shape as `ratio values`: each excluded row is clipped to the corresponding ratio-value row length, so non-value columns such as the trailing Ult mask column are not persisted. RPC/ResQ sync payloads may intentionally keep `input data triangle values` and `ratio values` empty to avoid copying full triangles back to the local method. For `ratios tab`.`average formulas`.`values`, RPC/ResQ sync only needs to populate the first `User Entry` formula row with stored ResQ values; non-user formula value rows can remain empty arrays while preserving row alignment with `average formulas`.`label`.
+`ratios tab`.`ratio triangle`.`excluded` uses the same row shape as `ratio values`: each excluded row is clipped to the corresponding ratio-value row length, so non-value columns such as the trailing Ult mask column are not persisted. RPC server sync payloads may intentionally keep `input data triangle values` and `ratio values` empty to avoid copying full triangles back to the local method. For `ratios tab`.`average formulas`.`values`, RPC server sync only needs to populate the first `User Entry` formula row with stored RPC server values; non-user formula value rows can remain empty arrays while preserving row alignment with `average formulas`.`label`.
 
 ## Average Formula Space Savings
 

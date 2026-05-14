@@ -18,7 +18,7 @@ Option Explicit
 Private Sub UserForm_Initialize()
   ' Get Initial Values
     LoadConfig
-    ComboBox1.Value = "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx"
+    ComboBox1.Value = "E:\ADAS\Virtual Projects\RPC Channel.xlsx"
     ComboBox2.Value = "E:\ADAS\Team Profile\Actuarial_NJ.xlsm"
     
     LoadFilePaths ComboBox1, "E:\ADAS\Virtual Projects\"

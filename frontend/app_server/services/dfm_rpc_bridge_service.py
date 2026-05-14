@@ -609,8 +609,8 @@ def keep_local(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
 
 
 def update_remote(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
-    if not getattr(req, "resq_write_confirmed", False):
-        raise HTTPException(400, "ResQ write confirmation is required before updating the remote DFM.")
+    if not getattr(req, "rpc_server_write_confirmed", False):
+        raise HTTPException(400, "RPC server write confirmation is required before updating the remote DFM.")
     paths = build_paths(req)
     os.makedirs(paths["rpc_methods_dir"], exist_ok=True)
     _try_remove(paths["sync_status_path"])
@@ -621,7 +621,7 @@ def update_remote(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         paths["request_dir"],
         {
             "MethodJsonPath": paths["local_path"],
-            "ResQWriteConfirmed": "true",
+            "RPCServerWriteConfirmed": "true",
         },
     )
     status_found = wait_for_file(paths["sync_status_path"], timeout_sec=max(0.1, float(req.timeout_sec)))
