@@ -219,7 +219,7 @@ Public Sub SearchADASFormulas(Optional ByVal ActiveSheetOnly As Boolean = False)
         End If
         
         If cancelUpdate Then GoTo CleanExit
-        If ws.Name = "RPC Settings" Then GoTo ContinueLoop
+        If ws.Name = "ResQ Settings" Then GoTo ContinueLoop
         
         ufProgressBar.LabelBody.Caption = "Reading worksheet <" & ws.Name & ">"
         DoEvents
@@ -296,9 +296,9 @@ Public Sub SetupConnection2()
     Dim sheet1 As Worksheet
     Dim Sheet2 As Worksheet
         
-    If Not SheetExists("RPC Settings") Then
+    If Not SheetExists("ResQ Settings") Then
         Set sheet1 = ActiveWorkbook.Worksheets.Add(Before:=ActiveWorkbook.Sheets(1))
-        sheet1.Name = "RPC Settings"
+        sheet1.Name = "ResQ Settings"
     End If
     
     If Not SheetExists("Project Details") Then
@@ -306,7 +306,7 @@ Public Sub SetupConnection2()
         Sheet2.Name = "Project Details"
     End If
     
-    Set sheet1 = ActiveWorkbook.Sheets("RPC Settings")
+    Set sheet1 = ActiveWorkbook.Sheets("ResQ Settings")
         sheet1.Columns("A").ColumnWidth = 72.71
         sheet1.Columns("B").ColumnWidth = 44.71
         
@@ -353,8 +353,8 @@ Sub RefreshDatabase()
     Dim resultPath As String
 
     currentTime = Format(Now, "yyyy-mm-dd_hh-mm-ss") & Format(Timer - Int(Timer), ".000")
-    filePath = "E:\ArcRho\Excel Add-ins\requests\" & "request-" & currentTime & ".txt"
-    resultPath = "E:\ArcRho\Excel Add-ins\data\" & "data-" & currentTime & ".csv"
+    filePath = "E:\ResQ\Excel Add-ins\requests\" & "request-" & currentTime & ".txt"
+    resultPath = "E:\ResQ\Excel Add-ins\data\" & "data-" & currentTime & ".csv"
     
     fileNumber = FreeFile
     Open filePath For Output As #fileNumber
@@ -410,7 +410,7 @@ Sub CheckUpdates()
     Dim exePath As String
     Dim retVal As Long
     
-    exePath = "\\Ne7saswpn02\e\ArcRho\Excel Add-ins\Update\dist\AutoUpdate.exe"
+    exePath = "\\Ne7saswpn02\e\ResQ\Excel Add-ins\Update\dist\AutoUpdate.exe"
     
     ' Run the executable
     retVal = Shell(exePath, vbNormalFocus)
@@ -439,8 +439,7 @@ Sub ResetAddinReferences()
     Dim hasBetaLink As Boolean
     Dim TextADAS As String
     Dim TextADAS_BETA As String
-    Dim TextLegacy As String
-    Dim legacyName As String
+    Dim TextResQ As String
     
     On Error GoTo CleanExit
     
@@ -451,13 +450,12 @@ Sub ResetAddinReferences()
     
     TextADAS = "='E:\ADAS\Excel Add-ins\ADAS.xlam'!ADAS"
     TextADAS_BETA = "='E:\ADAS\Excel Add-ins\beta\ADAS_BETA.xlam'!ADAS"
-    legacyName = "Re" & "sQ"
-    TextLegacy = "='C:\Program Files\Willis Towers Watson\" & legacyName & "\Addins\" & legacyName & ".xlam'!" & legacyName
+    TextResQ = "='C:\Program Files\Willis Towers Watson\ResQ\Addins\ResQ.xlam'!ResQ"
     
     ' Check all links in the workbook
     If Not IsEmpty(book.linkSources()) Then
         For Each link In book.linkSources()
-            If InStr(link, legacyName & ".xlam") > 0 Then hasOldLink = True
+            If InStr(link, "ResQ.xlam") > 0 Then hasOldLink = True
             If InStr(link, "ADAS") > 0 Then hasNewLink = True
             If InStr(link, "ADAS_BETA.xlam") > 0 Then hasBetaLink = True
         Next link
@@ -465,22 +463,22 @@ Sub ResetAddinReferences()
     
     If hasOldLink Then ' Change to ADAS
         skipDataProcess = True
-        ReplaceInWorkbook "='C:\Program Files (x86)\Willis Towers Watson\" & legacyName & "\Addins\" & legacyName & ".xlam'!" & legacyName, "=ADAS"
-        ReplaceInWorkbook TextLegacy, "=ADAS"
-        ReplaceInWorkbook "=" & legacyName, "=ADAS"
+        ReplaceInWorkbook "='C:\Program Files (x86)\Willis Towers Watson\ResQ\Addins\ResQ.xlam'!ResQ", "=ADAS"
+        ReplaceInWorkbook TextResQ, "=ADAS"
+        ReplaceInWorkbook "=ResQ", "=ADAS"
         Application.StatusBar = "ADAS Excel Add-in activated."
         
-    ElseIf Not hasOldLink And hasNewLink Then ' Change to legacy add-in
-        If Dir("C:\Program Files\Willis Towers Watson\" & legacyName & "\Addins\" & legacyName & ".xlam") <> "" Then
+    ElseIf Not hasOldLink And hasNewLink Then ' Change to ResQ
+        If Dir("C:\Program Files\Willis Towers Watson\ResQ\Addins\ResQ.xlam") <> "" Then
             If hasBetaLink Then
-                ReplaceInWorkbook TextADAS_BETA, TextLegacy
+                ReplaceInWorkbook TextADAS_BETA, TextResQ
             Else
-                ReplaceInWorkbook TextADAS, TextLegacy
+                ReplaceInWorkbook TextADAS, TextResQ
             End If
-            ReplaceInWorkbook "=ADAS", TextLegacy
-            Application.StatusBar = "Legacy Excel Add-in activated."
+            ReplaceInWorkbook "=ADAS", TextResQ
+            Application.StatusBar = "ResQ Excel Add-in activated."
         Else
-            Application.StatusBar = "Error: Legacy Excel Add-in can only be activated on Remote Desktop!"
+            Application.StatusBar = "Error: ResQ Excel Add-in can only be activated on Remote Desktop!"
         End If
     End If
     
