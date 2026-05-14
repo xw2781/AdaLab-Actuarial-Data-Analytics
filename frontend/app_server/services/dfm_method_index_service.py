@@ -1,9 +1,8 @@
-"""DFM method index cache for startup object selection."""
+"""DFM method index cache for project/path-scoped method name selection."""
 from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from fastapi import HTTPException
@@ -58,57 +57,28 @@ def _method_parts_from_filename(filename: str) -> tuple[str, str] | None:
     return reserving_class, method_name
 
 
-def _json_tab(payload: Dict[str, Any], tab_name: str) -> Dict[str, Any]:
-    tab = payload.get(tab_name) if isinstance(payload, dict) else None
-    return tab if isinstance(tab, dict) else {}
-
-
-def _method_entry(methods_dir: str, filename: str) -> Dict[str, Any] | None:
+def _method_entry(filename: str) -> Dict[str, Any] | None:
     parsed = _method_parts_from_filename(filename)
     if not parsed:
         return None
-    reserving_class, fallback_name = parsed
-    path = os.path.join(methods_dir, filename)
-    payload = _safe_read_json(path)
-    details = _json_tab(payload, "details tab")
-    metadata = _json_tab(payload, "method metadata")
-    stat = os.stat(path)
-    method_name = _clean_text(details.get("name")) or fallback_name
+    reserving_class, method_name = parsed
     return {
-        "project": "",
-        "reservingClass": reserving_class,
-        "methodName": method_name,
-        "outputVector": _clean_text(details.get("output type")),
-        "inputTriangle": _clean_text(details.get("input triangle")),
-        "originLength": details.get("origin length"),
-        "developmentLength": details.get("development length"),
-        "decimalPlaces": details.get("decimal places"),
-        "lastModified": _clean_text(metadata.get("last modified")),
-        "fileModified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-        "filename": filename,
-        "path": path,
+        "path": reserving_class,
+        "name": method_name,
     }
 
 
-def _build_tree(methods: List[Dict[str, Any]]) -> Dict[str, Any]:
-    root = {"name": "DFM Methods", "children": []}
-    by_class: Dict[str, Dict[str, Any]] = {}
+def _is_current_index(data: Dict[str, Any]) -> bool:
+    methods = data.get("methods") if isinstance(data, dict) else None
+    if not isinstance(methods, list):
+        return False
     for item in methods:
-        rc = _clean_text(item.get("reservingClass")) or "Unassigned"
-        node = by_class.get(rc)
-        if not node:
-            node = {"name": rc, "path": rc, "children": []}
-            by_class[rc] = node
-            root["children"].append(node)
-        node["children"].append({
-            "name": item.get("methodName") or item.get("filename") or "DFM",
-            "path": item.get("path") or "",
-            "method": item,
-        })
-    root["children"].sort(key=lambda item: str(item.get("name") or "").lower())
-    for node in root["children"]:
-        node["children"].sort(key=lambda item: str(item.get("name") or "").lower())
-    return root
+        if not isinstance(item, dict):
+            return False
+        keys = set(item.keys())
+        if keys != {"path", "name"}:
+            return False
+    return True
 
 
 def rebuild_index(project_name: str) -> Dict[str, Any]:
@@ -121,24 +91,19 @@ def rebuild_index(project_name: str) -> Dict[str, Any]:
             path = os.path.join(methods_dir, filename)
             if not os.path.isfile(path):
                 continue
-            entry = _method_entry(methods_dir, filename)
+            entry = _method_entry(filename)
             if not entry:
                 continue
-            entry["project"] = project
             methods.append(entry)
     except OSError as err:
         raise HTTPException(500, f"Failed to scan DFM methods: {str(err)}")
 
     methods.sort(key=lambda item: (
-        str(item.get("reservingClass") or "").lower(),
-        str(item.get("methodName") or "").lower(),
+        str(item.get("path") or "").lower(),
+        str(item.get("name") or "").lower(),
     ))
     data = {
-        "project": project,
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "methodsDir": methods_dir,
         "methods": methods,
-        "tree": _build_tree(methods),
     }
     temp_path = f"{_index_path(project)}.tmp"
     try:
@@ -161,6 +126,6 @@ def get_index(project_name: str, refresh: bool = False) -> Dict[str, Any]:
     if refresh or not os.path.exists(path):
         return rebuild_index(project)
     data = _safe_read_json(path)
-    if not data:
+    if not data or not _is_current_index(data):
         return rebuild_index(project)
     return data

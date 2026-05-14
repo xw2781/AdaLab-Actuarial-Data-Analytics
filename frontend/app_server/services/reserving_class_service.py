@@ -21,12 +21,10 @@ from app_server.config import (
     RESERVING_CLASS_TYPES_FILE_COLUMNS,
     RESERVING_CLASS_PATH_TREE_MAX_GENERATED,
     _RESERVING_CLASS_PATH_TREE_LOCK,
-    _RESERVING_CLASS_FILTER_SPEC_LOCK,
     get_reserving_class_types_path,
     get_reserving_class_values_path,
     get_reserving_class_combinations_path,
     get_reserving_class_path_tree_path,
-    get_reserving_class_filter_spec_pref_path,
     get_project_settings_workbook_path,
     get_cache_path,
     get_field_mapping_path,
@@ -89,6 +87,29 @@ def _write_reserving_class_tree_preferences(project_name: str, preferences: Any)
     })
     return preferences_norm
 
+
+def _read_reserving_class_tree_filter_spec(project_name: str) -> Tuple[Dict[str, List[str]], str]:
+    section, path = _project_user_reserving_tree_section(project_name)
+    filter_spec_raw = (
+        section.get("filterSpec")
+        if "filterSpec" in section
+        else section.get("filter_spec", {})
+    )
+    return _normalize_reserving_filter_spec(filter_spec_raw), path
+
+
+def _write_reserving_class_tree_filter_spec(project_name: str, filter_spec: Any) -> Tuple[Dict[str, List[str]], str]:
+    filter_spec_norm = _normalize_reserving_filter_spec(filter_spec)
+    now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    out = update_project_user_preferences(project_name, {
+        PROJECT_USER_RESERVING_CLASS_TREE_KEY: {
+            "filterSpec": filter_spec_norm,
+            "updated_at": now_iso,
+        },
+    })
+    path = str(out.get("path", "") or "") if isinstance(out, dict) else ""
+    return filter_spec_norm, path
+
 def get_hidden_paths_for_project(project_name: str) -> Dict[str, Any]:
     key = _canon_project_pref_key(project_name)
     if not key:
@@ -128,84 +149,12 @@ def save_hidden_paths_for_project(project_name: str, hidden_paths: Any) -> Dict[
 # Filter spec store
 # ---------------------------------------------------------------------------
 
-def _default_reserving_filter_spec_store() -> Dict[str, Any]:
-    return {
-        "projects": {},
-    }
-
-def _normalize_reserving_filter_spec_store_payload(raw_store: Any) -> Dict[str, Any]:
-    default_store = _default_reserving_filter_spec_store()
-    if not isinstance(raw_store, dict):
-        return default_store
-
-    projects_raw = raw_store.get("projects", {})
-    if not isinstance(projects_raw, dict):
-        projects_raw = {}
-    projects_norm: Dict[str, Dict[str, Any]] = {}
-    for project_key_raw, entry_raw in projects_raw.items():
-        project_key = str(project_key_raw or "").strip().lower()
-        if not project_key:
-            continue
-        entry = entry_raw if isinstance(entry_raw, dict) else {}
-        filter_spec = _normalize_reserving_filter_spec(entry.get("filter_spec", {}))
-        projects_norm[project_key] = {
-            "project_name": str(entry.get("project_name", "") or "").strip(),
-            "updated_at": str(entry.get("updated_at", "") or "").strip(),
-            "filter_spec": filter_spec,
-        }
-
-    return {
-        "updated_at": str(raw_store.get("updated_at", "") or "").strip(),
-        "projects": projects_norm,
-    }
-
-def _load_reserving_filter_spec_store(filepath: str) -> Dict[str, Any]:
-    default_store = _default_reserving_filter_spec_store()
-    if not os.path.exists(filepath):
-        return default_store
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-    except Exception:
-        return default_store
-    return _normalize_reserving_filter_spec_store_payload(raw)
-
-def _load_and_cleanup_reserving_filter_spec_store(filepath: str) -> Dict[str, Any]:
-    default_store = _default_reserving_filter_spec_store()
-    if not os.path.exists(filepath):
-        return default_store
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-    except Exception:
-        return default_store
-
-    normalized = _normalize_reserving_filter_spec_store_payload(raw)
-    raw_cmp = raw if isinstance(raw, dict) else {}
-    if json.dumps(raw_cmp, sort_keys=True, ensure_ascii=False) != json.dumps(normalized, sort_keys=True, ensure_ascii=False):
-        _write_reserving_filter_spec_store(filepath, normalized)
-    return normalized
-
-def _write_reserving_filter_spec_store(filepath: str, payload: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    tmp_path = filepath + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-    os.replace(tmp_path, filepath)
-
 def get_filter_spec_for_project(project_name: str) -> Dict[str, Any]:
     key = _canon_project_pref_key(project_name)
     if not key:
         raise ValueError("project_name is required")
 
-    filepath = get_reserving_class_filter_spec_pref_path()
-    with _RESERVING_CLASS_FILTER_SPEC_LOCK:
-        store = _load_and_cleanup_reserving_filter_spec_store(filepath)
-    projects = store.get("projects", {}) if isinstance(store, dict) else {}
-    entry = projects.get(key, {}) if isinstance(projects, dict) else {}
-    filter_spec = _normalize_reserving_filter_spec(
-        entry.get("filter_spec", {}) if isinstance(entry, dict) else {}
-    )
+    filter_spec, filepath = _read_reserving_class_tree_filter_spec(project_name)
     preferences = _read_reserving_class_tree_preferences(project_name)
     return {
         "path": filepath,
@@ -223,34 +172,12 @@ def save_filter_spec_for_project(
     if not key:
         raise ValueError("project_name is required")
 
-    filepath = get_reserving_class_filter_spec_pref_path()
-    filter_spec_norm = _normalize_reserving_filter_spec(filter_spec)
-    now_iso = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     preferences_out = (
         _write_reserving_class_tree_preferences(project_name, preferences)
         if preferences is not None
         else _read_reserving_class_tree_preferences(project_name)
     )
-
-    with _RESERVING_CLASS_FILTER_SPEC_LOCK:
-        store = _load_and_cleanup_reserving_filter_spec_store(filepath)
-        projects = store.get("projects", {})
-        if not isinstance(projects, dict):
-            projects = {}
-
-        if filter_spec_norm:
-            projects[key] = {
-                "project_name": str(project_name or "").strip(),
-                "updated_at": now_iso,
-                "filter_spec": filter_spec_norm,
-                "preferences": {},
-            }
-        else:
-            projects.pop(key, None)
-
-        store["projects"] = projects
-        store["updated_at"] = now_iso
-        _write_reserving_filter_spec_store(filepath, store)
+    filter_spec_norm, filepath = _write_reserving_class_tree_filter_spec(project_name, filter_spec)
 
     return {
         "path": filepath,

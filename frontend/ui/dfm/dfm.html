@@ -354,15 +354,6 @@
       text-transform: uppercase;
       color: #4b5563;
     }
-    #dfmMethodPanel input {
-      width: 450px;
-      max-width: 100%;
-      height: 30px;
-      padding: 0 10px;
-      border: 1px solid #cfcfcf;
-      border-radius: 6px;
-      box-sizing: border-box;
-    }
     #dfmDetailsPage {
       display: none;
     }
@@ -481,6 +472,7 @@
     }
     .dfmFormField .dfmMethodNameWrap #dfmMethodName {
       width: 100%;
+      padding-right: 34px;
     }
     .dfmFormField .dfmOutputVectorWrap #dfmOutputVector {
       width: 100%;
@@ -1363,47 +1355,44 @@
             <button id="pathTreeBtn" type="button" class="pathTreeBtn" title="Browse reserving classes" aria-label="Browse reserving classes">...</button>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="dfmDetailsBlock" id="dfmMethodPanel">
-      <div class="dfmDetailsBlockHeader">
-        <div class="dfmDetailsBlockTitle">Input &amp; Output</div>
-      </div>
-      <div class="dfmFormGrid">
         <label for="dfmMethodName">Name</label>
         <div class="dfmFormField">
           <div class="dfmMethodNameWrap">
             <input id="dfmMethodName" type="text" placeholder="DFM | Triangle Name" />
+            <button id="dfmMethodNameBtn" type="button" class="pathTreeBtn" title="Select DFM method name" aria-label="Select DFM method name">...</button>
+            <div id="dfmMethodNameDropdown" class="datasetDropdown"></div>
           </div>
           <div id="dfmInstanceMissingNotice" class="dfmInstanceMissingNotice" aria-live="polite">
             <span id="dfmInstanceMissingText">This DFM instance has not been created, click confirm to generate it.</span>
             <button id="dfmInstanceConfirmBtn" type="button" class="dfmActionBtn">Confirm</button>
           </div>
         </div>
-        <label for="dfmOutputVector">Output Vector</label>
-        <div class="dfmFormField">
-          <div class="dfmOutputVectorWrap">
-            <input id="dfmOutputVector" type="text" placeholder="Select output vector" />
-            <button id="dfmOutputVectorBtn" type="button" class="pathTreeBtn" title="Select output vector" aria-label="Select output vector">...</button>
-            <div id="dfmOutputVectorDropdown" class="datasetDropdown"></div>
-          </div>
-        </div>
-        <label for="triInput">Input Triangle</label>
-        <div class="dfmFormField">
-          <div class="datasetSelectWrap">
-            <input id="triInput" autocomplete="off" />
-            <button id="dfmTriTypeBtn" type="button" class="datasetTreeBtn" title="Select input triangle" aria-label="Select input triangle">...</button>
-            <div id="datasetDropdown" class="datasetDropdown"></div>
-            <div id="dfmTriTypeDropdown" class="datasetDropdown"></div>
-          </div>
-        </div>
       </div>
     </div>
-    <div class="dfmDetailsBlock" id="dfmConfigPanel">
+    <div class="dfmDetailsBlock" id="dfmMethodConfigPanel">
       <div class="dfmDetailsBlockHeader">
-        <div class="dfmDetailsBlockTitle">Method Settings</div>
+        <div class="dfmDetailsBlockTitle">Method Inputs &amp; Settings</div>
       </div>
       <div class="dfmSection">
+        <div class="dfmFormGrid">
+          <label for="dfmOutputVector">Output Vector</label>
+          <div class="dfmFormField">
+            <div class="dfmOutputVectorWrap">
+              <input id="dfmOutputVector" type="text" placeholder="Select output vector" />
+              <button id="dfmOutputVectorBtn" type="button" class="pathTreeBtn" title="Select output vector" aria-label="Select output vector">...</button>
+              <div id="dfmOutputVectorDropdown" class="datasetDropdown"></div>
+            </div>
+          </div>
+          <label for="triInput">Input Triangle</label>
+          <div class="dfmFormField">
+            <div class="datasetSelectWrap">
+              <input id="triInput" autocomplete="off" />
+              <button id="dfmTriTypeBtn" type="button" class="datasetTreeBtn" title="Select input triangle" aria-label="Select input triangle">...</button>
+              <div id="datasetDropdown" class="datasetDropdown"></div>
+              <div id="dfmTriTypeDropdown" class="datasetDropdown"></div>
+            </div>
+          </div>
+        </div>
         <div class="dfmFormGrid3">
           <label for="originLenSelect">Origin Length</label>
           <div class="dfmFormField">
@@ -1440,7 +1429,7 @@
           <div class="dfmFormField"></div>
         </div>
         <input id="cumulativeChk" type="checkbox" checked style="display:none;" />
-        <input id="linkLenChk" type="checkbox" checked style="display:none;" />
+        <input id="linkLenChk" type="checkbox" style="display:none;" />
         <input type="radio" name="timeMode" value="development" checked style="display:none;" />
       </div>
     </div>

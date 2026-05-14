@@ -66,9 +66,43 @@ def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _extract_last_reserving_class_path(data: Dict[str, Any]) -> str:
+    for key in ("lastReservingClassPath", "last_reserving_class_path"):
+        value = _clean_text(data.get(key))
+        if value:
+            return value
+    for section_key in ("datasetViewer", "dfmObject"):
+        section = data.get(section_key)
+        if not isinstance(section, dict):
+            continue
+        for key in ("reservingClass", "reserving_class", "path"):
+            value = _clean_text(section.get(key))
+            if value:
+                return value
+    return ""
+
+
+def _normalize_project_user_preferences(data: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(data if isinstance(data, dict) else {})
+    last_path = _extract_last_reserving_class_path(out)
+    if last_path:
+        out["lastReservingClassPath"] = last_path
+    out.pop("last_reserving_class_path", None)
+
+    for section_key in ("datasetViewer", "dfmObject"):
+        section = out.get(section_key)
+        if not isinstance(section, dict):
+            continue
+        cleaned = dict(section)
+        for key in ("reservingClass", "reserving_class", "path"):
+            cleaned.pop(key, None)
+        out[section_key] = cleaned
+    return out
+
+
 def get_preferences(project_name: str) -> Dict[str, Any]:
     path = _prefs_path(project_name)
-    data = _read_json(path)
+    data = _normalize_project_user_preferences(_read_json(path))
     return {
         "ok": True,
         "project_name": _clean_text(project_name),
@@ -84,7 +118,7 @@ def update_preferences(project_name: str, patch: Dict[str, Any]) -> Dict[str, An
     path = _prefs_path(project_name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     current = _read_json(path)
-    next_data = _deep_merge(current, patch)
+    next_data = _normalize_project_user_preferences(_deep_merge(current, patch))
     next_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     temp_path = f"{path}.tmp"
     try:

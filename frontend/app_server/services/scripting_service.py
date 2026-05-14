@@ -1108,6 +1108,8 @@ def get_api_help() -> List[Dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 _SCRIPTING_PREFS_LOCK = threading.Lock()
+_LOCAL_PROJECT_PREFS_LOCK = threading.Lock()
+_LEGACY_DATASET_VIEWER_PREFS_KEY = "dataset_viewer_local_prefs_v1"
 
 
 def get_preferences() -> Dict[str, Any]:
@@ -1143,6 +1145,65 @@ def save_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2, ensure_ascii=False)
+
+    return {"success": True, "preferences": existing}
+
+
+def _normalize_local_project_preferences(raw: Any) -> Dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    project = str(
+        source.get("projectName")
+        or source.get("project_name")
+        or source.get("project")
+        or ""
+    ).strip()
+    updated_at = str(source.get("updated_at") or source.get("updatedAt") or "").strip()
+    out: Dict[str, Any] = {}
+    if project:
+        out["projectName"] = project
+    if updated_at:
+        out["updated_at"] = updated_at
+    return out
+
+
+def get_local_project_preferences() -> Dict[str, Any]:
+    """Load shared last-project preferences from a dedicated APPDATA JSON file."""
+    filepath = config.get_local_project_prefs_path()
+    with _LOCAL_PROJECT_PREFS_LOCK:
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            normalized = _normalize_local_project_preferences(data)
+            if normalized:
+                return normalized
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+    legacy = _normalize_local_project_preferences(
+        get_preferences().get(_LEGACY_DATASET_VIEWER_PREFS_KEY)
+    )
+    return legacy
+
+
+def save_local_project_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge shared last-project preferences into %APPDATA%\\ArcRho\\local_project_prefs.json."""
+    filepath = config.get_local_project_prefs_path()
+    with _LOCAL_PROJECT_PREFS_LOCK:
+        existing: Dict[str, Any] = {}
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            existing = _normalize_local_project_preferences(loaded)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            existing = {}
+
+        incoming = _normalize_local_project_preferences(prefs)
+        existing.update(incoming)
+
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+            f.write("\n")
 
     return {"success": True, "preferences": existing}
 

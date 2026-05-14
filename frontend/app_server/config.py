@@ -211,8 +211,8 @@ RESERVING_CLASS_COMBINATIONS_FILE = "reserving_class_combinations_cache.json"
 RESERVING_CLASS_TYPES_FILE = "reserving_class_types.json"
 RESERVING_CLASS_PATH_TREE_FILE = "reserving_class_path_tree_cache.json"
 RESERVING_CLASS_PATH_TREE_MAX_GENERATED = 250000
-RESERVING_CLASS_FILTER_SPEC_PREF_FILE = "reserving_class_filter_spec.json"
 SCRIPTING_PREFS_FILE = "scripting_prefs.json"
+LOCAL_PROJECT_PREFS_FILE = "local_project_prefs.json"
 DATASET_TYPES_FILE = "dataset_types.json"
 PROJECT_SETTINGS_XLSX_FILE = "settings.xlsx"
 RESERVING_CLASS_TYPES_SHEET_NAME = "Reserving Class Types"
@@ -230,7 +230,6 @@ GENERAL_SETTINGS_FILE = "general_settings.json"
 
 _AUDIT_LOG_LOCK = threading.Lock()
 _RESERVING_CLASS_PATH_TREE_LOCK = threading.Lock()
-_RESERVING_CLASS_FILTER_SPEC_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # App-control flag paths
@@ -345,12 +344,12 @@ def _get_user_appdata_cache_dir() -> str:
     return os.path.join(_get_user_appdata_dir(), "cache")
 
 
-def get_reserving_class_filter_spec_pref_path() -> str:
-    return os.path.join(_get_user_appdata_cache_dir(), RESERVING_CLASS_FILTER_SPEC_PREF_FILE)
-
-
 def get_scripting_prefs_path() -> str:
     return os.path.join(_get_user_appdata_cache_dir(), SCRIPTING_PREFS_FILE)
+
+
+def get_local_project_prefs_path() -> str:
+    return os.path.join(_get_user_appdata_dir(), LOCAL_PROJECT_PREFS_FILE)
 
 
 def get_project_settings_workbook_path(project_name: str) -> str:

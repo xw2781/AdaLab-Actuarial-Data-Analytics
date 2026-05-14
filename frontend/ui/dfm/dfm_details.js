@@ -14,12 +14,20 @@ import {
 } from "/ui/dfm/dfm_persistence.js?v=20260513e";
 import { openDatasetNamePicker } from "/ui/dataset/dataset_name_picker.js";
 import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_picker.js";
+import {
+  loadProjectUserPreferences,
+  scheduleProjectUserPreferencesSave,
+} from "/ui/shared/project_user_preferences.js";
 
 const outputTypeNamesByProject = new Map();
 const triangleInputNamesByProject = new Map();
+const dfmMethodNamesByProjectPath = new Map();
 let outputTypeRequestSeq = 0;
 let triangleInputRequestSeq = 0;
+let dfmMethodNameRequestSeq = 0;
 let pendingOutputTypeFromUrl = null;
+let localProjectPreferenceSaved = "";
+let localProjectPreferenceLoadPromise = null;
 
 function toText(value) {
   return String(value ?? "").trim();
@@ -27,6 +35,15 @@ function toText(value) {
 
 function normalizeKey(value) {
   return toText(value).toLowerCase();
+}
+
+function sanitizeDfmMethodPathPart(value) {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, "^")
+    .replace(/[. ]+$/g, (match) => "^".repeat(match.length))
+    .replace(/\s+/g, " ");
+  return cleaned;
 }
 
 function parseCalculatedFlag(value) {
@@ -157,6 +174,13 @@ function closeOutputTypeDropdown() {
 
 function closeTriangleTypeDropdown() {
   const dropdown = document.getElementById("dfmTriTypeDropdown");
+  if (!dropdown) return;
+  dropdown.classList.remove("open");
+  dropdown.innerHTML = "";
+}
+
+function closeDfmMethodNameDropdown() {
+  const dropdown = document.getElementById("dfmMethodNameDropdown");
   if (!dropdown) return;
   dropdown.classList.remove("open");
   dropdown.innerHTML = "";
@@ -311,6 +335,260 @@ function renderTriangleTypeDropdown(names) {
   dropdown.classList.add("open");
 }
 
+function normalizeLocalProjectPreference(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return String(
+    source.projectName
+    || source.project_name
+    || source.project
+    || "",
+  ).trim();
+}
+
+async function loadLastLocalProjectName() {
+  if (localProjectPreferenceLoadPromise) return localProjectPreferenceLoadPromise;
+  localProjectPreferenceLoadPromise = (async () => {
+    try {
+      const response = await fetch("/local-project/preferences", { cache: "no-store" });
+      if (!response.ok) return "";
+      const payload = await response.json().catch(() => ({}));
+      const project = normalizeLocalProjectPreference(payload?.preferences || payload);
+      localProjectPreferenceSaved = project;
+      return project;
+    } catch {
+      return "";
+    } finally {
+      localProjectPreferenceLoadPromise = null;
+    }
+  })();
+  return localProjectPreferenceLoadPromise;
+}
+
+function saveLastLocalProjectName(projectName) {
+  const project = toText(projectName);
+  if (!project || normalizeKey(project) === normalizeKey(localProjectPreferenceSaved)) return;
+  localProjectPreferenceSaved = project;
+  void fetch("/local-project/preferences", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      projectName: project,
+      updated_at: new Date().toISOString(),
+    }),
+  }).catch(() => {
+    localProjectPreferenceSaved = "";
+  });
+}
+
+function getLastReservingClassPathFromProjectPrefs(prefs) {
+  const source = prefs && typeof prefs === "object" ? prefs : {};
+  const direct = toText(source.lastReservingClassPath || source.last_reserving_class_path);
+  if (direct) return direct;
+  for (const sectionName of ["dfmObject", "datasetViewer"]) {
+    const section = source[sectionName];
+    if (!section || typeof section !== "object") continue;
+    const path = toText(section.reservingClass || section.reserving_class || section.path);
+    if (path) return path;
+  }
+  return "";
+}
+
+function getDfmObjectPrefsFromProjectPrefs(prefs) {
+  const source = prefs && typeof prefs === "object" ? prefs : {};
+  const dfmObject = source.dfmObject && typeof source.dfmObject === "object" ? source.dfmObject : {};
+  return {
+    methodName: toText(dfmObject.methodName || dfmObject.method_name),
+    outputVector: toText(dfmObject.outputVector || dfmObject.output_vector),
+    inputTriangle: toText(dfmObject.inputTriangle || dfmObject.input_triangle || dfmObject.datasetName || dfmObject.dataset_name),
+    originLength: toText(dfmObject.originLength || dfmObject.origin_length),
+    developmentLength: toText(dfmObject.developmentLength || dfmObject.development_length),
+    decimalPlaces: toText(dfmObject.decimalPlaces || dfmObject.decimal_places),
+  };
+}
+
+function applyTextInputValue(id, value, options = {}) {
+  const input = document.getElementById(id);
+  const next = toText(value);
+  if (!input || !next) return false;
+  if (!options?.replace && toText(input.value)) return false;
+  if (toText(input.value) === next) return false;
+  if (options?.programmatic) input.dataset.programmatic = "1";
+  input.value = next;
+  if (options?.dispatchInput) input.dispatchEvent(new Event("input", { bubbles: true }));
+  if (options?.dispatchSelection) {
+    input.dispatchEvent(new CustomEvent("arcrho:output-type-selected", { detail: { value: next } }));
+  }
+  return true;
+}
+
+function applySelectValue(id, value, options = {}) {
+  const select = document.getElementById(id);
+  const next = toText(value);
+  if (!select || !next) return false;
+  if (!options?.replace && toText(select.value)) return false;
+  if (![...select.options].some((opt) => String(opt.value) === next)) {
+    const opt = document.createElement("option");
+    opt.value = next;
+    opt.textContent = next;
+    select.appendChild(opt);
+  }
+  if (toText(select.value) === next) return false;
+  select.value = next;
+  return true;
+}
+
+function applyDfmObjectPrefsToDetails(prefs, options = {}) {
+  const dfmPrefs = getDfmObjectPrefsFromProjectPrefs(prefs);
+  let changed = false;
+  changed = applyTextInputValue("dfmMethodName", dfmPrefs.methodName, {
+    replace: !!options?.replace,
+    programmatic: true,
+    dispatchInput: true,
+  }) || changed;
+  changed = applyTextInputValue("dfmOutputVector", dfmPrefs.outputVector, {
+    replace: !!options?.replace,
+    dispatchSelection: true,
+  }) || changed;
+  changed = applyTextInputValue("triInput", dfmPrefs.inputTriangle, {
+    replace: !!options?.replace,
+  }) || changed;
+  changed = applySelectValue("originLenSelect", dfmPrefs.originLength, options) || changed;
+  changed = applySelectValue("devLenSelect", dfmPrefs.developmentLength, options) || changed;
+  changed = applyTextInputValue("decimalPlaces", dfmPrefs.decimalPlaces, options) || changed;
+
+  const methodName = toText(document.getElementById("dfmMethodName")?.value);
+  updateAppTabTitle(methodName || getDefaultMethodName());
+  return changed;
+}
+
+function applyLastReservingClassPathFromProjectPrefs(prefs, options = {}) {
+  const input = document.getElementById("pathInput");
+  if (!input) return false;
+  if (!options?.replace && toText(input.value)) return false;
+  const path = getLastReservingClassPathFromProjectPrefs(prefs);
+  if (!path) return false;
+  if (toText(input.value) === path) return false;
+  input.value = path;
+  updatePathBar();
+  return true;
+}
+
+async function applyDfmProjectUserPreferences(projectName, options = {}) {
+  const project = toText(projectName);
+  if (!project) return false;
+  try {
+    const prefs = await loadProjectUserPreferences(project);
+    const pathChanged = applyLastReservingClassPathFromProjectPrefs(prefs, options);
+    const detailsChanged = applyDfmObjectPrefsToDetails(prefs, options);
+    if (pathChanged || detailsChanged) {
+      scheduleRatioSelectionLoad("details-change");
+    }
+    return pathChanged || detailsChanged;
+  } catch {
+    return false;
+  }
+}
+
+function saveLastReservingClassPathForCurrentProject() {
+  const project = toText(document.getElementById("projectSelect")?.value);
+  const path = toText(document.getElementById("pathInput")?.value);
+  if (!project || !path) return;
+  scheduleProjectUserPreferencesSave(project, {
+    lastReservingClassPath: path,
+  });
+}
+
+async function applyLastLocalProjectNameIfBlank() {
+  const input = document.getElementById("projectSelect");
+  if (!input || toText(input.value)) return;
+  const project = await loadLastLocalProjectName();
+  if (!project || toText(input.value)) return;
+  input.value = project;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  void applyDfmProjectUserPreferences(project);
+}
+
+function normalizeDfmMethodIndexNames(payload, pathValue) {
+  const targetPath = sanitizeDfmMethodPathPart(pathValue);
+  const targetKey = normalizeKey(targetPath);
+  const seen = new Set();
+  const out = [];
+  for (const item of Array.isArray(payload?.methods) ? payload.methods : []) {
+    const itemPath = sanitizeDfmMethodPathPart(item?.path);
+    const name = toText(item?.name);
+    if (!name || normalizeKey(itemPath) !== targetKey) continue;
+    const key = normalizeKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+  return out;
+}
+
+async function loadDfmMethodNames(projectName, pathValue, options = {}) {
+  const project = toText(projectName);
+  const pathPart = sanitizeDfmMethodPathPart(pathValue);
+  if (!project || !pathPart) return [];
+  const cacheKey = `${normalizeKey(project)}\n${normalizeKey(pathPart)}`;
+  if (!options?.forceReload && dfmMethodNamesByProjectPath.has(cacheKey)) {
+    return dfmMethodNamesByProjectPath.get(cacheKey);
+  }
+  const query = new URLSearchParams({
+    project_name: project,
+    refresh: options?.forceReload ? "true" : "false",
+  });
+  const response = await fetch(`/dfm/method-index?${query.toString()}`);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = toText(await response.text());
+    } catch {}
+    throw new Error(detail || `HTTP ${response.status}`);
+  }
+  const payload = await response.json().catch(() => ({}));
+  const names = normalizeDfmMethodIndexNames(payload, pathPart);
+  dfmMethodNamesByProjectPath.set(cacheKey, names);
+  return names;
+}
+
+function renderDfmMethodNameDropdown(names) {
+  const dropdown = document.getElementById("dfmMethodNameDropdown");
+  const input = document.getElementById("dfmMethodName");
+  if (!dropdown || !input) return;
+  dropdown.innerHTML = "";
+  if (!Array.isArray(names) || names.length === 0) {
+    const option = document.createElement("div");
+    option.className = "datasetOption";
+    option.textContent = "No DFM methods found for this path.";
+    option.style.cursor = "default";
+    option.style.color = "#666";
+    dropdown.appendChild(option);
+    dropdown.classList.add("open");
+    return;
+  }
+  const selectedKey = normalizeKey(input.value);
+  for (const name of names) {
+    const option = document.createElement("div");
+    option.className = "datasetOption";
+    option.textContent = name;
+    if (normalizeKey(name) === selectedKey) option.classList.add("active");
+    option.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+    });
+    option.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.value = name;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      closeDfmMethodNameDropdown();
+    });
+    dropdown.appendChild(option);
+  }
+  dropdown.classList.add("open");
+}
+
 async function syncOutputTypeForCurrentProject(options = {}) {
   const projectName = toText(document.getElementById("projectSelect")?.value);
   const input = document.getElementById("dfmOutputVector");
@@ -429,8 +707,13 @@ export function wireMethodName() {
 
   projectInput?.addEventListener("change", updatePathBar);
   projectInput?.addEventListener("input", updatePathBar);
+  projectInput?.addEventListener("change", () => {
+    saveLastLocalProjectName(projectInput.value);
+    void applyDfmProjectUserPreferences(projectInput.value, { replace: true });
+  });
   pathInput?.addEventListener("change", updatePathBar);
   pathInput?.addEventListener("input", updatePathBar);
+  pathInput?.addEventListener("change", saveLastReservingClassPathForCurrentProject);
 
   const markDirtyOnChange = () => markDfmDirty();
   triInput?.addEventListener("change", markDirtyOnChange);
@@ -444,9 +727,69 @@ export function wireMethodName() {
   projectInput?.addEventListener("change", triggerLoad);
 
   wireReservingClassPicker();
+  wireDfmMethodNamePicker();
   wireOutputTypePicker();
   wireTriangleTypePicker();
   updatePathBar();
+  void applyLastLocalProjectNameIfBlank();
+}
+
+function wireDfmMethodNamePicker() {
+  const input = document.getElementById("dfmMethodName");
+  const button = document.getElementById("dfmMethodNameBtn");
+  const dropdown = document.getElementById("dfmMethodNameDropdown");
+  if (!input || !button || !dropdown || button.dataset.wired === "1") return;
+  button.dataset.wired = "1";
+
+  const openPicker = async (options = {}) => {
+    const projectName = toText(document.getElementById("projectSelect")?.value);
+    const pathValue = toText(document.getElementById("pathInput")?.value);
+    if (!projectName) {
+      closeDfmMethodNameDropdown();
+      postDfmStatus("Select a project first.", { tone: "warn" });
+      return;
+    }
+    if (!pathValue) {
+      closeDfmMethodNameDropdown();
+      postDfmStatus("Select a reserving class first.", { tone: "warn" });
+      return;
+    }
+    button.disabled = true;
+    const requestSeq = ++dfmMethodNameRequestSeq;
+    try {
+      const names = await loadDfmMethodNames(projectName, pathValue, { forceReload: !!options?.forceReload });
+      if (requestSeq !== dfmMethodNameRequestSeq) return;
+      renderDfmMethodNameDropdown(names);
+    } catch (err) {
+      console.error("Failed to load DFM method names:", err);
+      closeDfmMethodNameDropdown();
+      postDfmStatus(`Error loading DFM method names: ${String(err?.message || err)}`, { tone: "error" });
+    } finally {
+      if (requestSeq === dfmMethodNameRequestSeq) button.disabled = false;
+    }
+  };
+
+  button.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void openPicker();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeDfmMethodNameDropdown();
+      return;
+    }
+    if (e.key === "ArrowDown" && !dropdown.classList.contains("open")) {
+      e.preventDefault();
+      void openPicker();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (dropdown.contains(e.target) || button.contains(e.target) || input.contains(e.target)) return;
+    closeDfmMethodNameDropdown();
+  });
 }
 
 function setDfmInstanceMissingNoticeVisible(visible) {

@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Allowed DFM Origin Length and Development Length to be adjusted independently.",
+  "details": [
+    "DFM no longer restores or saves the shared Dataset Viewer length-link control as enabled. When Origin Length changes, Development Length is automatically adjusted only if the pair would otherwise violate Origin Length >= Development Length and Origin Length = Development Length * integer.",
+    "Changing DFM length arguments now keeps the current dirty DFM object in memory during the dataset refresh instead of reloading the old method JSON from disk and overwriting the edit.",
+    "Applying a DFM method payload from RPC sync, local method lookup, template load, or ArcBot JSON edit now reruns the embedded dataset and refreshes labels when the saved Input Triangle or length settings change."
+  ]
+}

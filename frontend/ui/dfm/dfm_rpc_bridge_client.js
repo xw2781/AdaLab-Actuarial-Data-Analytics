@@ -123,6 +123,15 @@ async function refreshComparison(dialog, payload) {
 }
 
 async function runPrimaryAction(dialog, payload, action) {
+  let actionPayload = payload;
+  if (action === "update-remote") {
+    const confirmed = window.confirm(
+      "This action will write the selected DFM settings into ResQ. Continue?",
+    );
+    if (!confirmed) return;
+    actionPayload = { ...payload, resq_write_confirmed: true };
+  }
+
   dialog.setBusy(true);
   const statusDialog = createDfmRpcBridgeMessageBox("Preparing selected DFM version action...");
   statusDialog.setBusy(true);
@@ -157,7 +166,7 @@ async function runPrimaryAction(dialog, payload, action) {
     }
     if (action === "update-remote") {
       statusDialog.setWaiting("Sending SyncDFM request and waiting for remote result...");
-      const data = await postJson("/dfm/rpc-bridge/update-remote", payload);
+      const data = await postJson("/dfm/rpc-bridge/update-remote", actionPayload);
       const message = data?.ok ? "Remote database updated" : (data?.message || "Remote update failed.");
       statusDialog.setMessage(message, data?.ok ? "ok" : "error");
       postStatus(`DFM sync: ${message}`, data?.ok ? "" : "warn");

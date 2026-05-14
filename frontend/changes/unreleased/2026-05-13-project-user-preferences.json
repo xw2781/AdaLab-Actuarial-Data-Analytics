@@ -4,7 +4,8 @@
   "audience": "user",
   "summary": "Stored Dataset Viewer and DFM last-used preferences per project and Windows user.",
   "details": [
-    "Dataset Viewer and DFM now store project-specific last-used reserving class, dataset, and DFM method preferences under projects/<project>/users/<windows-login>/preferences.json instead of using local AppData/browser-only preference storage for those fields.",
-    "Dataset picker preferences, reserving-class tree preferences, and hidden reserving-class paths are also stored in the project-user preference file so they copy with project duplication."
+    "Dataset Viewer, DFM, and future pages now share one project-specific last-used Reserving Class value named lastReservingClassPath under projects/<project>/users/<windows-login>/preferences.json, while Dataset Viewer and DFM keep only their page-specific fields in datasetViewer and dfmObject.",
+    "New standalone DFM tabs now restore the last DFM Details defaults from dfmObject, including the last DFM Name, after the project-user preferences load.",
+    "Dataset picker preferences, reserving-class tree filter specs/preferences, and hidden reserving-class paths are also stored in the project-user preference file so they copy with project duplication. The old AppData reserving_class_filter_spec.json file is no longer read or written."
   ]
 }

@@ -552,6 +552,8 @@ function buildReservingClassLookupModel(combosData, reservingTypesData) {
   let activeFiltersByLevel = new Map();
   let activeMatchedRows = uniqueComboKeys.length;
   let favoritePaths = [];
+  let favoriteNicknames = {};
+  let favoriteFolders = [];
   let favoritePathKeys = new Set();
   let favoriteAncestorPathKeys = new Set();
 
@@ -603,10 +605,122 @@ function buildReservingClassLookupModel(combosData, reservingTypesData) {
   };
   const setFavoritePaths = (rawPaths) => {
     favoritePaths = normalizeFavoritePathList(rawPaths);
+    const pathSet = new Set(favoritePaths.map((path) => toPathKey(path)).filter(Boolean));
+    const nextNicknames = {};
+    for (const path of favoritePaths) {
+      const key = toPathKey(path);
+      const nickname = toText(favoriteNicknames[key] ?? favoriteNicknames[path]).trim();
+      if (key && pathSet.has(key) && nickname) nextNicknames[key] = nickname;
+    }
+    favoriteNicknames = nextNicknames;
+    favoriteFolders = favoriteFolders.map((folder) => ({
+      ...folder,
+      paths: (Array.isArray(folder.paths) ? folder.paths : []).filter((path) => pathSet.has(toPathKey(path))),
+    }));
     rebuildFavoritePathSets();
     return Array.from(favoritePaths);
   };
   const getFavoritePaths = () => Array.from(favoritePaths);
+  const getFavoriteNickname = (rawPath) => {
+    const key = toPathKey(rawPath);
+    return key ? toText(favoriteNicknames[key]).trim() : "";
+  };
+  const setFavoriteNicknames = (rawNicknames) => {
+    const source = (rawNicknames && typeof rawNicknames === "object") ? rawNicknames : {};
+    const out = {};
+    for (const path of favoritePaths) {
+      const key = toPathKey(path);
+      if (!key) continue;
+      const nickname = toText(source[key] ?? source[path]).trim();
+      if (nickname) out[key] = nickname.slice(0, 120);
+    }
+    favoriteNicknames = out;
+    return { ...favoriteNicknames };
+  };
+  const getFavoriteNicknames = () => ({ ...favoriteNicknames });
+  const setFavoriteNickname = (rawPath, rawNickname) => {
+    const key = toPathKey(rawPath);
+    if (!key || !favoritePathKeys.has(key)) return getFavoriteNicknames();
+    const nickname = toText(rawNickname).trim();
+    if (nickname) favoriteNicknames[key] = nickname.slice(0, 120);
+    else delete favoriteNicknames[key];
+    return getFavoriteNicknames();
+  };
+  const normalizeFavoriteFolderList = (rawFolders) => {
+    const values = Array.isArray(rawFolders) ? rawFolders : [];
+    const pathByKey = new Map();
+    for (const path of favoritePaths) {
+      const key = toPathKey(path);
+      if (key) pathByKey.set(key, path);
+    }
+    const out = [];
+    const seenIds = new Set();
+    const assigned = new Set();
+    for (const raw of values) {
+      if (!raw || typeof raw !== "object") continue;
+      const name = toText(raw.name ?? raw.label).slice(0, 120);
+      if (!name) continue;
+      let id = toText(raw.id ?? raw.key).slice(0, 80);
+      if (!id || seenIds.has(id)) id = `folder-${out.length + 1}`;
+      seenIds.add(id);
+      const paths = [];
+      for (const rawPath of Array.isArray(raw.paths) ? raw.paths : []) {
+        const key = toPathKey(rawPath);
+        const path = pathByKey.get(key);
+        if (!path || assigned.has(key)) continue;
+        assigned.add(key);
+        paths.push(path);
+      }
+      out.push({ id, name, paths });
+    }
+    return out;
+  };
+  const setFavoriteFolders = (rawFolders) => {
+    favoriteFolders = normalizeFavoriteFolderList(rawFolders);
+    return favoriteFolders.map((folder) => ({ ...folder, paths: Array.from(folder.paths) }));
+  };
+  const getFavoriteFolders = () => favoriteFolders.map((folder) => ({
+    id: folder.id,
+    name: folder.name,
+    paths: Array.from(folder.paths || []),
+  }));
+  const createFavoriteFolder = (rawName) => {
+    const name = toText(rawName).slice(0, 120);
+    if (!name) return getFavoriteFolders();
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "folder";
+    const ids = new Set(favoriteFolders.map((folder) => folder.id));
+    let id = `${base}-${Date.now().toString(36)}`;
+    let n = 2;
+    while (ids.has(id)) id = `${base}-${n++}`;
+    favoriteFolders.push({ id, name, paths: [] });
+    return getFavoriteFolders();
+  };
+  const renameFavoriteFolder = (folderId, rawName) => {
+    const id = toText(folderId);
+    const name = toText(rawName).slice(0, 120);
+    if (!id || !name) return getFavoriteFolders();
+    favoriteFolders = favoriteFolders.map((folder) => (
+      folder.id === id ? { ...folder, name } : folder
+    ));
+    return getFavoriteFolders();
+  };
+  const deleteFavoriteFolder = (folderId) => {
+    const id = toText(folderId);
+    favoriteFolders = favoriteFolders.filter((folder) => folder.id !== id);
+    return getFavoriteFolders();
+  };
+  const moveFavoriteToFolder = (rawPath, folderId = null) => {
+    const key = toPathKey(rawPath);
+    if (!key || !favoritePathKeys.has(key)) return getFavoriteFolders();
+    const targetId = toText(folderId);
+    const canonicalPath = favoritePaths.find((path) => toPathKey(path) === key) || splitPath(rawPath, "\\").join("\\");
+    favoriteFolders = favoriteFolders.map((folder) => {
+      const paths = (Array.isArray(folder.paths) ? folder.paths : []).filter((path) => toPathKey(path) !== key);
+      if (targetId && folder.id === targetId) paths.push(canonicalPath);
+      return { ...folder, paths };
+    });
+    return getFavoriteFolders();
+  };
   const isFavoritePath = (rawPath) => {
     const key = toPathKey(rawPath);
     return !!key && favoritePathKeys.has(key);
@@ -622,6 +736,8 @@ function buildReservingClassLookupModel(combosData, reservingTypesData) {
     if (!normPath || !pathKey) return { favorite: false, paths: getFavoritePaths() };
     if (favoritePathKeys.has(pathKey)) {
       setFavoritePaths(getFavoritePaths().filter((path) => toPathKey(path) !== pathKey));
+      delete favoriteNicknames[pathKey];
+      moveFavoriteToFolder(normPath, null);
       return { favorite: false, paths: getFavoritePaths() };
     }
     const next = getFavoritePaths();
@@ -810,13 +926,44 @@ function buildReservingClassLookupModel(combosData, reservingTypesData) {
       };
     });
   };
+  const getPathNode = (rawPath = "") => {
+    const parts = splitPath(rawPath, "\\");
+    if (!parts.length) return null;
+    let parentPath = "";
+    let current = null;
+    for (let idx = 0; idx < parts.length; idx++) {
+      const expectedPath = parts.slice(0, idx + 1).join("\\");
+      const expectedKey = toPathKey(expectedPath);
+      const expectedNameKey = canonName(parts[idx]);
+      const children = getChildrenForPrefix(parentPath);
+      current = children.find((child) => {
+        const childPathKey = toPathKey(child?.path || "");
+        if (expectedKey && childPathKey === expectedKey) return true;
+        return canonName(child?.name || "") === expectedNameKey;
+      }) || null;
+      if (!current) return null;
+      parentPath = current.path || expectedPath;
+    }
+    return current;
+  };
 
   return {
     levelLabels,
     getRootNodes: () => getChildrenForPrefix(""),
     getChildrenForPrefix,
+    getPathNode,
     setFavoritePaths,
     getFavoritePaths,
+    setFavoriteNicknames,
+    getFavoriteNicknames,
+    getFavoriteNickname,
+    setFavoriteNickname,
+    setFavoriteFolders,
+    getFavoriteFolders,
+    createFavoriteFolder,
+    renameFavoriteFolder,
+    deleteFavoriteFolder,
+    moveFavoriteToFolder,
     isFavoritePath,
     isFavoriteAncestor,
     toggleFavoritePath,
@@ -1012,12 +1159,69 @@ function normalizeReservingClassFilterPreferences(rawPrefs) {
     });
     return out;
   };
+  const normalizeFavoriteNicknames = (rawNicknames, favoritePathList) => {
+    const source = (rawNicknames && typeof rawNicknames === "object") ? rawNicknames : {};
+    const out = {};
+    const knownPaths = Array.isArray(favoritePathList) ? favoritePathList : [];
+    for (const path of knownPaths) {
+      const normalizedPath = splitPath(path, "\\").join("\\");
+      const pathKey = normalizeTreePathKey(normalizedPath, "\\");
+      if (!pathKey) continue;
+      const rawValue = source[normalizedPath] ?? source[path] ?? source[pathKey];
+      const nickname = toText(rawValue).trim();
+      if (nickname) out[normalizedPath] = nickname.slice(0, 120);
+    }
+    return out;
+  };
+  const normalizeFavoriteFolders = (rawFolders, favoritePathList) => {
+    const source = Array.isArray(rawFolders) ? rawFolders : [];
+    const pathByKey = new Map();
+    for (const path of Array.isArray(favoritePathList) ? favoritePathList : []) {
+      const key = normalizeTreePathKey(path, "\\");
+      if (key) pathByKey.set(key, path);
+    }
+    const out = [];
+    const seenIds = new Set();
+    const assigned = new Set();
+    for (const raw of source) {
+      if (!raw || typeof raw !== "object") continue;
+      const name = toText(raw.name ?? raw.label).slice(0, 120);
+      if (!name) continue;
+      let id = toText(raw.id ?? raw.key).slice(0, 80);
+      if (!id || seenIds.has(id)) id = `folder-${out.length + 1}`;
+      seenIds.add(id);
+      const paths = [];
+      for (const rawPath of Array.isArray(raw.paths) ? raw.paths : []) {
+        const key = normalizeTreePathKey(rawPath, "\\");
+        const path = pathByKey.get(key);
+        if (!path || assigned.has(key)) continue;
+        assigned.add(key);
+        paths.push(path);
+      }
+      out.push({ id, name, paths });
+    }
+    return out;
+  };
   const favoritePaths = normalizeFavoritePaths(
     prefs.favorite_paths
       ?? prefs.favoritePaths
       ?? prefs.favorites
       ?? prefs.favorite_nodes
       ?? prefs.favoriteNodes,
+  );
+  const favoriteNicknames = normalizeFavoriteNicknames(
+    prefs.favorite_nicknames
+      ?? prefs.favoriteNicknames
+      ?? prefs.favorite_labels
+      ?? prefs.favoriteLabels,
+    favoritePaths,
+  );
+  const favoriteFolders = normalizeFavoriteFolders(
+    prefs.favorite_folders
+      ?? prefs.favoriteFolders
+      ?? prefs.favorite_groups
+      ?? prefs.favoriteGroups,
+    favoritePaths,
   );
   return {
     autoExpandSingleChild:
@@ -1043,6 +1247,8 @@ function normalizeReservingClassFilterPreferences(rawPrefs) {
     filterWindowWidth,
     filterWindowHeight,
     favoritePaths,
+    favoriteNicknames,
+    favoriteFolders,
   };
 }
 
@@ -1057,6 +1263,8 @@ function isDefaultReservingClassFilterPreferences(rawPrefs) {
     && !Number.isFinite(prefs.filterWindowWidth)
     && !Number.isFinite(prefs.filterWindowHeight)
     && (!Array.isArray(prefs.favoritePaths) || prefs.favoritePaths.length === 0)
+    && (!prefs.favoriteNicknames || !Object.keys(prefs.favoriteNicknames).length)
+    && (!Array.isArray(prefs.favoriteFolders) || prefs.favoriteFolders.length === 0)
   );
 }
 
@@ -1103,6 +1311,12 @@ async function saveReservingClassFilterSpec(projectName, filterSpec, preferences
   }
   if (Array.isArray(normalizedPreferences.favoritePaths) && normalizedPreferences.favoritePaths.length) {
     outPrefs.favorite_paths = normalizedPreferences.favoritePaths;
+  }
+  if (normalizedPreferences.favoriteNicknames && Object.keys(normalizedPreferences.favoriteNicknames).length) {
+    outPrefs.favorite_nicknames = normalizedPreferences.favoriteNicknames;
+  }
+  if (Array.isArray(normalizedPreferences.favoriteFolders) && normalizedPreferences.favoriteFolders.length) {
+    outPrefs.favorite_folders = normalizedPreferences.favoriteFolders;
   }
   const payload = {
     project_name: toText(projectName),
@@ -2995,6 +3209,12 @@ export async function openLazyReservingClassPicker(options = {}) {
     if (typeof model.setFavoritePaths === "function") {
       model.setFavoritePaths(treeFilterPreferences?.favoritePaths || []);
     }
+    if (typeof model.setFavoriteNicknames === "function") {
+      model.setFavoriteNicknames(treeFilterPreferences?.favoriteNicknames || {});
+    }
+    if (typeof model.setFavoriteFolders === "function") {
+      model.setFavoriteFolders(treeFilterPreferences?.favoriteFolders || []);
+    }
     const levelLabels = Array.isArray(model.levelLabels) ? model.levelLabels : [];
     const pickerTitle = toText(options?.title) || "Reserving Class";
     const filterEmptyMessage =
@@ -3257,6 +3477,52 @@ export async function openLazyReservingClassPicker(options = {}) {
     let treeWindowElement = null;
     let treeWindowPicker = null;
     let treeExpandedPaths = null;
+    const getFavoriteDisplayItems = () => {
+      if (typeof model.getFavoritePaths !== "function") return [];
+      return model.getFavoritePaths().map((path) => {
+        const nickname = typeof model.getFavoriteNickname === "function"
+          ? model.getFavoriteNickname(path)
+          : "";
+        const sourceNode = typeof model.getPathNode === "function"
+          ? model.getPathNode(path)
+          : null;
+        return {
+          path,
+          nickname: nickname || path,
+          levelLabel: sourceNode?.level_label || sourceNode?.levelLabel || levelLabels[Math.max(0, splitPath(path, "\\").length - 1)] || "",
+          valueType: sourceNode?.value_type || sourceNode?.valueType || "imported",
+        };
+      });
+    };
+    const getFavoriteRenderState = () => ({
+      favoriteItems: getFavoriteDisplayItems(),
+      favoriteFolders: typeof model.getFavoriteFolders === "function" ? model.getFavoriteFolders() : [],
+      showFavoriteSection: true,
+    });
+    const persistModelFavorites = () => {
+      const favoritePaths = typeof model.getFavoritePaths === "function" ? model.getFavoritePaths() : [];
+      const favoriteNicknames = typeof model.getFavoriteNicknames === "function"
+        ? model.getFavoriteNicknames()
+        : {};
+      const favoriteFolders = typeof model.getFavoriteFolders === "function"
+        ? model.getFavoriteFolders()
+        : [];
+      treeFilterPreferences = persistFilterPreferences({
+        ...treeFilterPreferences,
+        favoritePaths,
+        favoriteNicknames,
+        favoriteFolders,
+      });
+    };
+    const refreshFavoritesInTreeWindow = () => {
+      treeWindowPosition = readWindowPosition(treeWindowElement) || treeWindowPosition;
+      if (typeof treeWindowPicker?.refreshFavoriteSection === "function") {
+        treeWindowPicker.refreshFavoriteSection(getFavoriteRenderState());
+        return;
+      }
+      closeFloatingPathTreePicker(internalCloseReason);
+      openTreeWindow({ smoothReplaceExisting: true });
+    };
 
     const openTreeWindow = (refreshOptions = {}) => {
       const rootChildrenRaw = model.getRootNodes();
@@ -3292,6 +3558,11 @@ export async function openLazyReservingClassPicker(options = {}) {
         autoExpandSingleChild: !!treeFilterPreferences.autoExpandSingleChild,
         autoCloseOnSelect: !!treeFilterPreferences.autoCloseOnSelect,
         selectOnDoubleClick: !!treeFilterPreferences.selectOnDoubleClick,
+        showFavoriteSection: true,
+        favoriteSectionTitle: "Favorite",
+        sourceSectionTitle: "All Paths",
+        showSourceSectionTitle: true,
+        ...getFavoriteRenderState(),
         getFavoriteState: (path) => {
           if (typeof model.isFavoritePath === "function" && model.isFavoritePath(path)) {
             return "selected";
@@ -3303,17 +3574,56 @@ export async function openLazyReservingClassPicker(options = {}) {
         },
         onToggleFavorite: (path) => {
           if (typeof model.toggleFavoritePath !== "function") return;
-          const toggled = model.toggleFavoritePath(path);
-          const favoritePaths = Array.isArray(toggled?.paths)
-            ? toggled.paths
-            : (typeof model.getFavoritePaths === "function" ? model.getFavoritePaths() : []);
-          treeFilterPreferences = persistFilterPreferences({
-            ...treeFilterPreferences,
-            favoritePaths,
-          });
-          treeWindowPosition = readWindowPosition(treeWindowElement) || treeWindowPosition;
-          closeFloatingPathTreePicker(internalCloseReason);
-          openTreeWindow();
+          model.toggleFavoritePath(path);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onRenameFavorite: (path, item, ctx) => {
+          if (typeof model.setFavoriteNickname !== "function") return;
+          const next = toText(ctx?.name ?? item?.nickname ?? model.getFavoriteNickname?.(path));
+          if (!next) return;
+          model.setFavoriteNickname(path, next);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onDeleteFavorite: (path) => {
+          if (typeof model.toggleFavoritePath !== "function" || !model.isFavoritePath?.(path)) return;
+          model.toggleFavoritePath(path);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onCreateFavoriteFolder: () => {
+          if (typeof model.createFavoriteFolder !== "function") return;
+          const existing = typeof model.getFavoriteFolders === "function"
+            ? model.getFavoriteFolders()
+            : [];
+          const names = new Set(existing.map((folder) => toText(folder?.name).toLowerCase()).filter(Boolean));
+          let name = "New Folder";
+          let n = 2;
+          while (names.has(name.toLowerCase())) name = `New Folder ${n++}`;
+          model.createFavoriteFolder(name);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onRenameFavoriteFolder: (folderId, folder, ctx) => {
+          if (typeof model.renameFavoriteFolder !== "function") return;
+          const name = toText(ctx?.name ?? folder?.name);
+          if (!name) return;
+          model.renameFavoriteFolder(folderId, name);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onDeleteFavoriteFolder: (folderId) => {
+          if (typeof model.deleteFavoriteFolder !== "function") return;
+          model.deleteFavoriteFolder(folderId);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
+        onMoveFavoriteToFolder: (path, folderId) => {
+          if (typeof model.moveFavoriteToFolder !== "function") return;
+          model.moveFavoriteToFolder(path, folderId);
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
         },
         allowBranchSelect: !!options?.allowBranchSelect,
         showHiddenPathsButton: true,

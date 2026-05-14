@@ -4,6 +4,6 @@
   "audience": "user",
   "summary": "Restored the last Dataset Viewer project from local AppData before loading project-specific server preferences.",
   "details": [
-    "Standalone Dataset Viewer tabs now remember the last selected Project Name locally, then load that project's server-side user preferences to restore the related Reserving Class and Dataset Name."
+    "Standalone Dataset Viewer and DFM tabs now remember the last selected Project Name in %APPDATA%\\ArcRho\\local_project_prefs.json. Dataset Viewer then loads that project's server-side user preferences to restore the related Reserving Class and Dataset Name; if no last project is available, the Project field stays blank."
   ]
 }

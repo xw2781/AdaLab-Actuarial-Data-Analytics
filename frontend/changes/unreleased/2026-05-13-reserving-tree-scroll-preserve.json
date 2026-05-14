@@ -8,6 +8,11 @@
     "Hide/unhide refreshes now prepare the replacement tree before swapping it into view, reducing visible refresh flicker.",
     "Single-node hide actions now remove the hidden node in place with a short collapse animation instead of rebuilding the whole tree.",
     "The tree toolbar now includes an eye button next to Filter that opens the same live-updating Hidden Paths window as the right-click menu.",
+    "The reserving-class tree now shows collapsible Favorite and All Paths sections, supports favorite nicknames and custom favorite folders, and lets users drag favorites into or out of folders.",
+    "New favorites now display the full raw path until renamed, then show only the custom favorite name.",
+    "Favorite folders now use the same folder icon styling as the project picker.",
+    "Favorite rows now include the source value-type icon, source level label, and a slashed-star remove-from-favorite button.",
+    "Favorite and favorite-folder rename now uses an inline editor instead of a modal prompt.",
     "Tree refresh replacement now paints the refreshed picker before removing the previous picker to reduce flicker when unhiding paths."
   ]
 }

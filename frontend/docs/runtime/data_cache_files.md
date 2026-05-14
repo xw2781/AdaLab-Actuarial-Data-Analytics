@@ -27,15 +27,14 @@ Cache/lock constants detected:
 - `FIELD_MAPPING_FILE`
 - `FOLDER_STRUCTURE_FILE`
 - `GENERAL_SETTINGS_FILE`
+- `LOCAL_PROJECT_PREFS_FILE`
 - `PROJECT_SETTINGS_XLSX_FILE`
 - `RESERVING_CLASS_COMBINATIONS_FILE`
-- `RESERVING_CLASS_FILTER_SPEC_PREF_FILE`
 - `RESERVING_CLASS_PATH_TREE_FILE`
 - `RESERVING_CLASS_TYPES_FILE`
 - `RESERVING_CLASS_VALUES_FILE`
 - `SCRIPTING_PREFS_FILE`
 - `_AUDIT_LOG_LOCK`
-- `_RESERVING_CLASS_FILTER_SPEC_LOCK`
 - `_RESERVING_CLASS_PATH_TREE_LOCK`
 <!-- AUTO-GEN:END -->
 
@@ -48,6 +47,8 @@ Cache/lock constants detected:
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - File names and limits are defined in `app_server/config.py` constants.
+- Dataset Viewer and DFM store the local last selected Project Name in `%APPDATA%\ArcRho\local_project_prefs.json` so it can be checked and edited manually without opening the server project folder.
+- Reserving-class tree filter specs are stored in each project-user preference file under `projects/<project>/users/<windows-login>/preferences.json`; `%APPDATA%\ArcRho\cache\reserving_class_filter_spec.json` is obsolete and is no longer read or written.
 - Refresh endpoints can clear and rebuild cache files.
 <!-- MANUAL:END -->
 

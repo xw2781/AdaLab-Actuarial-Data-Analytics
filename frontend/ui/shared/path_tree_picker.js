@@ -4,6 +4,7 @@ const TREE_CHILDREN_INDENT_PX = 6;
 const TREE_LEAF_EXTRA_INDENT_PX = 12;
 const WINDOW_FRAME_MARGIN_PX = 8;
 let activePicker = null;
+let activeFavoriteContextMenu = null;
 
 function ensureStyles(doc) {
   if (!doc || doc.getElementById(STYLE_ID)) return;
@@ -157,9 +158,264 @@ function ensureStyles(doc) {
     .ptree-body {
       flex: 1 1 auto;
       overflow: auto;
-      padding: 8px 0;
+      padding: 8px 0 10px;
       background: #fff;
       overscroll-behavior: contain;
+    }
+    .ptree-section {
+      padding: 0 8px;
+    }
+    .ptree-section + .ptree-section {
+      margin-top: 8px;
+    }
+    .ptree-section-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ptree-section-title {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex: 1 1 auto;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      padding: 5px 0 4px;
+      color: #777;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    .ptree-section-title:hover {
+      color: #555;
+    }
+    .ptree-section-caret {
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid currentColor;
+      transform: rotate(90deg);
+      transition: transform 120ms ease;
+      flex-shrink: 0;
+    }
+    .ptree-section.collapsed .ptree-section-caret {
+      transform: rotate(0deg);
+    }
+    .ptree-section.collapsed .ptree-section-content {
+      display: none;
+    }
+    .ptree-section-tree {
+      padding: 0;
+    }
+    .ptree-section-tree .ptree-section-title {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+    .ptree-section-action {
+      width: 20px;
+      height: 20px;
+      margin-right: -1px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #777;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .ptree-section-action:hover {
+      background: #eef3ff;
+      color: #2563eb;
+    }
+    .ptree-section-action svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .ptree-favorite-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-height: 8px;
+      padding: 1px 0;
+    }
+    .ptree-favorite-list.drag-over,
+    .ptree-favorite-folder.drag-over,
+    .ptree-section-header.drag-over {
+      background: #f2f7ff;
+      box-shadow: inset 0 0 0 1px #a9c6ff;
+      border-radius: 6px;
+    }
+    .ptree-favorite-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      margin-right: -8px;
+      padding: 3px 7px 3px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .ptree-favorite-row[draggable="true"] {
+      cursor: grab;
+    }
+    .ptree-favorite-row.dragging {
+      opacity: 0.55;
+    }
+    .ptree-favorite-row:hover {
+      background: #e8f0fe;
+    }
+    .ptree-favorite-row.active-path {
+      background: #dfe9ff;
+      box-shadow: inset 0 0 0 1px #8fb0f4;
+    }
+    .ptree-favorite-name {
+      color: #222;
+      font-size: 13px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .ptree-favorite-row .ptree-level {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .ptree-fav-btn.remove-favorite {
+      color: #cf9800;
+    }
+    .ptree-fav-btn.remove-favorite svg {
+      fill: #f6cd3f;
+      stroke: #cf9800;
+    }
+    .ptree-fav-btn.remove-favorite:hover {
+      color: #b42318;
+      background: rgba(180, 35, 24, 0.08);
+    }
+    .ptree-fav-btn.remove-favorite:hover svg {
+      fill: #f9d7d4;
+      stroke: #b42318;
+    }
+    .ptree-favorite-empty {
+      padding: 5px 7px 6px;
+      color: #aaa;
+      font-size: 12px;
+      font-style: italic;
+    }
+    .ptree-favorite-folder {
+      margin-top: 3px;
+      border-radius: 6px;
+    }
+    .ptree-favorite-folder-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 7px;
+      color: #555;
+      cursor: pointer;
+      border-radius: 6px;
+      user-select: none;
+    }
+    .ptree-favorite-folder-header:hover {
+      background: #f5f8ff;
+    }
+    .ptree-favorite-folder-caret {
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid currentColor;
+      transform: rotate(90deg);
+      transition: transform 120ms ease;
+      flex-shrink: 0;
+    }
+    .ptree-favorite-folder.collapsed .ptree-favorite-folder-caret {
+      transform: rotate(0deg);
+    }
+    .ptree-favorite-folder.collapsed .ptree-favorite-folder-list {
+      display: none;
+    }
+    .ptree-favorite-folder-icon {
+      width: 13px;
+      height: 13px;
+    }
+    .ptree-favorite-folder-name {
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ptree-favorite-rename-input {
+      min-width: 90px;
+      max-width: 220px;
+      height: 22px;
+      border: 1px solid #8fb0f4;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font: inherit;
+      color: #222;
+      background: #fff;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(143, 176, 244, 0.18);
+    }
+    .ptree-favorite-folder-count {
+      margin-left: auto;
+      color: #aaa;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .ptree-favorite-folder-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-height: 8px;
+      padding-left: 14px;
+    }
+    .ptree-favorite-menu {
+      position: fixed;
+      min-width: 140px;
+      background: #fff;
+      border: 1px solid #d2d2d2;
+      border-radius: 7px;
+      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+      z-index: 5400;
+      padding: 4px;
+    }
+    .ptree-favorite-menu button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      border: none;
+      border-radius: 5px;
+      background: transparent;
+      color: #222;
+      font-size: 12px;
+      text-align: left;
+      padding: 6px 8px;
+      cursor: pointer;
+    }
+    .ptree-favorite-menu button:hover {
+      background: #eef3ff;
+    }
+    .ptree-favorite-menu button.danger {
+      color: #a12718;
     }
     .ptree-empty {
       padding: 10px 12px;
@@ -355,6 +611,94 @@ function splitPath(rawPath, delimiter) {
 
 function normalizePath(rawPath, delimiter) {
   return splitPath(rawPath, delimiter).join(delimiter);
+}
+
+function normalizeFavoriteItems(options = {}, delimiter = "\\") {
+  const rawItems = Array.isArray(options?.favoriteItems)
+    ? options.favoriteItems
+    : (Array.isArray(options?.favoritePaths) ? options.favoritePaths : []);
+  const out = [];
+  const seen = new Set();
+  for (const raw of rawItems) {
+    const rawPath = typeof raw === "string" ? raw : (raw?.path ?? raw?.rawPath);
+    const path = normalizePath(rawPath || "", delimiter);
+    if (!path) continue;
+    const key = path.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const nicknameRaw = typeof raw === "string"
+      ? ""
+      : String(raw?.nickname ?? raw?.name ?? raw?.label ?? "").trim();
+    const levelLabelRaw = typeof raw === "string"
+      ? ""
+      : String(raw?.levelLabel ?? raw?.level_label ?? "").trim();
+    const valueTypeRaw = typeof raw === "string"
+      ? ""
+      : String(raw?.valueType ?? raw?.value_type ?? raw?.nodeType ?? raw?.node_type ?? "").trim();
+    out.push({
+      path,
+      nickname: nicknameRaw || path,
+      levelLabel: levelLabelRaw,
+      valueType: valueTypeRaw,
+    });
+  }
+  out.sort((a, b) => {
+    const nameDiff = String(a.nickname || "").localeCompare(String(b.nickname || ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    });
+    if (nameDiff !== 0) return nameDiff;
+    return String(a.path || "").localeCompare(String(b.path || ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    });
+  });
+  return out;
+}
+
+function makeFavoriteFolderId(rawName = "") {
+  const base = String(rawName || "folder").trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "folder";
+  return `${base}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeFavoriteFolders(options = {}, favoriteItems = [], delimiter = "\\") {
+  const rawFolders = Array.isArray(options?.favoriteFolders) ? options.favoriteFolders : [];
+  const favoriteByKey = new Map();
+  for (const item of favoriteItems) {
+    const key = normalizePath(item?.path || "", delimiter).toLowerCase();
+    if (key) favoriteByKey.set(key, item.path);
+  }
+
+  const out = [];
+  const seenIds = new Set();
+  const assignedPathKeys = new Set();
+  for (const raw of rawFolders) {
+    if (!raw || typeof raw !== "object") continue;
+    const name = String(raw.name ?? raw.label ?? "").trim();
+    if (!name) continue;
+    let id = String(raw.id ?? raw.key ?? "").trim();
+    if (!id || seenIds.has(id)) id = makeFavoriteFolderId(name);
+    seenIds.add(id);
+
+    const paths = [];
+    const seenPaths = new Set();
+    for (const rawPath of Array.isArray(raw.paths) ? raw.paths : []) {
+      const path = normalizePath(rawPath || "", delimiter);
+      const key = path.toLowerCase();
+      const canonicalPath = favoriteByKey.get(key);
+      if (!canonicalPath || seenPaths.has(key)) continue;
+      seenPaths.add(key);
+      assignedPathKeys.add(key);
+      paths.push(canonicalPath);
+    }
+
+    out.push({ id, name, paths });
+  }
+
+  return { folders: out, assignedPathKeys };
 }
 
 function normalizePickerNode(rawNode, options = {}, parentPath = "") {
@@ -652,6 +996,17 @@ function renderFavoriteButton(doc, node, options = {}, state = "none") {
   return btn;
 }
 
+function setFavoriteButtonState(btn, rawState) {
+  if (!btn) return;
+  const normalizedState = normalizeFavoriteState(rawState);
+  btn.classList.toggle("active", normalizedState === "selected");
+  btn.classList.toggle("ancestor", normalizedState === "ancestor");
+  btn.title = normalizedState === "selected"
+    ? "Favorited"
+    : (normalizedState === "ancestor" ? "Ancestor of favorited path" : "Add to favorites");
+  btn.setAttribute("aria-label", btn.title);
+}
+
 function setFolderTypeIconExpanded(iconEl, expanded) {
   if (!iconEl || !iconEl.classList?.contains("folder")) return;
   const isOpen = !!expanded;
@@ -786,6 +1141,7 @@ function renderNode(doc, node, depth, options, onSelect, context) {
         node: currentNode,
         element: leaf,
         nodeElement: nodeEl,
+        favoriteButton: favoriteBtn,
         hasChildren: false,
         isExpanded: () => false,
         expand: async () => {},
@@ -917,12 +1273,13 @@ function renderNode(doc, node, depth, options, onSelect, context) {
   nodeEl.appendChild(children);
 
   if (pathKey && context?.nodeControls instanceof Map) {
-    context.nodeControls.set(pathKey, {
-      path: String(currentNode?.path || ""),
-      node: currentNode,
-      element: folder,
-      nodeElement: nodeEl,
-      hasChildren: true,
+      context.nodeControls.set(pathKey, {
+        path: String(currentNode?.path || ""),
+        node: currentNode,
+        element: folder,
+        nodeElement: nodeEl,
+        favoriteButton: favoriteBtn,
+        hasChildren: true,
       isExpanded: () => arrow.classList.contains("expanded"),
       expand: async () => setExpanded(true),
       collapse: async () => setExpanded(false),
@@ -1013,6 +1370,185 @@ async function collapseDeepestExpandedNodes(nodeControls, delimiter = "\\") {
   return { collapsedCount, depth: maxDepth };
 }
 
+function closeFavoriteContextMenu(doc) {
+  const active = activeFavoriteContextMenu;
+  if (active) {
+    if (active.doc) {
+      active.doc.removeEventListener("mousedown", active.onOutside, true);
+      active.doc.removeEventListener("contextmenu", active.onOutside, true);
+    }
+    if (active.menu && active.menu.parentNode) active.menu.parentNode.removeChild(active.menu);
+    activeFavoriteContextMenu = null;
+  }
+  const existing = doc?.querySelector?.(".ptree-favorite-menu");
+  if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+}
+
+function startInlineFavoriteRename(doc, labelEl, initialValue, onCommit) {
+  if (!doc || !labelEl || typeof onCommit !== "function") return;
+  const originalText = String(initialValue || labelEl.textContent || "").trim();
+  const input = doc.createElement("input");
+  input.type = "text";
+  input.className = "ptree-favorite-rename-input";
+  input.value = originalText;
+  input.setAttribute("aria-label", "Rename favorite");
+
+  let committed = false;
+  const finish = (save) => {
+    if (committed) return;
+    committed = true;
+    const nextValue = String(input.value || "").trim();
+    if (input.parentNode) input.parentNode.replaceChild(labelEl, input);
+    labelEl.style.display = "";
+    if (save && nextValue && nextValue !== originalText) {
+      try { onCommit(nextValue); } catch {}
+    }
+  };
+
+  input.addEventListener("click", (evt) => evt.stopPropagation());
+  input.addEventListener("mousedown", (evt) => evt.stopPropagation());
+  input.addEventListener("keydown", (evt) => {
+    evt.stopPropagation();
+    if (evt.key === "Enter") {
+      evt.preventDefault();
+      finish(true);
+      return;
+    }
+    if (evt.key === "Escape") {
+      evt.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener("blur", () => finish(true));
+
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function openFavoriteContextMenu(doc, item, options = {}, ctx = {}) {
+  if (!doc || !item?.path) return;
+  closeFavoriteContextMenu(doc);
+  const event = ctx?.event;
+  const menu = doc.createElement("div");
+  menu.className = "ptree-favorite-menu";
+  const addItem = (label, onClick, className = "") => {
+    const btn = doc.createElement("button");
+    btn.type = "button";
+    if (className) btn.classList.add(className);
+    btn.textContent = label;
+    btn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      closeFavoriteContextMenu(doc);
+      try { onClick(); } catch {}
+    });
+    menu.appendChild(btn);
+  };
+
+  addItem("View in Tree", () => {
+    if (typeof ctx?.onViewInTree === "function") ctx.onViewInTree(item.path, item);
+  });
+  addItem("Rename", () => {
+    if (typeof options?.onRenameFavorite === "function") {
+      startInlineFavoriteRename(
+        doc,
+        ctx?.renameElement,
+        item.nickname || item.path,
+        (name) => options.onRenameFavorite(item.path, item, { name, menuElement: menu }),
+      );
+    }
+  });
+  addItem("Remove from Favorite", () => {
+    if (typeof options?.onDeleteFavorite === "function") {
+      options.onDeleteFavorite(item.path, item, { menuElement: menu });
+    }
+  }, "danger");
+
+  doc.body.appendChild(menu);
+  const view = doc.defaultView || window;
+  const viewportW = Number(view?.innerWidth || doc.documentElement.clientWidth || 0);
+  const viewportH = Number(view?.innerHeight || doc.documentElement.clientHeight || 0);
+  const rect = menu.getBoundingClientRect();
+  let left = Number(event?.clientX || 0);
+  let top = Number(event?.clientY || 0);
+  if (left + rect.width > viewportW - 8) left = Math.max(8, viewportW - rect.width - 8);
+  if (top + rect.height > viewportH - 8) top = Math.max(8, viewportH - rect.height - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+
+  const closeOnOutside = (evt) => {
+    if (menu.contains(evt.target)) return;
+    closeFavoriteContextMenu(doc);
+  };
+  setTimeout(() => {
+    if (!menu.parentNode) return;
+    doc.addEventListener("mousedown", closeOnOutside, true);
+    doc.addEventListener("contextmenu", closeOnOutside, true);
+    activeFavoriteContextMenu = { doc, menu, onOutside: closeOnOutside };
+  }, 0);
+}
+
+function openFavoriteFolderContextMenu(doc, folder, options = {}, ctx = {}) {
+  if (!doc || !folder?.id) return;
+  closeFavoriteContextMenu(doc);
+  const event = ctx?.event;
+  const menu = doc.createElement("div");
+  menu.className = "ptree-favorite-menu";
+  const addItem = (label, onClick, className = "") => {
+    const btn = doc.createElement("button");
+    btn.type = "button";
+    if (className) btn.classList.add(className);
+    btn.textContent = label;
+    btn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      closeFavoriteContextMenu(doc);
+      try { onClick(); } catch {}
+    });
+    menu.appendChild(btn);
+  };
+
+  addItem("Rename Folder", () => {
+    if (typeof options?.onRenameFavoriteFolder === "function") {
+      startInlineFavoriteRename(
+        doc,
+        ctx?.renameElement,
+        folder.name,
+        (name) => options.onRenameFavoriteFolder(folder.id, folder, { name, menuElement: menu }),
+      );
+    }
+  });
+  addItem("Delete Folder", () => {
+    if (typeof options?.onDeleteFavoriteFolder === "function") {
+      options.onDeleteFavoriteFolder(folder.id, folder, { menuElement: menu });
+    }
+  }, "danger");
+
+  doc.body.appendChild(menu);
+  const view = doc.defaultView || window;
+  const viewportW = Number(view?.innerWidth || doc.documentElement.clientWidth || 0);
+  const viewportH = Number(view?.innerHeight || doc.documentElement.clientHeight || 0);
+  const rect = menu.getBoundingClientRect();
+  let left = Number(event?.clientX || 0);
+  let top = Number(event?.clientY || 0);
+  if (left + rect.width > viewportW - 8) left = Math.max(8, viewportW - rect.width - 8);
+  if (top + rect.height > viewportH - 8) top = Math.max(8, viewportH - rect.height - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+
+  const closeOnOutside = (evt) => {
+    if (menu.contains(evt.target)) return;
+    closeFavoriteContextMenu(doc);
+  };
+  setTimeout(() => {
+    if (!menu.parentNode) return;
+    doc.addEventListener("mousedown", closeOnOutside, true);
+    doc.addEventListener("contextmenu", closeOnOutside, true);
+    activeFavoriteContextMenu = { doc, menu, onOutside: closeOnOutside };
+  }, 0);
+}
+
 function disposeFloatingPathTreePicker(picker, reason = "programmatic", options = {}) {
   if (!picker) return;
   const { doc, win, onEsc, onClose, onBeforeClose, onWheelGuard, getExpandedPaths } = picker;
@@ -1046,6 +1582,7 @@ function disposeFloatingPathTreePicker(picker, reason = "programmatic", options 
     } catch {}
   }
   if (doc && onEsc) doc.removeEventListener("keydown", onEsc);
+  closeFavoriteContextMenu(doc);
   if (typeof onWheelGuard === "function") {
     try { onWheelGuard(); } catch {}
   }
@@ -1288,12 +1825,19 @@ export function openFloatingPathTreePicker(options = {}) {
   const renderContext = {
     loadChildren: typeof options?.loadChildren === "function" ? options.loadChildren : null,
     nodeControls: new Map(),
+    favoriteControls: new Map(),
     makePathKey,
     delimiter,
     activePathKey: initialActivePath ? makePathKey(initialActivePath) : "",
   };
   const applyActivePathClasses = () => {
     const highlightPathKey = resolveVisibleHighlightPathKey(renderContext);
+    const activePathKey = String(renderContext.activePathKey || "");
+    for (const [pathKey, control] of renderContext.favoriteControls.entries()) {
+      const el = control?.element;
+      if (!el || !el.classList) continue;
+      el.classList.toggle("active-path", !!activePathKey && pathKey === activePathKey);
+    }
     for (const [pathKey, control] of renderContext.nodeControls.entries()) {
       const el = control?.element;
       if (!el || !el.classList) continue;
@@ -1331,17 +1875,324 @@ export function openFloatingPathTreePicker(options = {}) {
       closeFloatingPathTreePicker("select");
     }
   };
+  const revealPathInTree = async (rawPath) => {
+    const normalizedPath = normalizePath(rawPath || "", delimiter);
+    if (!normalizedPath) return false;
+    const parts = splitPath(normalizedPath, delimiter);
+    let lastControl = null;
+    const segments = [];
+    for (const part of parts) {
+      segments.push(part);
+      const key = makePathKey(segments.join(delimiter));
+      const control = renderContext.nodeControls.get(key);
+      if (!control) break;
+      lastControl = control;
+      if (typeof control.expand === "function") {
+        await control.expand();
+      }
+    }
+    if (!lastControl) return false;
+    setActivePath(normalizedPath, lastControl.node || null, false);
+    if (lastControl.element && typeof lastControl.element.scrollIntoView === "function") {
+      lastControl.element.scrollIntoView({ block: "nearest" });
+    }
+    return true;
+  };
+  const appendCollapsibleSectionTitle = (section, rawTitle, actions = []) => {
+    const header = doc.createElement("div");
+    header.className = "ptree-section-header";
+    const titleBtn = doc.createElement("button");
+    titleBtn.type = "button";
+    titleBtn.className = "ptree-section-title";
+    titleBtn.setAttribute("aria-expanded", "true");
+    const caret = doc.createElement("span");
+    caret.className = "ptree-section-caret";
+    caret.setAttribute("aria-hidden", "true");
+    const label = doc.createElement("span");
+    label.className = "ptree-section-title-text";
+    label.textContent = String(rawTitle || "");
+    titleBtn.append(caret, label);
+    titleBtn.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+      const collapsed = !section.classList.contains("collapsed");
+      section.classList.toggle("collapsed", collapsed);
+      titleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    });
+    header.appendChild(titleBtn);
+    for (const action of Array.isArray(actions) ? actions : []) {
+      if (!action || typeof action.onClick !== "function") continue;
+      const actionBtn = doc.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = "ptree-section-action";
+      actionBtn.title = String(action.title || action.label || "");
+      actionBtn.setAttribute("aria-label", String(action.title || action.label || ""));
+      actionBtn.innerHTML = action.icon || '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+      actionBtn.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        try { action.onClick({ event: evt, buttonElement: actionBtn }); } catch {}
+      });
+      header.appendChild(actionBtn);
+    }
+    section.appendChild(header);
+    return { header, titleButton: titleBtn };
+  };
+  const renderFavoriteSection = () => {
+    const favoriteItems = normalizeFavoriteItems(options, delimiter);
+    const { folders, assignedPathKeys } = normalizeFavoriteFolders(options, favoriteItems, delimiter);
+    if (!favoriteItems.length && !options?.showFavoriteSection) return null;
+    const section = doc.createElement("div");
+    section.className = "ptree-section ptree-section-favorites";
+    const favoriteHeader = appendCollapsibleSectionTitle(section, options?.favoriteSectionTitle || "Favorite", [{
+      title: "Add Favorite Folder",
+      onClick: () => {
+        if (typeof options?.onCreateFavoriteFolder === "function") {
+          options.onCreateFavoriteFolder({ favoriteItems, folders });
+        }
+      },
+    }]);
+    const content = doc.createElement("div");
+    content.className = "ptree-section-content";
+    const list = doc.createElement("div");
+    list.className = "ptree-favorite-list";
+    const clearFavoriteDropStates = () => {
+      for (const el of Array.from(section.querySelectorAll(".drag-over"))) {
+        el.classList.remove("drag-over");
+      }
+    };
+    const setupDropTarget = (targetEl, folderId = null) => {
+      if (!targetEl || typeof options?.onMoveFavoriteToFolder !== "function") return;
+      const onDragOver = (evt) => {
+        const hasPath = Array.from(evt.dataTransfer?.types || []).includes("text/plain");
+        if (!hasPath) return;
+        evt.preventDefault();
+        evt.dataTransfer.dropEffect = "move";
+        targetEl.classList.add("drag-over");
+      };
+      const clear = () => targetEl.classList.remove("drag-over");
+      targetEl.addEventListener("dragover", onDragOver);
+      targetEl.addEventListener("dragleave", clear);
+      targetEl.addEventListener("drop", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        clearFavoriteDropStates();
+        const path = evt.dataTransfer?.getData("text/plain") || "";
+        if (!path) return;
+        try { options.onMoveFavoriteToFolder(path, folderId, { event: evt }); } catch {}
+      });
+    };
+    const renderFavoriteRow = (item) => {
+      const row = doc.createElement("div");
+      row.className = "ptree-favorite-row";
+      row.tabIndex = 0;
+      row.title = item.path;
+      row.draggable = true;
+      const key = makePathKey(item.path);
+      const typeIcon = renderTypeIcon(doc, item.valueType || item.value_type || "imported");
+      const name = doc.createElement("div");
+      name.className = "ptree-favorite-name";
+      name.textContent = item.nickname || item.path;
+      const level = doc.createElement("span");
+      level.className = "ptree-level";
+      level.textContent = String(item.levelLabel || "");
+      const removeBtn = doc.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "ptree-fav-btn remove-favorite";
+      removeBtn.title = "Remove from Favorite";
+      removeBtn.setAttribute("aria-label", "Remove from Favorite");
+      removeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8l2.54 5.14 5.67.82-4.1 3.99.97 5.64L12 16.8 6.92 19.39l.97-5.64-4.1-3.99 5.67-.82L12 3.8z"/><line x1="5" y1="5" x2="19" y2="19"/></svg>';
+      removeBtn.addEventListener("mousedown", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+      });
+      removeBtn.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (typeof options?.onDeleteFavorite === "function") {
+          try { options.onDeleteFavorite(item.path, item, { event: evt, buttonElement: removeBtn }); } catch {}
+        }
+      });
+      if (typeIcon) row.append(typeIcon);
+      row.append(name, level, removeBtn);
+      row.addEventListener("dragstart", (evt) => {
+        row.classList.add("dragging");
+        if (evt.dataTransfer) {
+          evt.dataTransfer.effectAllowed = "move";
+          evt.dataTransfer.setData("text/plain", item.path);
+        }
+      });
+      row.addEventListener("dragend", () => row.classList.remove("dragging"));
+      row.addEventListener("dragend", clearFavoriteDropStates);
+      const selectFavorite = () => {
+        onSelect({
+          name: item.nickname || item.path,
+          path: item.path,
+          hasChildren: false,
+        });
+      };
+      if (options?.selectOnDoubleClick) {
+        row.addEventListener("dblclick", (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          selectFavorite();
+        });
+      } else {
+        row.addEventListener("click", selectFavorite);
+      }
+      row.addEventListener("keydown", (evt) => {
+        if (evt.key !== "Enter" && evt.key !== " ") return;
+        evt.preventDefault();
+        selectFavorite();
+      });
+      row.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        openFavoriteContextMenu(doc, item, options, {
+          event: evt,
+          renameElement: name,
+          onViewInTree: revealPathInTree,
+        });
+      });
+      if (key) {
+        renderContext.favoriteControls.set(key, {
+          path: item.path,
+          item,
+          element: row,
+        });
+      }
+      return row;
+    };
+
+    setupDropTarget(list, null);
+    setupDropTarget(favoriteHeader?.header, null);
+
+    if (!favoriteItems.length && !folders.length) {
+      const empty = doc.createElement("div");
+      empty.className = "ptree-favorite-empty";
+      empty.textContent = "Click the star beside a path in All Paths to add it here.";
+      list.appendChild(empty);
+    }
+
+    const itemByPathKey = new Map();
+    for (const item of favoriteItems) {
+      const key = normalizePath(item.path || "", delimiter).toLowerCase();
+      if (key) itemByPathKey.set(key, item);
+    }
+
+    for (const folder of folders) {
+      const folderEl = doc.createElement("div");
+      folderEl.className = "ptree-favorite-folder";
+      folderEl.dataset.folderId = folder.id;
+      const folderHeader = doc.createElement("div");
+      folderHeader.className = "ptree-favorite-folder-header";
+      const caret = doc.createElement("span");
+      caret.className = "ptree-favorite-folder-caret";
+      caret.setAttribute("aria-hidden", "true");
+      const icon = doc.createElement("span");
+      icon.className = "ptree-type-icon folder ptree-favorite-folder-icon";
+      icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+      const name = doc.createElement("span");
+      name.className = "ptree-favorite-folder-name";
+      name.textContent = folder.name;
+      const count = doc.createElement("span");
+      count.className = "ptree-favorite-folder-count";
+      count.textContent = String(folder.paths.length);
+      folderHeader.append(caret, icon, name, count);
+      const folderList = doc.createElement("div");
+      folderList.className = "ptree-favorite-folder-list";
+      setupDropTarget(folderEl, folder.id);
+      setupDropTarget(folderList, folder.id);
+      folderHeader.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        folderEl.classList.toggle("collapsed");
+      });
+      folderHeader.addEventListener("contextmenu", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        openFavoriteFolderContextMenu(doc, folder, options, { event: evt, renameElement: name });
+      });
+      for (const path of folder.paths) {
+        const item = itemByPathKey.get(normalizePath(path || "", delimiter).toLowerCase());
+        if (item) folderList.appendChild(renderFavoriteRow(item));
+      }
+      if (!folderList.childNodes.length) {
+        const empty = doc.createElement("div");
+        empty.className = "ptree-favorite-empty";
+        empty.textContent = "Drop favorites here.";
+        folderList.appendChild(empty);
+      }
+      folderEl.append(folderHeader, folderList);
+      list.appendChild(folderEl);
+    }
+
+    for (const item of favoriteItems) {
+      const key = normalizePath(item.path || "", delimiter).toLowerCase();
+      if (assignedPathKeys.has(key)) continue;
+      list.appendChild(renderFavoriteRow(item));
+    }
+    content.appendChild(list);
+    section.appendChild(content);
+    return section;
+  };
+  const refreshFavoriteSection = (favoriteOptions = {}) => {
+    const existing = body.querySelector(".ptree-section-favorites");
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    if (favoriteOptions && typeof favoriteOptions === "object") {
+      if (Array.isArray(favoriteOptions.favoriteItems)) {
+        options.favoriteItems = favoriteOptions.favoriteItems;
+      }
+      if (Array.isArray(favoriteOptions.favoriteFolders)) {
+        options.favoriteFolders = favoriteOptions.favoriteFolders;
+      }
+      if (typeof favoriteOptions.showFavoriteSection === "boolean") {
+        options.showFavoriteSection = favoriteOptions.showFavoriteSection;
+      }
+    }
+
+    renderContext.favoriteControls.clear();
+    const nextSection = renderFavoriteSection();
+    if (nextSection) {
+      const firstChild = body.firstChild;
+      if (firstChild) body.insertBefore(nextSection, firstChild);
+      else body.appendChild(nextSection);
+    }
+
+    for (const control of renderContext.nodeControls.values()) {
+      if (!control?.favoriteButton) continue;
+      const state = resolveFavoriteState(control.node, options);
+      setFavoriteButtonState(control.favoriteButton, state);
+    }
+    applyActivePathClasses();
+  };
+
+  const favoriteSection = renderFavoriteSection();
+  if (favoriteSection) body.appendChild(favoriteSection);
+
+  const sourceSection = doc.createElement("div");
+  sourceSection.className = "ptree-section ptree-section-tree";
+  if (options?.showSourceSectionTitle) {
+    appendCollapsibleSectionTitle(sourceSection, options?.sourceSectionTitle || "All Paths");
+  }
+  const sourceContent = doc.createElement("div");
+  sourceContent.className = "ptree-section-content ptree-section-tree-content";
 
   if (!rootNodes.length) {
     const empty = doc.createElement("div");
     empty.className = "ptree-empty";
     empty.textContent = String(options?.emptyMessage || "No paths available.");
-    body.appendChild(empty);
+    sourceContent.appendChild(empty);
   } else {
     for (const child of rootNodes) {
-      body.appendChild(renderNode(doc, child, 0, options, onSelect, renderContext));
+      sourceContent.appendChild(renderNode(doc, child, 0, options, onSelect, renderContext));
     }
   }
+  sourceSection.appendChild(sourceContent);
+  body.appendChild(sourceSection);
   setActivePath(initialActivePath, null, false);
   win.appendChild(body);
 
@@ -1461,5 +2312,6 @@ export function openFloatingPathTreePicker(options = {}) {
     close: () => closeFloatingPathTreePicker("api"),
     element: win,
     removePath,
+    refreshFavoriteSection,
   };
 }

@@ -26,10 +26,12 @@ Routes:
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Preference file path: `projects/<project>/users/<windows-login>/preferences.json`.
-- `datasetViewer` stores the project-specific last reserving class path and dataset name for Dataset Viewer.
+- `lastReservingClassPath` stores the project-specific last Reserving Class path shared by Dataset Viewer, DFM objects, and future pages that use the same Reserving Class input.
+- `datasetViewer` stores the project-specific last Dataset Name for Dataset Viewer.
 - `datasetNamePicker` stores the Dataset Type picker `dsp-pref-pop` toggles (`doubleClickToSelect`, `closeAfterSelection`) for the current project/user.
-- `dfmObject` stores the project-specific last reserving class path, input dataset name, method name, output vector, and basic DFM settings for the DFM startup chooser.
-- `reservingClassTree` stores shared reserving-class path picker user settings for the current project/user, including `rcprefs-window` toggle/size/favorite preferences and `hiddenPaths` from the `ptree-window` right-click hide/unhide menu.
+- `dfmObject` stores the project-specific input dataset name, method name, output vector, and basic DFM settings used by DFM save/open defaults. It does not store its own Reserving Class path; it uses `lastReservingClassPath`.
+- `reservingClassTree` stores shared reserving-class path picker user settings for the current project/user, including active `filterSpec`, `rcprefs-window` toggle/size/favorite preferences, and `hiddenPaths` from the `ptree-window` right-click hide/unhide menu.
+- On read/write, legacy `datasetViewer.reservingClass`, `datasetViewer.path`, and `dfmObject.reservingClass` values are normalized into `lastReservingClassPath`, and those old per-feature keys are removed on the next preference write.
 - Project duplication copies the project folder except the root `data` folder, so these `users/<windows-login>/preferences.json` values copy with the duplicated project.
 <!-- MANUAL:END -->
 

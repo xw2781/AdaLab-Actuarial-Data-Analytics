@@ -344,6 +344,14 @@ def _normalize_reserving_filter_preferences(raw_prefs: Any) -> Dict[str, Any]:
             prefs.get("favorites", prefs.get("favorite_nodes", prefs.get("favoriteNodes", []))),
         ),
     )
+    raw_favorite_nicknames = prefs.get(
+        "favorite_nicknames",
+        prefs.get("favoriteNicknames", prefs.get("favorite_labels", prefs.get("favoriteLabels", {}))),
+    )
+    raw_favorite_folders = prefs.get(
+        "favorite_folders",
+        prefs.get("favoriteFolders", prefs.get("favorite_groups", prefs.get("favoriteGroups", []))),
+    )
 
     def _to_bool(raw: Any, default: bool = True) -> bool:
         if isinstance(raw, bool):
@@ -388,6 +396,51 @@ def _normalize_reserving_filter_preferences(raw_prefs: Any) -> Dict[str, Any]:
     favorite_paths = _normalize_reserving_hidden_path_list(raw_favorite_paths)
     if favorite_paths:
         out["favorite_paths"] = favorite_paths
+    if isinstance(raw_favorite_nicknames, dict) and favorite_paths:
+        favorite_keys = {_norm_tree_path(path).casefold(): path for path in favorite_paths}
+        favorite_nicknames: Dict[str, str] = {}
+        for raw_key, raw_value in raw_favorite_nicknames.items():
+            path_key = _norm_tree_path(raw_key).casefold()
+            path = favorite_keys.get(path_key)
+            if not path:
+                continue
+            nickname = str(raw_value or "").strip()
+            if nickname:
+                favorite_nicknames[path] = nickname[:120]
+        if favorite_nicknames:
+            out["favorite_nicknames"] = favorite_nicknames
+    if isinstance(raw_favorite_folders, list):
+        favorite_keys = {_norm_tree_path(path).casefold(): path for path in favorite_paths}
+        seen_folder_ids = set()
+        assigned_path_keys = set()
+        favorite_folders: List[Dict[str, Any]] = []
+        for raw_folder in raw_favorite_folders:
+            if not isinstance(raw_folder, dict):
+                continue
+            name = str(raw_folder.get("name", raw_folder.get("label", "")) or "").strip()[:120]
+            if not name:
+                continue
+            folder_id = str(raw_folder.get("id", raw_folder.get("key", "")) or "").strip()[:80]
+            if not folder_id or folder_id in seen_folder_ids:
+                folder_id = f"folder-{len(favorite_folders) + 1}"
+            seen_folder_ids.add(folder_id)
+            paths: List[str] = []
+            raw_paths = raw_folder.get("paths", [])
+            if isinstance(raw_paths, list):
+                for raw_path in raw_paths:
+                    path_key = _norm_tree_path(raw_path).casefold()
+                    path = favorite_keys.get(path_key)
+                    if not path or path_key in assigned_path_keys:
+                        continue
+                    assigned_path_keys.add(path_key)
+                    paths.append(path)
+            favorite_folders.append({
+                "id": folder_id,
+                "name": name,
+                "paths": paths,
+            })
+        if favorite_folders:
+            out["favorite_folders"] = favorite_folders
     return out
 
 
@@ -402,6 +455,8 @@ def _is_default_reserving_filter_preferences(raw_prefs: Any) -> bool:
         and prefs.get("filter_window_width", None) is None
         and prefs.get("filter_window_height", None) is None
         and not bool(prefs.get("favorite_paths", []))
+        and not bool(prefs.get("favorite_nicknames", {}))
+        and not bool(prefs.get("favorite_folders", []))
     )
 
 

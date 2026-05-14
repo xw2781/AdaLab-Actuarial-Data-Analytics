@@ -124,7 +124,12 @@ def build_paths(req: DfmRpcBridgeRequest) -> Dict[str, str]:
     }
 
 
-def _request_lines(req: DfmRpcBridgeRequest, function_name: str, data_path: str) -> Iterable[str]:
+def _request_lines(
+    req: DfmRpcBridgeRequest,
+    function_name: str,
+    data_path: str,
+    extra_fields: Dict[str, Any] | None = None,
+) -> Iterable[str]:
     yield f"Function = {function_name}"
     yield f"ProjectName = {req.project_name}"
     yield f"Path = {req.reserving_class}"
@@ -136,9 +141,17 @@ def _request_lines(req: DfmRpcBridgeRequest, function_name: str, data_path: str)
     yield f"DecimalPlaces = {req.decimal_places}"
     yield f"DataPath = {data_path}"
     yield f"UserName = {getpass.getuser()}"
+    for key, value in (extra_fields or {}).items():
+        yield f"{key} = {value}"
 
 
-def _write_request_file(req: DfmRpcBridgeRequest, function_name: str, data_path: str, request_dir: str) -> str:
+def _write_request_file(
+    req: DfmRpcBridgeRequest,
+    function_name: str,
+    data_path: str,
+    request_dir: str,
+    extra_fields: Dict[str, Any] | None = None,
+) -> str:
     os.makedirs(request_dir, exist_ok=True)
     now = datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S") + f".{int(now.microsecond / 1000):03d}"
@@ -148,7 +161,7 @@ def _write_request_file(req: DfmRpcBridgeRequest, function_name: str, data_path:
 
     try:
         with open(temp_path, "w", encoding="utf-8", newline="\n") as fh:
-            for line in _request_lines(req, function_name, data_path):
+            for line in _request_lines(req, function_name, data_path, extra_fields):
                 fh.write(line.rstrip("\r\n") + "\n")
         if os.path.exists(final_path):
             raise HTTPException(409, "Request file name collision and cannot overwrite.")
@@ -596,6 +609,8 @@ def keep_local(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
 
 
 def update_remote(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
+    if not getattr(req, "resq_write_confirmed", False):
+        raise HTTPException(400, "ResQ write confirmation is required before updating the remote DFM.")
     paths = build_paths(req)
     os.makedirs(paths["rpc_methods_dir"], exist_ok=True)
     _try_remove(paths["sync_status_path"])
@@ -604,6 +619,10 @@ def update_remote(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         SYNC_DFM_FUNCTION_NAME,
         paths["sync_status_path"],
         paths["request_dir"],
+        {
+            "MethodJsonPath": paths["local_path"],
+            "ResQWriteConfirmed": "true",
+        },
     )
     status_found = wait_for_file(paths["sync_status_path"], timeout_sec=max(0.1, float(req.timeout_sec)))
     remote_deleted = _try_remove(paths["remote_path"])

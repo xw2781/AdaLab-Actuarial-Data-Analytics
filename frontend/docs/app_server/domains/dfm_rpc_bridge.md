@@ -2,7 +2,7 @@
 
 ## Purpose
 <!-- MANUAL:BEGIN -->
-DFM RPC bridge routes create request files for remote data-engine DFM method sync, compare local and returned remote DFM JSON `last modified` timestamps, apply newer remote JSON locally through an explicit component sync list, and finalize keeping local JSON without sending a `SyncDFM` request.
+DFM RPC bridge routes create request files for remote data-engine DFM method sync, compare local and returned remote DFM JSON `last modified` timestamps, apply newer remote JSON locally through an explicit component sync list, finalize keeping local JSON without sending a `SyncDFM` request, and send confirmed `SyncDFM` write-back requests to ResQ through `arcrho_bridge`.
 <!-- MANUAL:END -->
 
 ## Entry Points
@@ -15,7 +15,7 @@ Routes:
 | `POST` | `/dfm/rpc-bridge/compare` | Compare current local and remote DFM JSON file metadata without sending a request, returning the same snapshot fields. |
 | `POST` | `/dfm/rpc-bridge/apply` | Apply the remote DFM JSON over the local DFM JSON after `Update Local DFM` using the explicit component sync list, preserving local-only components such as labels and analysis snapshots, returning missing RPC component names for the UI result message, writing the merged method with the row-compact DFM method JSON formatter, return payload for frontend reload, and delete the remote RPC JSON. |
 | `POST` | `/dfm/rpc-bridge/keep-local` | Keep the local DFM JSON unchanged after `Keep Using Local` and delete the remote RPC JSON without writing a `SyncDFM` request. |
-| `POST` | `/dfm/rpc-bridge/update-remote` | Write `Function = SyncDFM` request, wait for the `SyncDFM...json` status response, return pass/fail message, and delete the stale remote RPC JSON. |
+| `POST` | `/dfm/rpc-bridge/update-remote` | Require explicit ResQ write confirmation, write `Function = SyncDFM` request with the local method JSON path, wait for the `SyncDFM...json` status response, return pass/fail message, and delete the stale remote RPC JSON. |
 <!-- MANUAL:END -->
 
 ## Key Files
@@ -31,8 +31,9 @@ Routes:
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
 - `Function = DFM` request files contain Details page fields plus `DataPath`, where `DataPath` points to the expected returned remote DFM method JSON under `projects/<project>/methods/RPC bridge`.
-- `Function = SyncDFM` request files contain the same Details page fields plus `DataPath`, where `DataPath` points to an expected `SyncDFM...json` status file.
+- `Function = SyncDFM` request files contain the same Details page fields plus `DataPath`, where `DataPath` points to an expected `SyncDFM...json` status file. They also include `MethodJsonPath` for the local DFM JSON to write into ResQ and `ResQWriteConfirmed = true`; the app-server route rejects update-remote requests without this explicit confirmation.
 - `SyncDFM` status JSON must include fields that let the frontend report final result, for example `ok`, `status`, and `message`.
+- `arcrho_bridge` handles confirmed `SyncDFM` requests by reading `MethodJsonPath`, writing excluded ratio cells, selected average formula indexes, and notes to the ResQ DFM method, calling `Save()`, and writing the status JSON to `DataPath`.
 - Compare responses include snapshots read from canonical grouped local and remote DFM JSON files: `method metadata`.`last modified`, `ratio triangle`.`excluded` dimensions/excluded count/full preview with `0`/`1`/`2` values preserved, preview `origin_labels` and `development_labels` for ratio-cell tooltips, average formula names, and notes preview.
 <!-- MANUAL:END -->
 

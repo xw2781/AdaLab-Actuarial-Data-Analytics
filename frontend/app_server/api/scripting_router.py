@@ -87,6 +87,16 @@ def scripting_save_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
     return scripting_service.save_preferences(prefs)
 
 
+@router.get("/local-project/preferences")
+def local_project_get_preferences() -> Dict[str, Any]:
+    return scripting_service.get_local_project_preferences()
+
+
+@router.post("/local-project/preferences")
+def local_project_save_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
+    return scripting_service.save_local_project_preferences(prefs)
+
+
 @router.get("/scripting/api-help")
 def scripting_api_help() -> List[Dict[str, str]]:
     return scripting_service.get_api_help()

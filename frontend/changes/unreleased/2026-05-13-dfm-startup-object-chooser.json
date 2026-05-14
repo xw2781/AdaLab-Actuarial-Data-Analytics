@@ -2,8 +2,9 @@
   "type": "feature",
   "scope": "dfm",
   "audience": "user",
-  "summary": "Added a startup chooser for DFM objects.",
+  "summary": "Moved DFM object selection into the Details page.",
   "details": [
-    "Opening a DFM tab now prompts the user to continue the last DFM object, select an existing object from a cached project methods index grouped by reserving class, or create a new blank object using the last project and reserving class. DFM saves refresh the project method index cache so newly created objects are available in the chooser."
+    "Opening a DFM tab now lands directly on Details. The Details Name field has a project/path-scoped selector backed by dfm_method_index.json, and selecting a name uses the normal local method lookup to load that DFM object.",
+    "The DFM method index cache now stores only path/name entries, and the Details page groups Project, Reserving Class, and Name under Object Path with Output Vector, Input Triangle, and settings under Method Inputs & Settings."
   ]
 }

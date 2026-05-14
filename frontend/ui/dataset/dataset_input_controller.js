@@ -343,7 +343,7 @@ export function wireDatasetInputController(deps) {
   if (originSel) {
     originSel.addEventListener("change", async () => {
       syncLen("origin");
-      enforceDevLenRule();
+      enforceDevLenRule({ source: "origin" });
       saveTriInputsToStorage();
 
       const project = getResolvedProjectValue();
@@ -366,7 +366,7 @@ export function wireDatasetInputController(deps) {
       const originBefore = document.getElementById("originLenSelect")?.value || "";
       const devBefore = document.getElementById("devLenSelect")?.value || "";
       if (isLenLinked()) syncLen("init");
-      enforceDevLenRule();
+      enforceDevLenRule({ source: "origin" });
 
       saveTriInputsToStorage();
 
@@ -392,7 +392,6 @@ export function wireDatasetInputController(deps) {
   if (devSel) {
     devSel.addEventListener("change", async () => {
       syncLen("dev");
-      enforceDevLenRule();
       saveTriInputsToStorage();
 
       const project = getResolvedProjectValue();

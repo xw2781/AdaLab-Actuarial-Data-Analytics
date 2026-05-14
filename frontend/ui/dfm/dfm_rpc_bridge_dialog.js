@@ -412,7 +412,7 @@ function getOrderedVersions(data) {
     source: "Local",
     meta: local,
     snapshot: data?.snapshots?.local || {},
-    action: "keep-local",
+    action: data?.comparison === "local_latest" ? "update-remote" : "keep-local",
   };
   const remoteVersion = {
     key: "remote",
@@ -652,6 +652,7 @@ function renderNotesPreview(version, otherVersion) {
 }
 
 function versionPrimaryLabel(version) {
+  if (version?.action === "update-remote") return "Update Remote DFM";
   if (version?.key === "local") return "Keep Using Local";
   if (version?.key === "remote") return "Use Remote Version";
   return "Use Selected Version";

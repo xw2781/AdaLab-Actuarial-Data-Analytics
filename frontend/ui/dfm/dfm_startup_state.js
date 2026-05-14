@@ -26,12 +26,19 @@ export function getCurrentDfmObjectSnapshot() {
 }
 
 function normalizeDfmPrefs(raw, projectFallback = "") {
-  if (!raw || typeof raw !== "object") return null;
-  const project = String(raw.project || raw.project_name || projectFallback || "").trim();
-  const reservingClass = String(raw.reservingClass || raw.reserving_class || "").trim();
-  const methodName = String(raw.methodName || raw.method_name || "").trim();
-  const outputVector = String(raw.outputVector || raw.output_vector || "").trim();
-  const inputTriangle = String(raw.inputTriangle || raw.input_triangle || raw.datasetName || raw.dataset_name || "").trim();
+  const source = raw && typeof raw === "object" ? raw : {};
+  const project = String(source.project || source.project_name || projectFallback || "").trim();
+  const reservingClass = String(
+    source.lastReservingClassPath
+    || source.last_reserving_class_path
+    || source.reservingClass
+    || source.reserving_class
+    || source.path
+    || "",
+  ).trim();
+  const methodName = String(source.methodName || source.method_name || "").trim();
+  const outputVector = String(source.outputVector || source.output_vector || "").trim();
+  const inputTriangle = String(source.inputTriangle || source.input_triangle || source.datasetName || source.dataset_name || "").trim();
   if (!project) return null;
   return {
     project,
@@ -50,7 +57,10 @@ export async function getLastDfmObjectSnapshot(projectName = "") {
   if (!project) return null;
   try {
     const prefs = await loadProjectUserPreferences(project);
-    return normalizeDfmPrefs(prefs?.dfmObject, project);
+    return normalizeDfmPrefs({
+      ...(prefs?.dfmObject && typeof prefs.dfmObject === "object" ? prefs.dfmObject : {}),
+      lastReservingClassPath: prefs?.lastReservingClassPath || prefs?.last_reserving_class_path || "",
+    }, project);
   } catch {
     return null;
   }
@@ -69,8 +79,8 @@ export function recordDfmObjectSnapshot(snapshot = {}) {
     savedAt: new Date().toISOString(),
   };
   scheduleProjectUserPreferencesSave(data.project, {
+    lastReservingClassPath: data.reservingClass,
     dfmObject: {
-      reservingClass: data.reservingClass,
       datasetName: data.inputTriangle,
       methodName: data.methodName,
       outputVector: data.outputVector,

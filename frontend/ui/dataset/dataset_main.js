@@ -42,8 +42,7 @@ const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
 const ZOOM_MODE_KEY = "arcrho_zoom_mode";
 const FONT_STORAGE_KEY = "arcrho_app_font";
 const FORCE_REBUILD_KEY = "arcrho_force_rebuild_enabled";
-const SCRIPTING_PREFS_ENDPOINT = "/scripting/preferences";
-const LOCAL_DATASET_VIEWER_PREFS_KEY = "dataset_viewer_local_prefs_v1";
+const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
 
 function applyZoomValue(v) {
   try {
@@ -302,11 +301,17 @@ function normalizeProjectText(s) {
   return String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function normalizeDatasetViewerPrefs(raw, projectFallback = "") {
-  if (!raw || typeof raw !== "object") return null;
-  const project = String(raw.project || raw.project_name || projectFallback || "").trim();
-  const path = normalizeReservingClassPath(raw.path || raw.reservingClass || raw.reserving_class || "");
-  const tri = String(raw.tri || raw.datasetName || raw.dataset_name || "").trim();
+function normalizeDatasetViewerPrefs(raw, projectFallback = "", sharedReservingClassPath = "") {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const project = String(source.project || source.project_name || projectFallback || "").trim();
+  const path = normalizeReservingClassPath(
+    sharedReservingClassPath
+    || source.path
+    || source.reservingClass
+    || source.reserving_class
+    || "",
+  );
+  const tri = String(source.tri || source.datasetName || source.dataset_name || "").trim();
   if (!project) return null;
   return { project, path, tri };
 }
@@ -327,10 +332,10 @@ async function loadLastDatasetViewerProjectFromAppData() {
   if (localDatasetViewerPrefsLoadPromise) return localDatasetViewerPrefsLoadPromise;
   localDatasetViewerPrefsLoadPromise = (async () => {
     try {
-      const res = await fetch(SCRIPTING_PREFS_ENDPOINT, { cache: "no-store" });
+      const res = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, { cache: "no-store" });
       if (!res.ok) return "";
       const payload = await res.json().catch(() => ({}));
-      const normalized = normalizeLocalDatasetViewerPrefs(payload?.[LOCAL_DATASET_VIEWER_PREFS_KEY]);
+      const normalized = normalizeLocalDatasetViewerPrefs(payload?.preferences || payload);
       localDatasetViewerProjectSaved = normalized.project;
       return normalized.project;
     } catch {
@@ -349,14 +354,12 @@ function saveLastDatasetViewerProjectToAppData(projectName) {
   localDatasetViewerProjectSaved = project;
   void (async () => {
     try {
-      const res = await fetch(SCRIPTING_PREFS_ENDPOINT, {
+      const res = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          [LOCAL_DATASET_VIEWER_PREFS_KEY]: {
-            projectName: project,
-            updated_at: new Date().toISOString(),
-          },
+          projectName: project,
+          updated_at: new Date().toISOString(),
         }),
       });
       if (!res.ok) localDatasetViewerProjectSaved = "";
@@ -373,7 +376,11 @@ async function loadDatasetProjectPrefs(projectName, options = {}) {
   if (!options?.forceReload && datasetProjectPrefs.has(key)) return datasetProjectPrefs.get(key);
   try {
     const prefs = await loadProjectUserPreferences(project, options);
-    const normalized = normalizeDatasetViewerPrefs(prefs?.datasetViewer, project);
+    const normalized = normalizeDatasetViewerPrefs(
+      prefs?.datasetViewer,
+      project,
+      prefs?.lastReservingClassPath || prefs?.last_reserving_class_path || "",
+    );
     datasetProjectPrefs.set(key, normalized);
     return normalized;
   } catch {
@@ -388,8 +395,8 @@ function saveDatasetProjectPrefs(raw) {
   const key = normalizeProjectText(normalized.project);
   datasetProjectPrefs.set(key, normalized);
   scheduleProjectUserPreferencesSave(normalized.project, {
+    lastReservingClassPath: normalized.path,
     datasetViewer: {
-      reservingClass: normalized.path,
       datasetName: normalized.tri,
       updated_at: new Date().toISOString(),
     },
@@ -1426,13 +1433,16 @@ function saveTriInputsToStorage() {
     const projectInput = document.getElementById("projectSelect");
     const pathInput = document.getElementById("pathInput");
     const triInput = document.getElementById("triInput");
+    const linkLenChecked = window.ADA_DFM_CONTEXT
+      ? false
+      : !!document.getElementById("linkLenChk")?.checked;
     const payload = {
       project: getStoredInputValue(projectInput),
       path: getStoredInputValue(pathInput),
       tri: triInput?.value || "",
       originLen: document.getElementById("originLenSelect")?.value || "",
       devLen: document.getElementById("devLenSelect")?.value || "",
-      linkLen: document.getElementById("linkLenChk")?.checked || false,
+      linkLen: linkLenChecked,
       cumulative: document.getElementById("cumulativeChk")?.checked || true,
     };
     const resolvedInputs = normalizeBrowsingHistoryEntry({
@@ -1540,7 +1550,9 @@ async function restoreTriInputsFromStorage() {
   refreshLenDropdowns();
 
   const linkChk = document.getElementById("linkLenChk");
-  if (linkChk && typeof s.linkLen === "boolean") linkChk.checked = s.linkLen;
+  if (linkChk) {
+    linkChk.checked = window.ADA_DFM_CONTEXT ? false : (typeof s.linkLen === "boolean" ? s.linkLen : linkChk.checked);
+  }
 
   const cumChk = document.getElementById("cumulativeChk");
   if (cumChk && typeof s.cumulative === "boolean") cumChk.checked = s.cumulative;
@@ -1771,11 +1783,6 @@ async function loadProjectsDropdown() {
   }
   if (!window.ADA_DFM_CONTEXT && triInput && !triInput.value) triInput.value = "Net Loss--Incurred";
 
-  // pick default project if exists
-  const defaultProj = "NJ_Annual_Prod_2025 Dec";
-  if (input && !isInputDefaultBound(input) && allProjects.some(p => p === defaultProj)) {
-    input.value = defaultProj;
-  }
 }
 
 function showDatasetLoadingPopup(message = "") {
@@ -2105,6 +2112,23 @@ function runArcRhoTri(opts = {}) {
   return datasetRunController.runArcRhoTri(opts);
 }
 
+async function refreshDfmDatasetForCurrentInputs(options = {}) {
+  if (!window.ADA_DFM_CONTEXT) return null;
+  saveTriInputsToStorage();
+  const project = getResolvedProjectValue();
+  const forceRefreshLabels = !!options?.forceRefreshLabels;
+  if (project) {
+    await ensureHeadersForProject(project, { forceRefresh: forceRefreshLabels });
+    await ensureDevHeadersForProject(project, { forceRefresh: forceRefreshLabels });
+  }
+  setStatus("Loading dataset...");
+  return runArcRhoTri({ showValidationMessage: false });
+}
+
+if (window.ADA_DFM_CONTEXT) {
+  window.ADA_DFM_REFRESH_DATASET = refreshDfmDatasetForCurrentInputs;
+}
+
 function isRunInFlight() {
   return datasetRunController.isRunInFlight();
 }
@@ -2261,10 +2285,23 @@ function toggleBlanks() {
   return datasetRunController.toggleBlanks();
 }
 
-function enforceDevLenRule() {
+function getValidDevelopmentLengthForOrigin(origin, currentDev) {
+  if (!Number.isFinite(origin) || origin <= 0) return "";
+  const devSelect = document.getElementById("devLenSelect");
+  const candidates = Array.from(devSelect?.options || [])
+    .map((opt) => Number.parseInt(String(opt.value || opt.textContent || ""), 10))
+    .filter((value) => Number.isFinite(value) && value > 0 && value <= origin && origin % value === 0)
+    .sort((a, b) => b - a);
+  if (!candidates.length) return "";
+  if (Number.isFinite(currentDev) && candidates.includes(currentDev)) return String(currentDev);
+  return String(candidates[0]);
+}
+
+function enforceDevLenRule(options = {}) {
+  if (options?.source !== "origin") return false;
   const o = document.getElementById("originLenSelect");
   const d = document.getElementById("devLenSelect");
-  if (!o || !d) return;
+  if (!o || !d) return false;
 
   const origin = parseInt(o.value, 10);
   let dev = parseInt(d.value, 10);
@@ -2272,13 +2309,18 @@ function enforceDevLenRule() {
   const ok =
     Number.isFinite(origin) &&
     Number.isFinite(dev) &&
-    dev < origin &&
+    dev <= origin &&
     origin % dev === 0;
 
   if (!ok) {
-    setLenSelectValue("devLenSelect", String(origin));
+    const nextDev = getValidDevelopmentLengthForOrigin(origin, dev);
+    if (nextDev) {
+      setLenSelectValue("devLenSelect", nextDev);
+      dev = parseInt(d.value, 10);
+    }
   }
   refreshLenDropdowns();
+  return !ok;
 }
 
 // -----------------------------

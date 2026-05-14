@@ -208,19 +208,20 @@ function getSavedDevelopmentLengthValue(payload) {
 }
 
 function applySavedSelectValueToUi(id, rawValue) {
-  if (rawValue == null) return;
+  if (rawValue == null) return false;
   const select = document.getElementById(id);
-  if (!select) return;
+  if (!select) return false;
   const next = String(rawValue ?? "").trim();
-  if (!next) return;
+  if (!next) return false;
   if (![...select.options].some((opt) => String(opt.value) === next)) {
     const opt = document.createElement("option");
     opt.value = next;
     opt.textContent = next;
     select.appendChild(opt);
   }
-  if (String(select.value ?? "") === next) return;
+  if (String(select.value ?? "") === next) return false;
   select.value = next;
+  return true;
 }
 
 function getSavedMethodNameValue(payload) {
@@ -263,15 +264,14 @@ function applySavedOutputTypeToUi(rawValue) {
 }
 
 function applySavedInputTriangleToUi(rawValue) {
-  if (rawValue == null) return;
+  if (rawValue == null) return false;
   const triInput = document.getElementById("triInput");
-  if (!triInput) return;
+  if (!triInput) return false;
   const next = String(rawValue ?? "").trim();
   const prev = String(triInput.value || "").trim();
-  if (next === prev) return;
+  if (next === prev) return false;
   triInput.value = next;
-  triInput.dispatchEvent(new Event("input", { bubbles: true }));
-  triInput.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
 }
 
 function getSavedDecimalPlacesValue(payload) {
@@ -691,10 +691,26 @@ export async function buildDfmAssistantContextPayload(options = {}) {
   return buildDfmMethodPayloadWithPaths(options);
 }
 
+async function refreshDfmDatasetAfterDetailsApply(options = {}) {
+  if (options.refreshDataset === false) return;
+  const refreshFn = window.ADA_DFM_REFRESH_DATASET;
+  if (typeof refreshFn !== "function") return;
+  try {
+    await refreshFn({
+      forceRefreshLabels: !!options.forceRefreshLabels,
+      reason: options.reason || "dfm-method-payload",
+    });
+  } catch (err) {
+    console.warn("Failed to refresh DFM dataset after applying Details fields:", err);
+    postDfmStatus("DFM settings were applied, but the Data table refresh failed.", { tone: "warn" });
+  }
+}
+
 export async function applyDfmMethodPayload(payload, options = {}) {
+  let datasetInputsChanged = false;
   if (payload && !Array.isArray(payload)) {
-    applySavedSelectValueToUi("originLenSelect", getSavedOriginLengthValue(payload));
-    applySavedSelectValueToUi("devLenSelect", getSavedDevelopmentLengthValue(payload));
+    datasetInputsChanged = applySavedSelectValueToUi("originLenSelect", getSavedOriginLengthValue(payload)) || datasetInputsChanged;
+    datasetInputsChanged = applySavedSelectValueToUi("devLenSelect", getSavedDevelopmentLengthValue(payload)) || datasetInputsChanged;
   }
 
   const ratiosTab = getDfmRatiosTab(payload);
@@ -732,10 +748,9 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     const savedUltimateRatioDecimalPlaces = getSavedUltimateRatioDecimalPlacesValue(payload);
     const ratioBasisDataset = resultsTab["ratio basis dataset"] ?? "";
     applySavedOutputTypeToUi(savedOutputType);
-    applySavedInputTriangleToUi(savedInputTriangle);
-    // Apply saved Name after tri-input restore because tri change triggers
-    // syncMethodNameFromInputs(), which otherwise can overwrite custom Names
-    // with Output Vector during load.
+    datasetInputsChanged = applySavedInputTriangleToUi(savedInputTriangle) || datasetInputsChanged;
+    // Apply saved Name after tri-input restore so custom Names win over
+    // any default name derived from the selected Output Vector.
     applySavedMethodNameToUi(savedMethodName);
     applySavedDecimalPlacesToUi(savedDecimalPlaces);
     setResultsUltimateRatioDecimalPlacesSelection(savedUltimateRatioDecimalPlaces, { silent: true, render: false });
@@ -747,6 +762,13 @@ export async function applyDfmMethodPayload(payload, options = {}) {
   } else {
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
+  }
+
+  if (datasetInputsChanged) {
+    await refreshDfmDatasetAfterDetailsApply({
+      ...options,
+      forceRefreshLabels: true,
+    });
   }
 
   if (applied && options.render !== false) {

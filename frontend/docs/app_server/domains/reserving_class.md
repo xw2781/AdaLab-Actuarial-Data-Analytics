@@ -45,8 +45,7 @@ Reserving class values/tree/preferences/types domain.
 <!-- MANUAL:BEGIN -->
 - Uses multiple JSON cache files with lock protection plus project-user preference files under `projects/<project>/users/<windows-login>/preferences.json`.
 - Reserving class types persistence uses paired JSON/XLSX writes with rollback-safe ordering (write XLSX then JSON, rollback XLSX on JSON failure).
-- `reserving_class_filter_spec.json` keeps the active tree `filter_spec` per project.
-- Reserving-class tree preferences from `rcprefs-window` and hidden paths from the `ptree-window` context menu are stored in the project-user preference file under `reservingClassTree`, so they are user-specific and copy with project duplication.
+- Active tree `filter_spec`, `rcprefs-window` preferences, favorite path nicknames/folders from `ptree-window`, and hidden paths from the tree context menu are stored in the project-user preference file under `reservingClassTree`, so they are user-specific and copy with project duplication.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks
