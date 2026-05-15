@@ -99,6 +99,12 @@
       line-height: 1.18;
     }
 
+    .compact-title {
+      max-width: none;
+      font-size: 42px;
+      white-space: nowrap;
+    }
+
     .lead {
       max-width: 790px;
       color: var(--muted);
@@ -501,6 +507,687 @@
       color: rgba(255, 255, 255, 0.74);
       font-size: 18px;
       line-height: 1.38;
+    }
+
+    .authority-board {
+      display: grid;
+      grid-template-columns: 0.9fr 1.15fr 0.95fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .authority-lane {
+      min-height: 430px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .authority-lane::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 8px;
+      background: var(--blue);
+    }
+
+    .authority-lane.host::before {
+      background: var(--teal);
+    }
+
+    .authority-lane.user::before {
+      background: var(--gold);
+    }
+
+    .lane-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .lane-title span {
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #edf2f7;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .risk-block {
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(220, 106, 92, 0.38);
+      background: rgba(220, 106, 92, 0.08);
+      color: #8d3d34;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .gate-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .gate {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .gate b {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(15, 143, 140, 0.12);
+      color: var(--teal);
+    }
+
+    .gate p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.32;
+    }
+
+    .approved-path {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .path-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(52, 124, 82, 0.34);
+      background: rgba(52, 124, 82, 0.08);
+      color: var(--green);
+      border-radius: 999px;
+      padding: 9px 11px;
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .path-pill span {
+      display: grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-size: 12px;
+    }
+
+    .review-demo {
+      display: grid;
+      grid-template-columns: 0.95fr 1.05fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .method-preview {
+      min-height: 520px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .scan-frame {
+      display: grid;
+      gap: 8px;
+      position: relative;
+    }
+
+    .scan-row {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+    }
+
+    .scan-cell {
+      height: 34px;
+      border-radius: 5px;
+      background: #edf2f7;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scan-cell.warn {
+      background: rgba(201, 140, 24, 0.18);
+    }
+
+    .scan-cell.alert {
+      background: rgba(220, 106, 92, 0.18);
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 92px;
+      height: 4px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, var(--teal), transparent);
+      animation: scanSweep 4.8s ease-in-out infinite;
+      z-index: 2;
+    }
+
+    @keyframes scanSweep {
+      0% { transform: translateY(0); opacity: 0.1; }
+      14% { opacity: 1; }
+      82% { opacity: 1; }
+      100% { transform: translateY(260px); opacity: 0.1; }
+    }
+
+    .issue-pin {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 8px 16px rgba(23, 32, 51, 0.2);
+      animation: pinPulse 1.7s ease-in-out infinite;
+      z-index: 3;
+    }
+
+    .issue-pin.minor {
+      background: var(--gold);
+      top: 188px;
+      left: 174px;
+    }
+
+    .issue-pin.significant {
+      background: var(--coral);
+      top: 302px;
+      right: 138px;
+      animation-delay: 0.4s;
+    }
+
+    @keyframes pinPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.28); }
+    }
+
+    .review-list {
+      min-height: 520px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .review-item {
+      display: grid;
+      grid-template-columns: 38px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfe;
+      opacity: 0.55;
+      animation: reviewStep 8s ease-in-out infinite;
+    }
+
+    .review-item:nth-child(2) { animation-delay: 0.9s; }
+    .review-item:nth-child(3) { animation-delay: 1.8s; }
+    .review-item:nth-child(4) { animation-delay: 2.7s; }
+    .review-item:nth-child(5) { animation-delay: 3.6s; }
+
+    @keyframes reviewStep {
+      0%, 16% { opacity: 0.55; transform: translateX(0); }
+      22%, 58% { opacity: 1; transform: translateX(6px); border-color: rgba(15, 143, 140, 0.42); }
+      70%, 100% { opacity: 0.8; transform: translateX(0); }
+    }
+
+    .review-index {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(15, 143, 140, 0.12);
+      color: var(--teal);
+      font-weight: 900;
+      font-size: 13px;
+    }
+
+    .review-status {
+      border-radius: 999px;
+      padding: 6px 9px;
+      background: rgba(52, 124, 82, 0.09);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .review-status.minor {
+      background: rgba(201, 140, 24, 0.12);
+      color: #95640f;
+    }
+
+    .review-status.significant {
+      background: rgba(220, 106, 92, 0.12);
+      color: #944338;
+    }
+
+    .issue-feed {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .issue-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+      background: #fff;
+    }
+
+    .issue-card b {
+      display: inline-block;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .issue-card.minor b {
+      background: rgba(201, 140, 24, 0.13);
+      color: #95640f;
+    }
+
+    .issue-card.significant b {
+      background: rgba(220, 106, 92, 0.13);
+      color: #944338;
+    }
+
+    .review-demo {
+      grid-template-columns: 1fr;
+    }
+
+    .dfm-review-stage {
+      min-height: 570px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #eef2f7;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dfm-window {
+      height: 536px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 42px 42px 1fr;
+    }
+
+    .dfm-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      background: var(--dark);
+      color: #fff;
+      font-weight: 850;
+    }
+
+    .dfm-tabs {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .dfm-tab-pill {
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: #e8edf4;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .dfm-tab-pill.active {
+      background: rgba(77, 98, 201, 0.13);
+      color: var(--blue);
+      border: 1px solid rgba(77, 98, 201, 0.25);
+    }
+
+    .dfm-workspace {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      min-height: 0;
+    }
+
+    .dfm-side {
+      border-right: 1px solid var(--line);
+      background: #f8fafc;
+      padding: 14px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .dfm-side-line {
+      height: 28px;
+      border-radius: 7px;
+      background: #e8edf4;
+    }
+
+    .dfm-side-line.active {
+      background: rgba(15, 143, 140, 0.14);
+      border: 1px solid rgba(15, 143, 140, 0.24);
+    }
+
+    .dfm-main {
+      padding: 18px;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .dfm-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .dfm-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .dfm-chip {
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #eef2f7;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .dfm-triangle {
+      width: min(600px, 100%);
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .dfm-cell {
+      height: 30px;
+      border-radius: 5px;
+      background: #e9eef5;
+      transition: background 240ms ease, box-shadow 240ms ease, transform 240ms ease;
+    }
+
+    .review-active .dfm-cell:nth-child(11),
+    .review-active .dfm-cell:nth-child(29) {
+      background: rgba(220, 106, 92, 0.22);
+      box-shadow: inset 0 0 0 2px rgba(220, 106, 92, 0.46);
+      transform: scale(1.03);
+    }
+
+    .review-active .dfm-cell:nth-child(18),
+    .review-active .dfm-cell:nth-child(37) {
+      background: rgba(201, 140, 24, 0.22);
+      box-shadow: inset 0 0 0 2px rgba(201, 140, 24, 0.4);
+    }
+
+    .arc-review-window {
+      position: absolute;
+      top: 86px;
+      right: 34px;
+      width: 560px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(23, 32, 51, 0.14);
+      box-shadow: 0 22px 56px rgba(23, 32, 51, 0.18);
+      overflow: hidden;
+      transform: translateY(0);
+      animation: floatReviewWindow 4.6s ease-in-out infinite;
+    }
+
+    @keyframes floatReviewWindow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .arc-review-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .arc-review-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+    }
+
+    .arc-review-brand img {
+      width: 30px;
+      height: 30px;
+    }
+
+    .review-run-btn {
+      border: 1px solid rgba(15, 143, 140, 0.42);
+      background: rgba(15, 143, 140, 0.1);
+      color: var(--teal);
+      border-radius: 999px;
+      padding: 8px 13px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .review-run-btn:hover {
+      background: rgba(15, 143, 140, 0.16);
+    }
+
+    .review-progress {
+      height: 7px;
+      background: #e8edf4;
+    }
+
+    .review-progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--teal), var(--blue));
+      transition: width 360ms ease;
+    }
+
+    .arc-review-list {
+      display: grid;
+      gap: 9px;
+      padding: 13px;
+    }
+
+    .arc-review-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      opacity: 0.66;
+      transition: opacity 240ms ease, transform 240ms ease, border-color 240ms ease, background 240ms ease;
+    }
+
+    .arc-review-row h3 {
+      font-size: 15px;
+      line-height: 1.15;
+    }
+
+    .arc-review-row.active {
+      opacity: 1;
+      transform: translateX(-6px);
+      border-color: rgba(15, 143, 140, 0.44);
+      background: rgba(15, 143, 140, 0.05);
+    }
+
+    .arc-review-row.done {
+      opacity: 1;
+    }
+
+    .arc-review-row.minor {
+      border-color: rgba(201, 140, 24, 0.42);
+      background: rgba(201, 140, 24, 0.06);
+    }
+
+    .arc-review-row.significant {
+      border-color: rgba(220, 106, 92, 0.42);
+      background: rgba(220, 106, 92, 0.06);
+    }
+
+    .review-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 2px solid #aeb8c5;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 900;
+      transition: background 200ms ease, border-color 200ms ease;
+    }
+
+    .arc-review-row.done .review-check {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .arc-review-row.minor .review-check {
+      background: var(--gold);
+      border-color: var(--gold);
+    }
+
+    .arc-review-row.significant .review-check {
+      background: var(--coral);
+      border-color: var(--coral);
+    }
+
+    .review-comment {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.28;
+      min-height: 17px;
+    }
+
+    .review-badge {
+      border-radius: 999px;
+      padding: 5px 8px;
+      background: #edf2f7;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .arc-review-row.done .review-badge {
+      background: rgba(52, 124, 82, 0.1);
+      color: var(--green);
+    }
+
+    .arc-review-row.minor .review-badge {
+      background: rgba(201, 140, 24, 0.12);
+      color: #95640f;
+    }
+
+    .arc-review-row.significant .review-badge {
+      background: rgba(220, 106, 92, 0.12);
+      color: #944338;
+    }
+
+    .review-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 0 13px 13px;
+    }
+
+    .summary-tile {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      padding: 10px;
+      background: #fbfcfe;
+      text-align: center;
+    }
+
+    .summary-tile strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+      color: var(--ink);
+    }
+
+    .summary-tile span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
     }
 
     .demo-shell {
@@ -919,6 +1606,11 @@
         font-size: 37px;
       }
 
+      .compact-title {
+        font-size: 32px;
+        white-space: normal;
+      }
+
       .lead {
         font-size: 20px;
       }
@@ -926,7 +1618,10 @@
       .two,
       .chart-wrap,
       .widget-grid,
-      .roadmap {
+      .roadmap,
+      .authority-board,
+      .review-demo,
+      .issue-feed {
         grid-template-columns: 1fr;
       }
 
@@ -992,7 +1687,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">01 / 08</div>
+      <div class="slide-no">01 / 10</div>
     </section>
 
     <section class="slide">
@@ -1024,7 +1719,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">02 / 08</div>
+      <div class="slide-no">02 / 10</div>
     </section>
 
     <section class="slide">
@@ -1073,7 +1768,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">03 / 08</div>
+      <div class="slide-no">03 / 10</div>
     </section>
 
     <section class="slide">
@@ -1105,7 +1800,164 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">04 / 08</div>
+      <div class="slide-no">04 / 10</div>
+    </section>
+
+    <section class="slide">
+      <div class="inner">
+        <p class="topline">Authority control</p>
+        <h2>ArcBot can help, but the host keeps control.</h2>
+        <div class="authority-board">
+          <div class="authority-lane">
+            <div class="lane-title">
+              <h3>ArcBot</h3>
+              <span>Suggests</span>
+            </div>
+            <p class="small">ArcBot can read context, explain choices, and prepare a proposed edit.</p>
+            <div class="risk-block">No direct write access</div>
+            <div class="approved-path">
+              <div class="path-pill"><span>1</span>Read active tab context</div>
+              <div class="path-pill"><span>2</span>Work on temp copy</div>
+              <div class="path-pill"><span>3</span>Return proposed JSON</div>
+            </div>
+          </div>
+          <div class="authority-lane host">
+            <div class="lane-title">
+              <h3>Host guard</h3>
+              <span>Controls</span>
+            </div>
+            <div class="gate-list">
+              <div class="gate">
+                <b>G1</b>
+                <div><h3>Path check</h3><p>Only the configured ArcRho root is allowed.</p></div>
+              </div>
+              <div class="gate">
+                <b>G2</b>
+                <div><h3>JSON check</h3><p>The proposed edit must be valid method JSON.</p></div>
+              </div>
+              <div class="gate">
+                <b>G3</b>
+                <div><h3>Backup first</h3><p>The current method is saved before apply.</p></div>
+              </div>
+              <div class="gate">
+                <b>G4</b>
+                <div><h3>Apply or revert</h3><p>The host writes the file and can restore the latest ArcBot edit.</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="authority-lane user">
+            <div class="lane-title">
+              <h3>User</h3>
+              <span>Decides</span>
+            </div>
+            <p class="small">The user asks the question, sees progress, and keeps actuarial judgment in the loop.</p>
+            <div class="approved-path">
+              <div class="path-pill"><span>1</span>Choose Review or Edit</div>
+              <div class="path-pill"><span>2</span>Inspect the answer</div>
+              <div class="path-pill"><span>3</span>Use revert when needed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-no">05 / 10</div>
+    </section>
+
+    <section class="slide">
+      <div class="inner">
+        <p class="topline">Review mode checklist</p>
+        <h2 class="compact-title">Review Mode runs a checklist inside DFM.</h2>
+        <div class="review-demo">
+          <div class="dfm-review-stage" id="reviewStage">
+            <div class="dfm-window">
+              <div class="dfm-titlebar">
+                <span class="window-dot"></span>
+                <span class="window-dot"></span>
+                <span class="window-dot"></span>
+                <span>DFM - Chain Ladder Method</span>
+              </div>
+              <div class="dfm-tabs">
+                <span class="dfm-tab-pill">Details</span>
+                <span class="dfm-tab-pill active">Ratios</span>
+                <span class="dfm-tab-pill">Results</span>
+                <span class="dfm-tab-pill">Notes</span>
+              </div>
+              <div class="dfm-workspace">
+                <div class="dfm-side">
+                  <div class="dfm-side-line active"></div>
+                  <div class="dfm-side-line"></div>
+                  <div class="dfm-side-line"></div>
+                  <div class="dfm-side-line"></div>
+                  <div class="dfm-side-line"></div>
+                </div>
+                <div class="dfm-main">
+                  <div class="dfm-toolbar">
+                    <div>
+                      <h3>Selected ratios</h3>
+                      <p class="small">ArcBot checks the open method context.</p>
+                    </div>
+                    <div class="dfm-chip-row">
+                      <span class="dfm-chip">Origin years</span>
+                      <span class="dfm-chip">LDFs</span>
+                      <span class="dfm-chip">Notes linked</span>
+                    </div>
+                  </div>
+                  <div class="dfm-triangle" aria-hidden="true">
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                    <span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span><span class="dfm-cell"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="arc-review-window">
+              <div class="arc-review-head">
+                <div class="arc-review-brand">
+                  <img src="../frontend/icons/ArcBot%20mini.png" alt="">
+                  <span>ArcBot Review</span>
+                </div>
+                <button class="review-run-btn" id="reviewRunBtn" type="button">Review</button>
+              </div>
+              <div class="review-progress"><div class="review-progress-fill" id="reviewProgressFill"></div></div>
+              <div class="arc-review-list">
+                <div class="arc-review-row" data-result="done" data-comment="No blocking diagnostics found.">
+                  <span class="review-check"></span>
+                  <div><h3>0. Diagnostics</h3><p class="review-comment"></p></div>
+                  <span class="review-badge">waiting</span>
+                </div>
+                <div class="arc-review-row" data-result="significant" data-comment="Possible missing value inside the active triangle; review before signoff.">
+                  <span class="review-check"></span>
+                  <div><h3>1. Data check</h3><p class="review-comment"></p></div>
+                  <span class="review-badge">waiting</span>
+                </div>
+                <div class="arc-review-row" data-result="minor" data-comment="One development period shows lower stability than nearby periods.">
+                  <span class="review-check"></span>
+                  <div><h3>2. Ratio LDFs</h3><p class="review-comment"></p></div>
+                  <span class="review-badge">waiting</span>
+                </div>
+                <div class="arc-review-row" data-result="minor" data-comment="Notes are consistent, but wording and grammar need cleanup.">
+                  <span class="review-check"></span>
+                  <div><h3>3. Notes</h3><p class="review-comment"></p></div>
+                  <span class="review-badge">waiting</span>
+                </div>
+                <div class="arc-review-row" data-result="done" data-comment="Format and method structure passed validation.">
+                  <span class="review-check"></span>
+                  <div><h3>4. Format checks</h3><p class="review-comment"></p></div>
+                  <span class="review-badge">waiting</span>
+                </div>
+              </div>
+              <div class="review-summary">
+                <div class="summary-tile"><strong id="reviewCheckedCount">0</strong><span>checked</span></div>
+                <div class="summary-tile"><strong id="reviewMinorCount">0</strong><span>minor</span></div>
+                <div class="summary-tile"><strong id="reviewSignificantCount">0</strong><span>significant</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-no">06 / 10</div>
     </section>
 
     <section class="slide">
@@ -1166,7 +2018,7 @@
           <div class="demo-note" id="demoNote">ArcBot reads the active DFM tab, so the user does not need to paste method context.</div>
         </div>
       </div>
-      <div class="slide-no">05 / 08</div>
+      <div class="slide-no">07 / 10</div>
     </section>
 
     <section class="slide">
@@ -1193,7 +2045,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">06 / 08</div>
+      <div class="slide-no">08 / 10</div>
     </section>
 
     <section class="slide">
@@ -1227,7 +2079,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">07 / 08</div>
+      <div class="slide-no">09 / 10</div>
     </section>
 
     <section class="slide">
@@ -1244,7 +2096,7 @@
           </div>
         </div>
       </div>
-      <div class="slide-no">08 / 08</div>
+      <div class="slide-no">10 / 10</div>
     </section>
   </main>
 
@@ -1258,10 +2110,12 @@
     <button class="rail-dot" type="button" data-index="1" data-label="Problem"></button>
     <button class="rail-dot" type="button" data-index="2" data-label="Workflow"></button>
     <button class="rail-dot" type="button" data-index="3" data-label="Design"></button>
-    <button class="rail-dot" type="button" data-index="4" data-label="Demo"></button>
-    <button class="rail-dot" type="button" data-index="5" data-label="Safety"></button>
-    <button class="rail-dot" type="button" data-index="6" data-label="Future"></button>
-    <button class="rail-dot" type="button" data-index="7" data-label="Close"></button>
+    <button class="rail-dot" type="button" data-index="4" data-label="Authority"></button>
+    <button class="rail-dot" type="button" data-index="5" data-label="Review"></button>
+    <button class="rail-dot" type="button" data-index="6" data-label="Demo"></button>
+    <button class="rail-dot" type="button" data-index="7" data-label="Safety"></button>
+    <button class="rail-dot" type="button" data-index="8" data-label="Future"></button>
+    <button class="rail-dot" type="button" data-index="9" data-label="Close"></button>
   </nav>
 
   <script>
@@ -1338,6 +2192,73 @@
         demoNote.textContent = hotspot.dataset.note;
       });
     });
+
+    const reviewRows = Array.from(document.querySelectorAll(".arc-review-row"));
+    const reviewRunBtn = document.getElementById("reviewRunBtn");
+    const reviewStage = document.getElementById("reviewStage");
+    const reviewProgressFill = document.getElementById("reviewProgressFill");
+    const reviewCheckedCount = document.getElementById("reviewCheckedCount");
+    const reviewMinorCount = document.getElementById("reviewMinorCount");
+    const reviewSignificantCount = document.getElementById("reviewSignificantCount");
+    let reviewTimers = [];
+
+    function clearReviewTimers() {
+      reviewTimers.forEach((timer) => clearTimeout(timer));
+      reviewTimers = [];
+    }
+
+    function setReviewCounts() {
+      reviewCheckedCount.textContent = String(reviewRows.filter((row) => row.classList.contains("done")).length);
+      reviewMinorCount.textContent = String(reviewRows.filter((row) => row.classList.contains("minor")).length);
+      reviewSignificantCount.textContent = String(reviewRows.filter((row) => row.classList.contains("significant")).length);
+    }
+
+    function resetReviewAnimation() {
+      clearReviewTimers();
+      reviewRows.forEach((row) => {
+        row.classList.remove("active", "done", "minor", "significant");
+        row.querySelector(".review-check").textContent = "";
+        row.querySelector(".review-badge").textContent = "waiting";
+        row.querySelector(".review-comment").textContent = "";
+      });
+      reviewStage.classList.remove("review-active");
+      reviewProgressFill.style.width = "0%";
+      reviewRunBtn.textContent = "Review";
+      setReviewCounts();
+    }
+
+    function runReviewAnimation() {
+      resetReviewAnimation();
+      reviewRunBtn.textContent = "Running";
+      reviewStage.classList.add("review-active");
+      reviewRows.forEach((row, index) => {
+        reviewTimers.push(setTimeout(() => {
+          reviewRows.forEach((item) => item.classList.remove("active"));
+          row.classList.add("active");
+          row.querySelector(".review-badge").textContent = "checking";
+          reviewProgressFill.style.width = `${Math.round((index / reviewRows.length) * 100)}%`;
+        }, 450 + index * 850));
+        reviewTimers.push(setTimeout(() => {
+          const result = row.dataset.result;
+          row.classList.remove("active");
+          row.classList.add("done");
+          if (result === "minor") row.classList.add("minor");
+          if (result === "significant") row.classList.add("significant");
+          row.querySelector(".review-check").textContent = result === "done" ? "OK" : "!";
+          row.querySelector(".review-badge").textContent = result === "done" ? "checked" : result;
+          row.querySelector(".review-comment").textContent = row.dataset.comment;
+          reviewProgressFill.style.width = `${Math.round(((index + 1) / reviewRows.length) * 100)}%`;
+          setReviewCounts();
+        }, 1020 + index * 850));
+      });
+      reviewTimers.push(setTimeout(() => {
+        reviewRows.forEach((item) => item.classList.remove("active"));
+        reviewRunBtn.textContent = "Review again";
+      }, 1020 + reviewRows.length * 850));
+    }
+
+    reviewRunBtn.addEventListener("click", runReviewAnimation);
+    runReviewAnimation();
 
     const maturity = [
       ["Chat helper", "Answers general ArcRho questions."],

@@ -73,9 +73,11 @@ export function loadCustomSummaryRows(key) {
 
 export function loadNaBorders() {
   try {
-    return localStorage.getItem(NA_BORDER_KEY) === "1";
+    const raw = localStorage.getItem(NA_BORDER_KEY);
+    if (raw === null) return true;
+    return raw === "1";
   } catch {
-    return false;
+    return true;
   }
 }
 

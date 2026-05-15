@@ -33,6 +33,7 @@ const CODEX_ASSISTANT_TIMEOUT_MS = Math.max(
   15000,
   parseInt(process.env.ARCRHO_CODEX_ASSISTANT_TIMEOUT_MS || "120000", 10) || 120000
 );
+const CODEX_APP_SERVER_ENABLED = process.env.ARCRHO_CODEX_APP_SERVER !== "0";
 const BACKEND_CONTROL_FLAGS = [
   ".restart_app",
   ".shutdown_app",
@@ -67,6 +68,9 @@ let lastBounds = null;
 let serverSpawnError = null;
 let backendShutdownPromise = null;
 const mappedDriveRemoteCache = new Map();
+const activeCodexAssistantRequests = new Map();
+const arcBotCodexThreads = new Map();
+let codexAppServerClient = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -394,23 +398,60 @@ function runHostCommand(command, args = [], options = {}) {
     shell: useShell = process.platform === "win32",
     onStdout = null,
     onStderr = null,
+    cancelKey = "",
   } = options;
   return new Promise((resolve) => {
     let settled = false;
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let canceled = false;
     let proc = null;
+    const unregisterCancel = () => {
+      if (!cancelKey) return;
+      const active = activeCodexAssistantRequests.get(cancelKey);
+      if (active === cancelProcess) {
+        activeCodexAssistantRequests.delete(cancelKey);
+      } else if (active && typeof active === "object" && active.cancelProcess === cancelProcess) {
+        active.cancelProcess = null;
+      }
+    };
+    const killProcessTree = () => {
+      if (!proc || !proc.pid) return;
+      if (process.platform === "win32") {
+        try {
+          spawn("taskkill", ["/pid", String(proc.pid), "/t", "/f"], {
+            windowsHide: true,
+            stdio: "ignore",
+          });
+        } catch {
+          // Fall back to killing the immediate process.
+        }
+      }
+      try {
+        proc.kill();
+      } catch {
+        // ignore
+      }
+    };
+    const cancelProcess = () => {
+      if (settled) return false;
+      canceled = true;
+      killProcessTree();
+      return true;
+    };
     const finish = (result) => {
       if (settled) return;
       settled = true;
+      unregisterCancel();
       resolve({
-        ok: result.code === 0 && !timedOut,
+        ok: result.code === 0 && !timedOut && !canceled,
         code: result.code,
         signal: result.signal,
         stdout,
         stderr,
         timedOut,
+        canceled,
         error: result.error || "",
       });
     };
@@ -428,13 +469,19 @@ function runHostCommand(command, args = [], options = {}) {
       return;
     }
 
+    if (cancelKey) {
+      const active = activeCodexAssistantRequests.get(cancelKey);
+      if (active && typeof active === "object") {
+        active.cancelProcess = cancelProcess;
+        if (active.canceled) cancelProcess();
+      } else {
+        activeCodexAssistantRequests.set(cancelKey, cancelProcess);
+      }
+    }
+
     const timer = setTimeout(() => {
       timedOut = true;
-      try {
-        proc.kill();
-      } catch {
-        // ignore
-      }
+      killProcessTree();
     }, Math.max(1000, timeoutMs));
 
     proc.stdout?.on("data", (chunk) => {
@@ -517,11 +564,348 @@ function runCodexCommand(args = [], options = {}) {
   });
 }
 
+function getCodexSpawnSpec(args = []) {
+  const command = getCodexCommand();
+  if (!command) return null;
+  const nextArgs = args.map((arg) => String(arg));
+  if (process.platform === "win32") {
+    const bundledCodexCmd = path.join(APP_ROOT, "node-portable", "codex.cmd");
+    if (command.toLowerCase() === bundledCodexCmd.toLowerCase()) {
+      const bundledNode = path.join(APP_ROOT, "node-portable", "node.exe");
+      const bundledCodexJs = path.join(APP_ROOT, "node-portable", "node_modules", "@openai", "codex", "bin", "codex.js");
+      if (fs.existsSync(bundledNode) && fs.existsSync(bundledCodexJs)) {
+        return { command: bundledNode, args: [bundledCodexJs, ...nextArgs], shell: false };
+      }
+    }
+    if (/\.(cmd|bat)$/iu.test(command)) {
+      const commandLine = [command, ...nextArgs].map(quoteWindowsCmdArg).join(" ");
+      return { command: "cmd.exe", args: ["/d", "/c", "call", commandLine], shell: false };
+    }
+  }
+  return { command, args: nextArgs, shell: false };
+}
+
+function getArcBotCodexThreadKey(payload, mode) {
+  const sessionId = sanitizeArcBotSessionId(payload?.sessionId || "");
+  return sessionId ? `${mode}:${sessionId}` : "";
+}
+
+function getCodexSandboxPolicy(sandboxMode, codexCwd) {
+  if (sandboxMode === "workspace-write") {
+    return {
+      type: "workspaceWrite",
+      writableRoots: [codexCwd],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false,
+    };
+  }
+  return {
+    type: "readOnly",
+    networkAccess: false,
+  };
+}
+
+function extractAgentTextFromTurn(turn) {
+  const items = Array.isArray(turn?.items) ? turn.items : [];
+  const messages = items
+    .filter((item) => item?.type === "agentMessage" && String(item?.text || "").trim())
+    .map((item) => String(item.text || "").trim());
+  return messages.length ? messages[messages.length - 1] : "";
+}
+
+class CodexAppServerClient {
+  constructor() {
+    this.proc = null;
+    this.started = false;
+    this.starting = null;
+    this.nextId = 1;
+    this.pending = new Map();
+    this.notificationHandlers = new Set();
+    this.stdoutBuffer = "";
+    this.stderr = "";
+    this.lastError = "";
+  }
+
+  isAlive() {
+    return !!this.proc && !this.proc.killed && this.proc.exitCode == null;
+  }
+
+  async start() {
+    if (this.started && this.isAlive()) return this;
+    if (this.starting) return this.starting;
+    this.starting = this.startFresh();
+    try {
+      await this.starting;
+      return this;
+    } finally {
+      this.starting = null;
+    }
+  }
+
+  async startFresh() {
+    this.stop();
+    const spec = getCodexSpawnSpec(["app-server", "--listen", "stdio://"]);
+    if (!spec) throw new Error("Codex CLI was not found. Install Codex CLI before using ArcBot.");
+    this.proc = spawn(spec.command, spec.args, {
+      cwd: APP_ROOT,
+      env: process.env,
+      shell: spec.shell,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    this.started = false;
+    this.stdoutBuffer = "";
+    this.stderr = "";
+    this.lastError = "";
+    this.proc.stdout?.on("data", (chunk) => this.handleStdout(chunk));
+    this.proc.stderr?.on("data", (chunk) => {
+      const text = String(chunk || "");
+      this.stderr += text;
+      if (this.stderr.length > 200000) this.stderr = this.stderr.slice(-200000);
+    });
+    this.proc.once("error", (err) => {
+      this.failAll(String(err?.message || err || "Codex app-server failed."));
+      this.started = false;
+    });
+    this.proc.once("close", (code, signal) => {
+      this.failAll(`Codex app-server exited (code=${code ?? "unknown"}, signal=${signal || "none"}).`);
+      this.started = false;
+      arcBotCodexThreads.clear();
+    });
+    await this.request("initialize", {
+      clientInfo: { name: "ArcRho ArcBot", title: "ArcRho ArcBot", version: "0.1.0" },
+      capabilities: {
+        experimentalApi: true,
+      },
+    }, 15000);
+    this.notify("initialized");
+    this.started = true;
+  }
+
+  stop() {
+    const proc = this.proc;
+    this.proc = null;
+    this.started = false;
+    this.stdoutBuffer = "";
+    if (proc && proc.exitCode == null && !proc.killed) {
+      try {
+        proc.kill();
+      } catch {
+        // ignore
+      }
+    }
+    this.failAll("Codex app-server stopped.");
+    arcBotCodexThreads.clear();
+  }
+
+  failAll(message) {
+    for (const [, pending] of this.pending) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(message));
+    }
+    this.pending.clear();
+  }
+
+  handleStdout(chunk) {
+    this.stdoutBuffer += String(chunk || "");
+    let newlineIndex = this.stdoutBuffer.indexOf("\n");
+    while (newlineIndex >= 0) {
+      const line = this.stdoutBuffer.slice(0, newlineIndex).trim();
+      this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1);
+      if (line) this.handleMessageLine(line);
+      newlineIndex = this.stdoutBuffer.indexOf("\n");
+    }
+    if (this.stdoutBuffer.length > 100000) this.stdoutBuffer = this.stdoutBuffer.slice(-100000);
+  }
+
+  handleMessageLine(line) {
+    let message = null;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      this.stderr += `${line}\n`;
+      return;
+    }
+    if (message && Object.prototype.hasOwnProperty.call(message, "id")) {
+      if (message.method && !this.pending.has(message.id)) {
+        this.respondUnsupported(message.id, message.method);
+        return;
+      }
+      const pending = this.pending.get(message.id);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      this.pending.delete(message.id);
+      if (message.error) {
+        const detail = String(message.error?.message || message.error || "Codex app-server request failed.");
+        pending.reject(new Error(detail));
+      } else {
+        pending.resolve(message.result);
+      }
+      return;
+    }
+    if (message?.method) {
+      for (const handler of this.notificationHandlers) {
+        try {
+          handler(message);
+        } catch {
+          // One stale listener should not break the app-server stream.
+        }
+      }
+    }
+  }
+
+  writeMessage(message) {
+    if (!this.isAlive()) throw new Error("Codex app-server is not running.");
+    this.proc.stdin.write(`${JSON.stringify(message)}\n`);
+  }
+
+  request(method, params, timeoutMs = CODEX_ASSISTANT_TIMEOUT_MS) {
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Codex app-server ${method} timed out.`));
+      }, Math.max(1000, timeoutMs));
+      this.pending.set(id, { resolve, reject, timer });
+      try {
+        this.writeMessage({ id, method, params });
+      } catch (err) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(err);
+      }
+    });
+  }
+
+  notify(method, params) {
+    this.writeMessage(params === undefined ? { method } : { method, params });
+  }
+
+  respondUnsupported(id, method) {
+    try {
+      this.writeMessage({
+        id,
+        error: {
+          code: -32601,
+          message: `ArcRho does not handle Codex app-server request '${method}'.`,
+        },
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  onNotification(handler) {
+    this.notificationHandlers.add(handler);
+    return () => this.notificationHandlers.delete(handler);
+  }
+
+  async ensureThread(threadKey, mode, codexCwd) {
+    if (threadKey && arcBotCodexThreads.has(threadKey)) {
+      return arcBotCodexThreads.get(threadKey);
+    }
+    const result = await this.request("thread/start", {
+      model: null,
+      cwd: codexCwd,
+      approvalPolicy: "never",
+      sandbox: mode === "edit" ? "workspace-write" : "read-only",
+      ephemeral: true,
+      experimentalRawEvents: false,
+      persistExtendedHistory: false,
+    });
+    const threadId = String(result?.thread?.id || "");
+    if (!threadId) throw new Error("Codex app-server did not return a thread id.");
+    if (threadKey) arcBotCodexThreads.set(threadKey, threadId);
+    return threadId;
+  }
+}
+
+async function ensureCodexAppServerStarted() {
+  if (!CODEX_APP_SERVER_ENABLED) throw new Error("Codex app-server is disabled.");
+  if (!codexAppServerClient) codexAppServerClient = new CodexAppServerClient();
+  return codexAppServerClient.start();
+}
+
+async function runCodexWarmTurn({ event, requestId, requestState, payload, mode, codexCwd, codexSandbox, prompt }) {
+  const client = await ensureCodexAppServerStarted();
+  const threadKey = getArcBotCodexThreadKey(payload, mode);
+  const threadId = await client.ensureThread(threadKey, mode, codexCwd);
+  let turnId = "";
+  let agentText = "";
+  let canceled = false;
+  const cancelTurn = () => {
+    canceled = true;
+    if (turnId) {
+      client.request("turn/interrupt", { threadId }, 8000).catch(() => {});
+    }
+    return true;
+  };
+  if (requestState) {
+    requestState.cancelProcess = cancelTurn;
+    if (requestState.canceled) cancelTurn();
+  }
+  const waitForCompletedTurn = () => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Codex app-server turn timed out."));
+    }, CODEX_ASSISTANT_TIMEOUT_MS);
+    const cleanup = client.onNotification((message) => {
+      if (message?.method === "item/agentMessage/delta" &&
+          message.params?.threadId === threadId &&
+          message.params?.turnId === turnId) {
+        agentText += String(message.params?.delta || "");
+      }
+      if (message?.method === "turn/completed" &&
+          message.params?.threadId === threadId &&
+          message.params?.turn?.id === turnId) {
+        clearTimeout(timer);
+        cleanup();
+        resolve(message.params?.turn || null);
+      }
+      if (message?.method === "error") {
+        const detail = String(message.params?.message || message.params?.error || "Codex app-server turn failed.");
+        clearTimeout(timer);
+        cleanup();
+        reject(new Error(detail));
+      }
+    });
+  });
+  const started = await client.request("turn/start", {
+    threadId,
+    input: [{ type: "text", text: prompt, text_elements: [] }],
+    cwd: codexCwd,
+    approvalPolicy: "never",
+    sandboxPolicy: getCodexSandboxPolicy(codexSandbox, codexCwd),
+  });
+  turnId = String(started?.turn?.id || "");
+  sendArcBotActivity(event, requestId, "activity", "Codex warm session accepted the request.");
+  if (canceled || requestState?.canceled) {
+    cancelTurn();
+    return { ok: false, canceled: true, stdout: "", stderr: "", error: "Request canceled." };
+  }
+  const turn = started?.turn?.status === "completed" ? started.turn : await waitForCompletedTurn();
+  if (canceled || requestState?.canceled) {
+    return { ok: false, canceled: true, stdout: "", stderr: "", error: "Request canceled." };
+  }
+  const turnText = extractAgentTextFromTurn(turn);
+  return {
+    ok: true,
+    code: 0,
+    signal: null,
+    stdout: String(turnText || agentText || "").trim(),
+    stderr: "",
+    timedOut: false,
+    canceled: false,
+  };
+}
+
 function combinedCommandOutput(result) {
   return `${result?.stdout || ""}\n${result?.stderr || ""}`.trim();
 }
 
 function normalizeHostError(result, fallback) {
+  if (result?.canceled) return "Request canceled.";
   if (result?.timedOut) return "The command timed out.";
   return combinedCommandOutput(result) || result?.error || fallback;
 }
@@ -679,11 +1063,13 @@ async function getArcBotEditRoots() {
   };
 }
 
-async function validateArcBotJsonTarget(targetPath) {
+async function validateArcBotJsonTarget(targetPath, options = {}) {
   const cleanPath = String(targetPath || "").trim();
-  if (!cleanPath) return { ok: false, error: "ArcBot has no active JSON file to edit." };
-  if (path.extname(cleanPath).toLowerCase() !== ".json") {
-    return { ok: false, error: "ArcBot can only edit JSON files in this MVP." };
+  if (!cleanPath) return { ok: false, error: "ArcBot has no active JSON-backed file to edit." };
+  const extension = path.extname(cleanPath).toLowerCase();
+  const isNotebook = extension === ".ipynb" || extension === ".arcnb";
+  if (![".json", ".ipynb", ".arcnb"].includes(extension)) {
+    return { ok: false, error: "ArcBot can only edit JSON, IPYNB, and ARC notebook files in this MVP." };
   }
   const roots = await getArcBotEditRoots();
   const allowed = [roots.configuredRoot, roots.resolvedRoot].filter(Boolean);
@@ -694,6 +1080,16 @@ async function validateArcBotJsonTarget(targetPath) {
     };
   }
   if (!allowed.some((root) => isPathWithinRoot(cleanPath, root))) {
+    if (isNotebook && options.allowActiveNotebook === true) {
+      return {
+        ok: true,
+        targetPath: cleanPath,
+        roots: {
+          configuredRoot: "active-page-context",
+          resolvedRoot: "",
+        },
+      };
+    }
     return {
       ok: false,
       error: "ArcBot refused to edit a file outside the configured Server Connection root.",
@@ -740,12 +1136,12 @@ function createArcBotEditSession({ targetPath, activeJson }) {
 }
 
 async function applyArcBotJsonEdit({ targetPath, replacementJson, requestText, reply, originalJson }) {
-  const validation = await validateArcBotJsonTarget(targetPath);
+  const hasOriginalFallback = originalJson != null && typeof originalJson === "object" && !Array.isArray(originalJson);
+  const validation = await validateArcBotJsonTarget(targetPath, { allowActiveNotebook: hasOriginalFallback });
   if (!validation.ok) return validation;
   if (replacementJson == null || typeof replacementJson !== "object" || Array.isArray(replacementJson)) {
     return { ok: false, error: "ArcBot did not provide a valid JSON object replacement." };
   }
-  const hasOriginalFallback = originalJson != null && typeof originalJson === "object" && !Array.isArray(originalJson);
   let targetExists = false;
   try {
     const stat = fs.statSync(validation.targetPath);
@@ -754,7 +1150,7 @@ async function applyArcBotJsonEdit({ targetPath, replacementJson, requestText, r
     targetExists = false;
   }
   if (!targetExists && !hasOriginalFallback) {
-    return { ok: false, error: `Target JSON file was not found: ${validation.targetPath}` };
+    return { ok: false, error: `Target JSON-backed file was not found: ${validation.targetPath}` };
   }
   let beforeText = "";
   let backupSource = "file";
@@ -809,7 +1205,7 @@ async function applyArcBotJsonEdit({ targetPath, replacementJson, requestText, r
     targetPath: validation.targetPath,
     backupPath,
     manifestPath,
-    reply: manifest.reply || "Updated the active JSON file.",
+    reply: manifest.reply || "Updated the active JSON-backed file.",
   };
 }
 
@@ -824,7 +1220,7 @@ async function revertLatestArcBotEdit() {
   } catch {
     return { ok: false, error: "ArcBot latest edit manifest is invalid." };
   }
-  const validation = await validateArcBotJsonTarget(manifest?.targetPath);
+  const validation = await validateArcBotJsonTarget(manifest?.targetPath, { allowActiveNotebook: true });
   if (!validation.ok) return validation;
   const backupPath = String(manifest?.backupPath || "").trim();
   if (!backupPath || !fs.existsSync(backupPath)) {
@@ -898,9 +1294,18 @@ function buildAssistantPrompt(
   networkRoot = false,
   activeContext = null,
   activeJson = null,
-  editSession = null
+  editSession = null,
+  attachments = []
 ) {
   const safeMessages = Array.isArray(messages) ? messages.slice(-12) : [];
+  const safeAttachments = Array.isArray(attachments)
+    ? attachments.slice(0, 5).map((item) => ({
+        name: String(item?.name || path.basename(String(item?.path || "")) || "attachment"),
+        path: String(item?.path || ""),
+        size: Number.isFinite(item?.size) ? Math.max(0, Math.round(item.size)) : 0,
+        text: String(item?.text || "").slice(0, 60000),
+      })).filter((item) => item.text.trim())
+    : [];
   const transcript = safeMessages
     .map((message) => {
       const role = String(message?.role || "").toLowerCase() === "assistant" ? "Assistant" : "User";
@@ -913,21 +1318,30 @@ function buildAssistantPrompt(
     ? { ...activeContext }
     : { available: false };
   delete contextForPrompt.activeJson;
+  const attachmentText = safeAttachments.length
+    ? safeAttachments.map((item, index) => [
+        `Attachment ${index + 1}: ${item.name}`,
+        item.path ? `Path: ${item.path}` : "",
+        item.size ? `Size: ${item.size} bytes` : "",
+        "Content:",
+        item.text,
+      ].filter(Boolean).join("\n")).join("\n\n---\n\n")
+    : "No additional files were attached.";
   const modeInstructions = mode === "edit"
     ? [
         editSession?.jsonPath
-          ? `Editable active JSON copy: ${path.basename(editSession.jsonPath)}.`
-          : "No editable active JSON copy is available for this request.",
+          ? `Editable active JSON-backed copy: ${path.basename(editSession.jsonPath)}.`
+          : "No editable active JSON-backed copy is available for this request.",
         "ArcBot edits are host-applied only. Do not edit the true project/server file path directly.",
-        "You may edit only the active JSON copy in the current working folder. Do not edit other files, install packages, commit code, or push code.",
-        "If the user asks to modify the active DFM method, inspect and edit the active JSON copy directly.",
+        "You may edit only the active JSON-backed copy in the current working folder. Do not edit other files, install packages, commit code, or push code.",
+        "If the user asks to modify the active DFM method or scripting notebook, inspect and edit the active JSON-backed copy directly.",
         "DFM active JSON copies use the canonical GUI-tab grouped DFM method JSON format. Keep that grouped structure in the temp file.",
         "Preserve unrelated fields and JSON structure. Keep the file valid JSON.",
         "When finished, return a single JSON object only, with no Markdown.",
         "Allowed response shape:",
         '{"action":"edited","reply":"short summary"}',
         '{"action":"answer","reply":"short answer"}',
-        "Use answer if the request is informational, ambiguous, outside the active JSON, or cannot be completed safely.",
+        "Use answer if the request is informational, ambiguous, outside the active JSON-backed file, or cannot be completed safely.",
       ]
     : [
         "Review Mode is read-only. Do not edit files, change settings, install packages, run destructive commands, commit code, or push code.",
@@ -946,10 +1360,13 @@ function buildAssistantPrompt(
     "Active page context:",
     JSON.stringify(contextForPrompt, null, 2),
     "",
-    "Active local JSON data:",
+    "Active local JSON-backed data:",
     editSession?.jsonPath
-      ? `The active JSON is available as ${path.basename(editSession.jsonPath)} in the current working folder. Read and edit that file instead of returning replacement JSON.`
-      : (activeJson ? JSON.stringify(activeJson, null, 2) : "No active JSON data was loaded."),
+      ? `The active JSON-backed file is available as ${path.basename(editSession.jsonPath)} in the current working folder. Read and edit that file instead of returning replacement JSON.`
+      : (activeJson ? JSON.stringify(activeJson, null, 2) : "No active JSON-backed data was loaded."),
+    "",
+    "Attached file context:",
+    attachmentText,
     "",
     "Conversation:",
     transcript || "User: Hello",
@@ -969,11 +1386,14 @@ function clampCodexPrompt(prompt) {
   ].join("\n");
 }
 
-function estimateArcBotContextUsage(prompt, messages, activeContext, activeJson, clampedPrompt) {
+function estimateArcBotContextUsage(prompt, messages, activeContext, activeJson, clampedPrompt, attachments = []) {
   const promptText = String(prompt || "");
   const clampedText = String(clampedPrompt || promptText);
   const activeJsonText = activeJson ? JSON.stringify(activeJson) : "";
   const contextText = activeContext ? JSON.stringify(activeContext) : "";
+  const attachmentText = Array.isArray(attachments)
+    ? attachments.map((item) => String(item?.text || "")).join("\n")
+    : "";
   const chatText = Array.isArray(messages)
     ? messages.map((message) => String(message?.content || "")).join("\n")
     : "";
@@ -986,6 +1406,8 @@ function estimateArcBotContextUsage(prompt, messages, activeContext, activeJson,
     chatChars: chatText.length,
     activeContextChars: contextText.length,
     activeJsonChars: activeJsonText.length,
+    attachmentChars: attachmentText.length,
+    attachmentCount: Array.isArray(attachments) ? attachments.length : 0,
   };
 }
 
@@ -1596,13 +2018,55 @@ ipcMain.handle("save-text-file", async (_event, payload) => {
   }
 });
 
+ipcMain.handle("read-text-file", async (_event, payload) => {
+  const filePath = String(payload?.path || "");
+  const maxBytes = Math.max(1024, Math.min(500000, Number(payload?.maxBytes || 200000) || 200000));
+  if (!filePath) return { ok: false, error: "Empty path." };
+  try {
+    if (!fs.existsSync(filePath)) return { ok: false, error: `File not found: ${filePath}` };
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return { ok: false, error: "Path is not a file." };
+    if (stat.size > maxBytes) {
+      return { ok: false, error: `File is too large for ArcBot context (${stat.size.toLocaleString()} bytes).` };
+    }
+    const raw = fs.readFileSync(filePath);
+    if (raw.includes(0)) return { ok: false, error: "Binary files cannot be attached as ArcBot text context." };
+    return {
+      ok: true,
+      path: filePath,
+      name: path.basename(filePath),
+      size: stat.size,
+      text: raw.toString("utf8"),
+    };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err || "Could not read file.") };
+  }
+});
+
 ipcMain.handle("read-json-file", async (_event, payload) => {
   const filePath = String(payload?.path || "");
   if (!filePath) return { exists: false };
   try {
     if (!fs.existsSync(filePath)) return { exists: false };
     const raw = fs.readFileSync(filePath, "utf8");
-    return { exists: true, data: JSON.parse(raw) };
+    const stat = fs.statSync(filePath);
+    const hash = crypto.createHash("sha256").update(raw).digest("hex");
+    return { exists: true, data: JSON.parse(raw), revision: { path: filePath, size: stat.size, mtimeMs: stat.mtimeMs, hash } };
+  } catch (err) {
+    return { exists: false, error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("get-file-revision", async (_event, payload) => {
+  const filePath = String(payload?.path || "");
+  if (!filePath) return { exists: false };
+  try {
+    if (!fs.existsSync(filePath)) return { exists: false };
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return { exists: false, error: "Path is not a file." };
+    const raw = fs.readFileSync(filePath);
+    const hash = crypto.createHash("sha256").update(raw).digest("hex");
+    return { exists: true, revision: { path: filePath, size: stat.size, mtimeMs: stat.mtimeMs, hash } };
   } catch (err) {
     return { exists: false, error: String(err?.message || err) };
   }
@@ -1693,6 +2157,11 @@ ipcMain.handle("codex-assistant-status", async () => {
   const auth = await runCodexCommand(["login", "status"], {
     timeoutMs: 8000,
   });
+  if (auth.ok && CODEX_APP_SERVER_ENABLED) {
+    ensureCodexAppServerStarted().catch(() => {
+      // The send path falls back to one-shot codex exec if the warm server is unavailable.
+    });
+  }
   return {
     installed: true,
     authenticated: auth.ok,
@@ -1851,6 +2320,15 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
       ? { ok: true, text: reverted.reply || "Reverted the latest ArcBot edit." }
       : { ok: false, needsAuth: false, error: reverted.error || "ArcBot revert failed." };
   }
+  const requestState = requestId ? { canceled: false, cancelProcess: null } : null;
+  if (requestId) activeCodexAssistantRequests.set(requestId, requestState);
+  const canceledResponse = (usage = null) => ({
+    ok: false,
+    needsAuth: false,
+    canceled: true,
+    error: "Request canceled.",
+    ...(usage ? { usage } : {}),
+  });
   sendArcBotActivity(event, requestId, "activity", "Resolving ArcBot project and working folders...");
   const roots = await getCodexAssistantProjectRoots({ ensureLocalRoot: true });
   const activeContext = payload?.activeContext && typeof payload.activeContext === "object"
@@ -1864,6 +2342,14 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
     },
   });
   const targetPath = getAssistantTargetJsonPath(activeContext);
+  const attachments = Array.isArray(payload?.attachments)
+    ? payload.attachments.slice(0, 5).map((item) => ({
+        name: String(item?.name || path.basename(String(item?.path || "")) || "attachment"),
+        path: String(item?.path || ""),
+        size: Number.isFinite(item?.size) ? Math.max(0, Math.round(item.size)) : 0,
+        text: String(item?.text || "").slice(0, 60000),
+      })).filter((item) => item.text.trim())
+    : [];
   let activeJson = null;
   const activeJsonFallback = activeContext?.activeJson != null &&
     typeof activeContext.activeJson === "object" &&
@@ -1871,8 +2357,8 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
     ? activeContext.activeJson
     : null;
   if (targetPath) {
-    sendArcBotActivity(event, requestId, "activity", "Checking active JSON access...");
-    const validation = await validateArcBotJsonTarget(targetPath);
+    sendArcBotActivity(event, requestId, "activity", "Checking active JSON-backed file access...");
+    const validation = await validateArcBotJsonTarget(targetPath, { allowActiveNotebook: !!activeJsonFallback });
     if (validation.ok) {
       if (activeJsonFallback) {
         activeJson = activeJsonFallback;
@@ -1881,7 +2367,7 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
           activeJson = JSON.parse(fs.readFileSync(validation.targetPath, "utf8"));
         } catch (err) {
           activeJson = {
-            error: "Active JSON file exists but could not be parsed or read.",
+            error: "Active JSON-backed file exists but could not be parsed or read.",
             detail: String(err?.message || err || ""),
           };
         }
@@ -1895,9 +2381,9 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
   let editSession = null;
   const activeJsonIsError = activeJson && typeof activeJson.error === "string";
   if (mode === "edit" && targetPath && activeJson && !activeJsonIsError) {
-    const validation = await validateArcBotJsonTarget(targetPath);
+    const validation = await validateArcBotJsonTarget(targetPath, { allowActiveNotebook: !!activeJsonFallback });
     if (validation.ok) {
-      sendArcBotActivity(event, requestId, "activity", "Creating editable local JSON copy...");
+      sendArcBotActivity(event, requestId, "activity", "Creating editable local JSON-backed copy...");
       editSession = createArcBotEditSession({ targetPath: validation.targetPath, activeJson });
     }
   }
@@ -1911,34 +2397,65 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
     roots.networkRoot,
     activeContext,
     activeJson,
-    editSession
+    editSession,
+    attachments
   );
   const prompt = clampCodexPrompt(rawPrompt);
-  const usage = estimateArcBotContextUsage(rawPrompt, payload?.messages, activeContext, activeJson, prompt);
+  const usage = estimateArcBotContextUsage(rawPrompt, payload?.messages, activeContext, activeJson, prompt, attachments);
+  if (requestState?.canceled) {
+    activeCodexAssistantRequests.delete(requestId);
+    return canceledResponse(usage);
+  }
   sendArcBotActivity(event, requestId, "usage", `Context estimate: ~${usage.estimatedTokens.toLocaleString()} tokens from ${usage.promptChars.toLocaleString()} chars.`, { usage });
-  sendArcBotActivity(event, requestId, "activity", `Starting Codex CLI in ${mode === "edit" ? "Edit Mode" : "Review Mode"}...`);
-  const result = await runCodexCommand([
-    "exec",
-    "--ephemeral",
-    "--color",
-    "never",
-    "--sandbox",
-    codexSandbox,
-    "--skip-git-repo-check",
-    "--cd",
-    codexCwd,
-  ], {
-    input: prompt,
-    timeoutMs: CODEX_ASSISTANT_TIMEOUT_MS,
-    onStdout: (chunk) => sendArcBotActivity(event, requestId, "stdout", chunk),
-    onStderr: (chunk) => sendArcBotActivity(event, requestId, "stderr", chunk),
-  });
+  sendArcBotActivity(event, requestId, "activity", `Starting warm Codex session in ${mode === "edit" ? "Edit Mode" : "Review Mode"}...`);
+  let result = null;
+  try {
+    result = await runCodexWarmTurn({
+      event,
+      requestId,
+      requestState,
+      payload,
+      mode,
+      codexCwd,
+      codexSandbox,
+      prompt,
+    });
+  } catch (err) {
+    if (requestState?.canceled) {
+      result = { ok: false, canceled: true, stdout: "", stderr: "", error: "Request canceled." };
+    } else {
+      const warmError = String(err?.message || err || "Codex warm session failed.");
+      sendArcBotActivity(event, requestId, "stderr", `${warmError}\n`);
+      sendArcBotActivity(event, requestId, "activity", "Warm Codex session unavailable; using one-shot Codex CLI.");
+      result = await runCodexCommand([
+        "exec",
+        "--ephemeral",
+        "--color",
+        "never",
+        "--sandbox",
+        codexSandbox,
+        "--skip-git-repo-check",
+        "--cd",
+        codexCwd,
+      ], {
+        input: prompt,
+        timeoutMs: CODEX_ASSISTANT_TIMEOUT_MS,
+        cancelKey: requestId,
+        onStdout: (chunk) => sendArcBotActivity(event, requestId, "stdout", chunk),
+        onStderr: (chunk) => sendArcBotActivity(event, requestId, "stderr", chunk),
+      });
+    }
+  }
+  if (requestId && activeCodexAssistantRequests.get(requestId) === requestState) {
+    activeCodexAssistantRequests.delete(requestId);
+  }
 
   if (!result.ok) {
     sendArcBotActivity(event, requestId, "error", normalizeHostError(result, "Codex CLI request failed."));
     return {
       ok: false,
       needsAuth: isAuthFailure(result),
+      canceled: !!result.canceled,
       error: normalizeHostError(result, "Codex CLI request failed."),
       usage,
     };
@@ -1959,14 +2476,14 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
           editedJson = JSON.parse(extractedJsonText);
           editedText = formatJsonForArcBot(editedJson);
           fs.writeFileSync(editSession.jsonPath, editedText, "utf8");
-          sendArcBotActivity(event, requestId, "activity", "Cleaned explanatory text from the edited JSON copy.");
+          sendArcBotActivity(event, requestId, "activity", "Cleaned explanatory text from the edited JSON-backed copy.");
         }
       } catch (err) {
         const message = String(err?.message || err || "Edited JSON copy could not be read.");
         return { ok: false, needsAuth: false, error: `ArcBot could not apply the temp JSON copy. ${message}` };
       }
       if (sha256Text(editedText) !== editSession.beforeSha256) {
-        sendArcBotActivity(event, requestId, "activity", "Validating and applying edited JSON copy...");
+        sendArcBotActivity(event, requestId, "activity", "Validating and applying edited JSON-backed copy...");
         const structured = extractJsonObject(rawText);
         const applied = await applyArcBotJsonEdit({
           targetPath: editSession.targetPath,
@@ -1978,13 +2495,13 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
         return applied.ok
           ? {
               ok: true,
-              text: applied.reply || "Updated the active JSON file.",
+              text: applied.reply || "Updated the active JSON-backed file.",
               editApplied: true,
               targetPath: applied.targetPath,
               backupPath: applied.backupPath,
               usage,
             }
-          : { ok: false, needsAuth: false, error: applied.error || "ArcBot JSON edit failed.", usage };
+          : { ok: false, needsAuth: false, error: applied.error || "ArcBot JSON-backed edit failed.", usage };
       }
     }
     const structured = extractJsonObject(rawText);
@@ -2002,6 +2519,20 @@ ipcMain.handle("codex-assistant-send", async (event, payload) => {
     progress: String(result.stderr || "").trim(),
     usage,
   };
+});
+
+ipcMain.handle("codex-assistant-cancel", async (_event, payload) => {
+  const requestId = String(payload?.requestId || "");
+  if (!requestId) return { ok: false, error: "Missing ArcBot request id." };
+  const active = activeCodexAssistantRequests.get(requestId);
+  if (typeof active === "function") {
+    const canceled = active();
+    return canceled ? { ok: true } : { ok: false, error: "ArcBot request already completed." };
+  }
+  if (!active || typeof active !== "object") return { ok: false, error: "No active ArcBot request to cancel." };
+  active.canceled = true;
+  const canceled = typeof active.cancelProcess === "function" ? active.cancelProcess() : true;
+  return canceled ? { ok: true } : { ok: false, error: "ArcBot request already completed." };
 });
 
 ipcMain.handle("focus-window", () => {
@@ -2125,5 +2656,6 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", async () => {
   allowClose = true;
+  codexAppServerClient?.stop();
   await requestBackendShutdown();
 });

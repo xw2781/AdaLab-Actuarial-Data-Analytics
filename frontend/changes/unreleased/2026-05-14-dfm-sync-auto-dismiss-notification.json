@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Show successful DFM sync results as temporary notifications.",
+  "details": [
+    "Successful DFM sync final messages now become non-blocking notifications and disappear after 2 seconds instead of requiring Close."
+  ]
+}

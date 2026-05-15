@@ -1,14 +1,16 @@
 import {
   getDfmIsDirty,
   getEffectiveDevLabelsForModel,
+  markDfmDirty,
   getRatioHeaderLabels,
   state,
 } from "/ui/dfm/dfm_state.js";
-import { applyDfmMethodPayload, saveRatioSelectionPattern } from "/ui/dfm/dfm_persistence.js?v=20260513e";
+import { applyDfmMethodPayload, saveRatioSelectionPattern } from "/ui/dfm/dfm_persistence.js?v=20260514c";
 import {
+  confirmDfmRpcBridgeAction,
   createDfmRpcBridgeDialog,
   createDfmRpcBridgeMessageBox,
-} from "/ui/dfm/dfm_rpc_bridge_dialog.js?v=20260513b";
+} from "/ui/dfm/dfm_rpc_bridge_dialog.js?v=20260514c";
 
 let syncInFlight = false;
 
@@ -125,8 +127,9 @@ async function refreshComparison(dialog, payload) {
 async function runPrimaryAction(dialog, payload, action) {
   let actionPayload = payload;
   if (action === "update-remote") {
-    const confirmed = window.confirm(
+    const confirmed = await confirmDfmRpcBridgeAction(
       "This action will write the selected DFM settings to the RPC server. Continue?",
+      { title: "Confirm Remote Update" },
     );
     if (!confirmed) return;
     actionPayload = { ...payload, rpc_server_write_confirmed: true };
@@ -145,6 +148,16 @@ async function runPrimaryAction(dialog, payload, action) {
         statusDialog.setMessage("Updated, but could not reload this tab.", "error");
         postStatus("DFM sync: local JSON updated, but tab apply failed.", "warn");
         return;
+      }
+      if (applied.datasetInputsChanged) {
+        statusDialog.setWaiting("Saving recalculated local DFM JSON...");
+        const saved = await saveRatioSelectionPattern(false);
+        if (!saved?.ok) {
+          markDfmDirty();
+          statusDialog.setMessage("Local updated in app, but final JSON save failed. Save the DFM before closing.", "warn");
+          postStatus("DFM sync: local app data updated, but final JSON save failed.", "warn");
+          return;
+        }
       }
       const resultMessage = formatApplyResultMessage(data);
       statusDialog.setMessage(resultMessage.text, resultMessage.tone);

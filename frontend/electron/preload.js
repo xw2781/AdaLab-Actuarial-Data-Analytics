@@ -36,7 +36,9 @@ contextBridge.exposeInMainWorld("ADAHost", {
   getDocumentsPath: () => invoke("get-documents-path"),
   saveJsonFile: (payload) => invoke("save-json-file", payload),
   saveTextFile: (payload) => invoke("save-text-file", payload),
+  readTextFile: (payload) => invoke("read-text-file", payload),
   readJsonFile: (payload) => invoke("read-json-file", payload),
+  getFileRevision: (payload) => invoke("get-file-revision", payload),
   loadScriptingShortcuts: () => invoke("scripting-shortcuts-load"),
   saveScriptingShortcuts: (bindings) => invoke("scripting-shortcuts-save", { bindings }),
   pickOpenFile: (payload) => invoke("pick-open-file", payload),
@@ -52,6 +54,7 @@ contextBridge.exposeInMainWorld("ADAHost", {
     invoke("codex-assistant-session-archive", { sessionId, archived }),
   codexAssistantDeleteSession: (sessionId) => invoke("codex-assistant-session-delete", { sessionId }),
   codexAssistantSend: (payload) => invoke("codex-assistant-send", payload),
+  codexAssistantCancel: (requestId) => invoke("codex-assistant-cancel", { requestId }),
   onCodexAssistantEvent: (callback) => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, payload) => callback(payload);

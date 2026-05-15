@@ -281,7 +281,6 @@ wireCellTypeDropdown();
 
 runAllBtn.addEventListener("click", () => runAllCells());
 stopBtn.addEventListener("click", () => interruptExecution());
-openNbBtn.addEventListener("click", () => openOpenNbDialog());
 restartBtn.addEventListener("click", () => restartSession());
 clearOutputBtn.addEventListener("click", () => clearAllOutputs());
 shortcutsBtn.addEventListener("click", () => openShortcutsDialog());
@@ -371,6 +370,10 @@ window.addEventListener("message", (event) => {
     void requestNotebookSave(true);
     return;
   }
+  if (type === "arcrho:scripting-open") {
+    void openOpenNbDialog();
+    return;
+  }
   if (type === "arcrho:scripting-toggle-line-numbers") {
     toggleCodeCellLineNumbers();
     return;
@@ -381,6 +384,28 @@ window.addEventListener("message", (event) => {
   }
   if (type === "arcrho:scripting-render-all-markdown") {
     renderAllMarkdownCells({ setStatusMessage: true });
+    return;
+  }
+  if (type === "arcrho:autosave-toggle") {
+    setNotebookAutoSaveEnabled(!!event.data.enabled);
+    return;
+  }
+  if (type === "arcrho:assistant-context-request") {
+    const requestId = event.data.requestId || "";
+    try {
+      window.parent?.postMessage({
+        type: "arcrho:assistant-context-result",
+        requestId,
+        context: buildScriptingAssistantContext(),
+      }, "*");
+    } catch {}
+    return;
+  }
+  if (type === "arcrho:assistant-json-updated") {
+    const updatedPath = String(event.data.path || "").trim();
+    if (!updatedPath || updatedPath === currentNotebookPath) {
+      void checkNotebookDiskForChanges({ force: true });
+    }
   }
 });
 
@@ -390,6 +415,15 @@ document.getElementById("saveNbCancel").addEventListener("click", closeSaveNbDia
 document.getElementById("saveNbConfirm").addEventListener("click", confirmSaveNb);
 document.getElementById("openNbClose").addEventListener("click", closeOpenNbDialog);
 document.getElementById("openNbCancel").addEventListener("click", closeOpenNbDialog);
+reloadDiskNotebookBtn?.addEventListener("click", () => {
+  void reloadCurrentNotebookFromDisk();
+});
+saveNotebookCopyBtn?.addEventListener("click", () => {
+  openSaveNbDialog(getNotebookCopyFilename(currentNotebookPath || currentNotebookFilename));
+});
+overwriteDiskNotebookBtn?.addEventListener("click", () => {
+  void saveCurrentNotebookFile({ closeDialog: false, ignoreRevisionConflict: true });
+});
 document.getElementById("saveNbOverlay").addEventListener("mousedown", (e) => {
   if (e.target === document.getElementById("saveNbOverlay")) closeSaveNbDialog();
 });

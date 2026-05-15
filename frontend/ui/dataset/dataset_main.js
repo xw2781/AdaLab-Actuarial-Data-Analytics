@@ -2190,6 +2190,7 @@ datasetRunController = createDatasetRunController({
   setStatus,
   applyGridSelectionFromState,
   stepId,
+  suppressLoadingPopup: !!window.ADA_DFM_CONTEXT,
 });
 
 async function openReservingClassTreeForDataset(targetInput) {

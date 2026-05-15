@@ -3,6 +3,7 @@ import { $, getHostApi, shell } from "./shell_context.js?v=20260510a";
 let assistantMessages = [];
 let assistantActivities = [];
 let assistantDebugLogs = [];
+let assistantAttachments = [];
 let currentSessionId = "";
 let currentSessionTitle = "New ArcBot Chat";
 let currentContext = null;
@@ -18,20 +19,53 @@ const ASSISTANT_MODEL = "codex";
 const ASSISTANT_LAUNCHER_VISIBLE_KEY = "arcrho_ai_assistant_launcher_visible";
 const ASSISTANT_LAUNCHER_POSITION_KEY = "arcrho_ai_assistant_launcher_position";
 const ASSISTANT_PANEL_SIZE_KEY = "arcrho_ai_assistant_panel_size";
+const ASSISTANT_PANEL_OPENED_SESSION_KEY = "arcrho_ai_assistant_panel_opened_session";
+const ASSISTANT_PANEL_MIN_WIDTH = 465;
+const ASSISTANT_PANEL_DEFAULT_HEIGHT = 640;
+const ASSISTANT_ATTACHMENT_EXTENSIONS = [
+  "txt", "md", "csv", "tsv", "json", "jsonl", "ipynb", "arcnb", "py", "r", "sql",
+  "js", "ts", "html", "css", "xml", "yaml", "yml", "toml", "ini", "log",
+];
 let assistantReady = false;
 let assistantBusy = false;
+let assistantCancelRequested = false;
+let assistantHostRequestSubmitted = false;
+let assistantAppContextEnabled = true;
 let assistantStatusChecked = false;
 let suppressLauncherClick = false;
+let assistantUserAvatarName = "ArcRho";
+
+function getAssistantBrandInitial(name) {
+  const text = String(name || "").trim();
+  const firstAscii = Array.from(text).find((char) => /^[A-Za-z0-9]$/.test(char));
+  return firstAscii ? firstAscii.toUpperCase() : "#";
+}
+
+function createAssistantUserAvatarSvg(initial) {
+  const safeInitial = getAssistantBrandInitial(initial);
+  return `
+    <svg viewBox="0 0 32 32" role="img" aria-label="${safeInitial} initial avatar" focusable="false">
+      <text x="16" y="21" text-anchor="middle" fill="#526071" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">${safeInitial}</text>
+    </svg>
+  `;
+}
 
 function setText(el, text) {
   if (el) el.textContent = text || "";
 }
 
-function setStatus(text, tone = "") {
-  const el = $("aiAssistantStatus");
+function setAssistantConnectionStatus(online, detail = "") {
+  const el = $("aiAssistantConnectionStatus");
   if (!el) return;
-  el.classList.toggle("error", tone === "error");
-  setText(el, text);
+  el.classList.toggle("online", !!online);
+  el.classList.toggle("offline", !online);
+  el.textContent = online ? "Online" : "Offline";
+  el.setAttribute("aria-label", online ? "ArcBot online" : "ArcBot offline");
+  el.title = detail || (online ? "ArcBot is online" : "ArcBot is offline");
+}
+
+function setStatus(text, _tone = "") {
+  setAssistantConnectionStatus(assistantReady, text);
 }
 
 function setSetup({ open = false, text = "", install = false, login = false } = {}) {
@@ -178,6 +212,13 @@ function renderActivities() {
     currentWorkCardEl = document.createElement("details");
     currentWorkCardEl.className = "aiAssistantWorkCard";
     currentWorkCardEl.open = !!currentRunStartedAt;
+  }
+  const pendingRow = currentPendingMessageEl?.closest?.(".aiAssistantMessageRow") || null;
+  const assistantRows = [...container.querySelectorAll(".aiAssistantMessageRow.assistant")];
+  const anchor = pendingRow || assistantRows.at(-1) || null;
+  if (anchor && anchor !== currentWorkCardEl.nextSibling) {
+    container.insertBefore(currentWorkCardEl, anchor);
+  } else if (!currentWorkCardEl.parentNode) {
     container.appendChild(currentWorkCardEl);
   }
 
@@ -230,7 +271,7 @@ function updateContextPanel() {
     ["Session", currentSessionTitle || currentSessionId || "New ArcBot Chat"],
     ["Tab", context.title || context.tabType || "No active tab context"],
     ["Type", context.tabType || "home"],
-    ["JSON", context.targetPath || context.path || "No active JSON"],
+    ["File", context.targetPath || context.path || "No active JSON-backed file"],
     ["Context", usage.promptChars ? `${Number(usage.promptChars).toLocaleString()} chars, ~${Number(usage.estimatedTokens || 0).toLocaleString()} tokens` : "Not measured yet"],
     ["Included", usage.includedMessages != null ? `${usage.includedMessages} messages${usage.truncated ? ", truncated" : ""}` : "Not measured yet"],
   ];
@@ -250,38 +291,216 @@ function updateContextPanel() {
   panel.appendChild(grid);
 }
 
-function updateSessionSelectLabel() {
-  const select = $("aiAssistantSessionSelect");
-  if (!select || !currentSessionId) return;
-  let option = [...select.options].find((item) => item.value === currentSessionId);
-  if (!option) {
-    option = document.createElement("option");
-    option.value = currentSessionId;
-    select.prepend(option);
+function renderAssistantAttachments() {
+  const list = $("aiAssistantAttachmentList");
+  if (!list) return;
+  list.textContent = "";
+  list.classList.toggle("open", assistantAttachments.length > 0);
+  assistantAttachments.forEach((attachment, index) => {
+    const chip = document.createElement("div");
+    chip.className = "aiAssistantAttachmentChip";
+    chip.title = attachment.path || attachment.name || "Attached file";
+    const icon = document.createElement("span");
+    const kind = getAttachmentIconKind(attachment.name || attachment.path || "");
+    icon.className = `aiAssistantAttachmentIcon type-${kind}`;
+    icon.innerHTML = getAttachmentIconSvg(kind);
+    const textWrap = document.createElement("span");
+    textWrap.className = "aiAssistantAttachmentText";
+    const name = document.createElement("span");
+    name.className = "aiAssistantAttachmentName";
+    name.textContent = attachment.name || "Attached file";
+    const type = document.createElement("span");
+    type.className = "aiAssistantAttachmentType";
+    type.textContent = getAttachmentTypeLabel(attachment.name || attachment.path || "");
+    textWrap.append(name, type);
+    const remove = document.createElement("button");
+    remove.className = "aiAssistantAttachmentRemove";
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${attachment.name || "attachment"}`);
+    remove.textContent = "x";
+    remove.addEventListener("click", () => {
+      assistantAttachments.splice(index, 1);
+      renderAssistantAttachments();
+    });
+    chip.append(icon, textWrap, remove);
+    list.appendChild(chip);
+  });
+}
+
+function getAttachmentExtension(fileName) {
+  const base = String(fileName || "").split(/[\\/]/).pop() || "";
+  const index = base.lastIndexOf(".");
+  return index >= 0 ? base.slice(index + 1).toLowerCase() : "";
+}
+
+function getAttachmentIconKind(fileName) {
+  const ext = getAttachmentExtension(fileName);
+  if (["csv", "tsv", "xlsx", "xls", "xlsm", "json", "jsonl", "parquet"].includes(ext)) return "data";
+  if (["py", "r", "sql", "js", "ts", "html", "css", "xml", "yaml", "yml", "toml", "ini"].includes(ext)) return "code";
+  if (["md", "txt", "log", "ipynb", "arcnb"].includes(ext)) return "note";
+  return "file";
+}
+
+function getAttachmentTypeLabel(fileName) {
+  const ext = getAttachmentExtension(fileName);
+  if (!ext) return "File";
+  if (["md", "markdown"].includes(ext)) return "MD";
+  return ext.toUpperCase();
+}
+
+function getAttachmentIconSvg(kind) {
+  if (kind === "data") {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect><path d="M5 10h14"></path><path d="M10 5v14"></path><path d="M14 5v14"></path></svg>';
   }
-  option.textContent = currentSessionTitle || "ArcBot Chat";
-  select.value = currentSessionId;
+  if (kind === "code") {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l-6-6 6-6"></path><path d="M15 6l6 6-6 6"></path></svg>';
+  }
+  if (kind === "note") {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h8l4 4v12H7z"></path><path d="M15 4v5h4"></path><path d="M10 13h6"></path><path d="M10 17h4"></path></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>';
+}
+
+function closeAttachMenu() {
+  $("aiAssistantAttachMenu")?.classList.remove("open");
+  $("aiAssistantAttachBtn")?.setAttribute("aria-expanded", "false");
+}
+
+function toggleAttachMenu() {
+  const menu = $("aiAssistantAttachMenu");
+  const button = $("aiAssistantAttachBtn");
+  const open = !menu?.classList.contains("open");
+  menu?.classList.toggle("open", open);
+  button?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+async function attachAssistantContextFile() {
+  closeAttachMenu();
+  const host = getHostApi();
+  if (!host?.pickOpenFile || !host?.readTextFile) {
+    setStatus("File attachments are available in the desktop app only.", "error");
+    return;
+  }
+  if (assistantAttachments.length >= 5) {
+    setStatus("ArcBot can attach up to 5 files per request.", "error");
+    return;
+  }
+  try {
+    const filePath = await host.pickOpenFile({
+      filters: [
+        { name: "Context Files", extensions: ASSISTANT_ATTACHMENT_EXTENSIONS },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+    if (!filePath) return;
+    if (assistantAttachments.some((item) => item.path === filePath)) {
+      setStatus("That file is already attached.");
+      return;
+    }
+    const result = await host.readTextFile({ path: filePath, maxBytes: 200000 });
+    if (!result?.ok) {
+      setStatus(result?.error || "Could not attach that file.", "error");
+      return;
+    }
+    assistantAttachments.push({
+      name: result.name || filePath.split(/[\\/]/).pop() || "attachment",
+      path: result.path || filePath,
+      size: Number(result.size || 0),
+      text: String(result.text || ""),
+    });
+    renderAssistantAttachments();
+    setStatus(`Attached ${result.name || "file"} as ArcBot context.`);
+  } catch (err) {
+    setStatus(String(err?.message || err || "Could not attach file."), "error");
+  }
+}
+
+function getActiveTabPreviewContext() {
+  const activeTab = shell.state?.tabs?.find?.((tab) => tab.id === shell.state.activeId) || null;
+  return {
+    available: !!activeTab && activeTab.type !== "home",
+    tabId: activeTab?.id || "",
+    tabType: activeTab?.type || "home",
+    title: activeTab?.title || "Home",
+    targetPath: "",
+    fileState: "",
+  };
+}
+
+function formatAppContextTooltip(context) {
+  if (!assistantAppContextEnabled) {
+    return [
+      "App Context Off",
+      "ArcBot will not receive active page, tab, file, or notebook contents.",
+    ].join("\n");
+  }
+  const ctx = context && typeof context === "object" ? context : getActiveTabPreviewContext();
+  const title = String(ctx.title || "Home");
+  const type = String(ctx.tabType || ctx.pageType || "home");
+  const path = String(ctx.targetPath || ctx.path || "").trim();
+  const state = String(ctx.fileState || (ctx.dirty ? "unsaved-changes" : "") || "").trim();
+  return [
+    "App Context",
+    `Tab: ${title} (${type})`,
+    path ? `File: ${path}` : "File: no active file",
+    state ? `State: ${state}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+async function refreshAppContextTooltip({ probe = false } = {}) {
+  const tooltip = $("aiAssistantAppContextTooltip");
+  const button = $("aiAssistantAppContextBtn");
+  if (!tooltip && !button) return;
+  let context = getActiveTabPreviewContext();
+  if (probe && assistantAppContextEnabled) {
+    try {
+      context = await requestActivePageContext();
+    } catch {
+      // Keep shell-level preview when iframe context is unavailable.
+    }
+  }
+  const text = formatAppContextTooltip(context);
+  if (tooltip) tooltip.textContent = text;
+  button?.removeAttribute("title");
+}
+
+function setAssistantContextPanelOpen(open) {
+  const panel = $("aiAssistantContextPanel");
+  panel?.classList.toggle("open", !!open);
+  updateContextPanel();
+}
+
+function setAssistantAppContextEnabled(enabled) {
+  assistantAppContextEnabled = !!enabled;
+  const button = $("aiAssistantAppContextBtn");
+  button?.classList.toggle("active", assistantAppContextEnabled);
+  button?.setAttribute("aria-pressed", assistantAppContextEnabled ? "true" : "false");
+  button?.setAttribute("aria-label", assistantAppContextEnabled ? "App Context on" : "App Context off");
+  if (!assistantAppContextEnabled) {
+    currentContext = {
+      available: false,
+      tabType: "off",
+      title: "App Context Off",
+      targetPath: "",
+      fileState: "disabled",
+    };
+    setAssistantContextPanelOpen(false);
+  }
+  updateContextPanel();
+  refreshAppContextTooltip({ probe: assistantAppContextEnabled });
+}
+
+function updateSessionSelectLabel() {
   updateContextPanel();
 }
 
 async function refreshSessionList(selectedId = currentSessionId) {
   const host = getHostApi();
-  const select = $("aiAssistantSessionSelect");
-  if (!host?.codexAssistantListSessions || !select) return [];
+  if (!host?.codexAssistantListSessions) return [];
   try {
     const result = await host.codexAssistantListSessions({ includeArchived: false });
     const sessions = result?.ok && Array.isArray(result.sessions) ? result.sessions : [];
     latestSessionList = sessions;
-    select.textContent = "";
-    for (const session of sessions) {
-      const option = document.createElement("option");
-      option.value = session.id;
-      option.textContent = session.title || "ArcBot Chat";
-      select.appendChild(option);
-    }
-    if (selectedId && [...select.options].some((option) => option.value === selectedId)) {
-      select.value = selectedId;
-    }
     return sessions;
   } catch {
     return [];
@@ -323,6 +542,7 @@ async function createAssistantSession() {
   assistantDebugLogs = [];
   currentContext = null;
   currentUsage = null;
+  refreshAppContextTooltip();
   renderMessages();
   renderActivities();
   renderDebugLog();
@@ -470,12 +690,21 @@ export function toggleAiAssistantLauncherVisible() {
 }
 
 function getModeLabel() {
-  return assistantMode === "review" ? "Review Mode" : "Edit Mode";
+  return assistantMode === "review" ? "Read Only" : "Edit Automatically";
+}
+
+function setModeIcon() {
+  const icon = $("aiAssistantModeIcon");
+  if (!icon) return;
+  icon.innerHTML = assistantMode === "review"
+    ? '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="3"></circle>'
+    : '<path d="M18 11V7a2 2 0 0 0-4 0v3"></path><path d="M14 10V6a2 2 0 0 0-4 0v7"></path><path d="M10 13V8a2 2 0 1 0-4 0v6"></path><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-16 0"></path>';
 }
 
 function setAssistantMode(mode, options = {}) {
   assistantMode = mode === "review" ? "review" : "edit";
   setText($("aiAssistantModeLabel"), getModeLabel());
+  setModeIcon();
   $("aiAssistantReviewModeOption")?.classList.toggle("active", assistantMode === "review");
   $("aiAssistantEditModeOption")?.classList.toggle("active", assistantMode === "edit");
   setStatus(assistantReady ? `Codex ready. ${getModeLabel()}.` : `${getModeLabel()} selected.`);
@@ -487,7 +716,14 @@ function setComposerEnabled(enabled) {
   const input = $("aiAssistantInput");
   const sendBtn = $("aiAssistantSendBtn");
   if (input) input.disabled = false;
-  if (sendBtn) sendBtn.disabled = !enabled;
+  if (sendBtn) {
+    const isCancel = !!assistantBusy && !!currentRequestId;
+    sendBtn.disabled = !isCancel && !enabled;
+    sendBtn.classList.toggle("cancel", isCancel);
+    sendBtn.classList.toggle("canceling", isCancel && assistantCancelRequested);
+    sendBtn.setAttribute("aria-label", isCancel ? "Cancel request" : "Send");
+    sendBtn.title = isCancel ? "Cancel request" : "Send";
+  }
 }
 
 function autoGrowAssistantInput() {
@@ -499,13 +735,59 @@ function autoGrowAssistantInput() {
   input.style.overflowY = input.scrollHeight > 300 ? "auto" : "hidden";
 }
 
+async function loadAssistantUserAvatarName() {
+  const host = getHostApi();
+  if (!host?.getWindowsUserName) return;
+  try {
+    const userName = String(await host.getWindowsUserName() || "").trim();
+    if (!userName) return;
+    assistantUserAvatarName = userName;
+    document.querySelectorAll(".aiAssistantAvatarUser").forEach((avatar) => {
+      avatar.innerHTML = createAssistantUserAvatarSvg(assistantUserAvatarName);
+    });
+  } catch {
+    // Keep the default initial avatar if the host name is unavailable.
+  }
+}
+
+function getMessageAvatar(role) {
+  if (role === "assistant") {
+    const avatar = document.createElement("div");
+    avatar.className = "aiAssistantAvatar aiAssistantAvatarArcBot";
+    avatar.setAttribute("aria-hidden", "true");
+    const img = document.createElement("img");
+    img.className = "arcbot-mini-img";
+    img.src = "/icons/ArcBot%20mini.png";
+    img.alt = "";
+    img.draggable = false;
+    avatar.appendChild(img);
+    return avatar;
+  }
+  const avatar = document.createElement("div");
+  avatar.className = "aiAssistantAvatar aiAssistantAvatarUser";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.innerHTML = createAssistantUserAvatarSvg(assistantUserAvatarName);
+  return avatar;
+}
+
 function appendMessage(role, text) {
   const container = $("aiAssistantMessages");
   if (!container) return null;
+  const normalizedRole = role === "assistant" ? "assistant" : role === "system" ? "system" : "user";
   const el = document.createElement("div");
-  el.className = `aiAssistantMessage ${role}`;
+  el.className = `aiAssistantMessage ${normalizedRole}`;
   el.textContent = text || "";
-  container.appendChild(el);
+  if (normalizedRole === "system") {
+    const row = document.createElement("div");
+    row.className = "aiAssistantMessageRow system";
+    row.appendChild(el);
+    container.appendChild(row);
+  } else {
+    const row = document.createElement("div");
+    row.className = `aiAssistantMessageRow ${normalizedRole}`;
+    row.append(getMessageAvatar(normalizedRole), el);
+    container.appendChild(row);
+  }
   container.scrollTop = container.scrollHeight;
   return el;
 }
@@ -519,8 +801,8 @@ function renderEmptyHint() {
   const container = $("aiAssistantMessages");
   if (!container || container.children.length) return;
   appendMessage("system", assistantMode === "edit"
-    ? "ArcBot is in Edit Mode for JSON files inside the configured Server Connection root."
-    : "ArcBot is in Review Mode and cannot edit files.");
+    ? "ArcBot can edit JSON-backed app context files automatically."
+    : "ArcBot is in Read Only mode and cannot edit files.");
 }
 
 function applyStatus(status) {
@@ -625,9 +907,12 @@ async function refreshAssistantStatus() {
 }
 
 function openAssistant() {
+  const panel = $("aiAssistantPanel");
+  applyFirstSessionOpenPanelSize(panel);
   $("aiAssistantLauncher")?.classList.add("assistant-open");
-  $("aiAssistantPanel")?.classList.add("open");
+  panel?.classList.add("open");
   renderEmptyHint();
+  refreshAppContextTooltip();
   if (!assistantStatusChecked) refreshAssistantStatus();
   setTimeout(() => $("aiAssistantInput")?.focus(), 0);
 }
@@ -919,13 +1204,27 @@ function savePanelSize(panel) {
   } catch {}
 }
 
+function hasOpenedPanelThisSession() {
+  try {
+    return sessionStorage.getItem(ASSISTANT_PANEL_OPENED_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markPanelOpenedThisSession() {
+  try {
+    sessionStorage.setItem(ASSISTANT_PANEL_OPENED_SESSION_KEY, "1");
+  } catch {}
+}
+
 function clampPanelSize(width, height) {
   const statusbarHeight = Number(shell.getStatusBarHeight?.() || 0);
-  const maxWidth = Math.max(360, window.innerWidth - 16);
+  const maxWidth = Math.max(ASSISTANT_PANEL_MIN_WIDTH, window.innerWidth - 16);
   const maxHeight = Math.max(340, window.innerHeight - statusbarHeight - 16);
   return {
-    width: Math.min(Math.max(360, Number(width) || 480), maxWidth),
-    height: Math.min(Math.max(340, Number(height) || 640), maxHeight),
+    width: Math.min(Math.max(ASSISTANT_PANEL_MIN_WIDTH, Number(width) || ASSISTANT_PANEL_MIN_WIDTH), maxWidth),
+    height: Math.min(Math.max(340, Number(height) || ASSISTANT_PANEL_DEFAULT_HEIGHT), maxHeight),
   };
 }
 
@@ -934,6 +1233,17 @@ function applyPanelSize(panel, size = readPanelSize()) {
   const next = clampPanelSize(size.width, size.height);
   panel.style.width = `${Math.round(next.width)}px`;
   panel.style.height = `${Math.round(next.height)}px`;
+}
+
+function applyFirstSessionOpenPanelSize(panel) {
+  if (!panel || hasOpenedPanelThisSession()) return;
+  const saved = readPanelSize();
+  const rect = panel.getBoundingClientRect();
+  applyPanelSize(panel, {
+    width: ASSISTANT_PANEL_MIN_WIDTH,
+    height: saved?.height || rect.height || ASSISTANT_PANEL_DEFAULT_HEIGHT,
+  });
+  markPanelOpenedThisSession();
 }
 
 function applyPanelPosition(panel, left, top) {
@@ -1080,26 +1390,53 @@ async function loginCodexCli() {
   }
 }
 
+async function cancelAssistantMessage() {
+  if (!assistantBusy || !currentRequestId || assistantCancelRequested) return;
+  const host = getHostApi();
+  assistantCancelRequested = true;
+  setComposerEnabled(false);
+  appendActivity("Cancel requested", "activity");
+  setStatus("Canceling ArcBot request...");
+  try {
+    if (!host?.codexAssistantCancel) throw new Error("ArcBot cancel is not available.");
+    const result = await host.codexAssistantCancel(currentRequestId);
+    if (!result?.ok && assistantHostRequestSubmitted) {
+      setStatus(result?.error || "Could not cancel ArcBot request.", "error");
+    }
+  } catch (err) {
+    setStatus(String(err?.message || err || "Could not cancel ArcBot request."), "error");
+  }
+}
+
 async function sendAssistantMessage() {
   if (assistantBusy) return;
   const host = getHostApi();
   const input = $("aiAssistantInput");
   const text = String(input?.value || "").trim();
-  if (!text || !host?.codexAssistantSend) return;
+  if ((!text && !assistantAttachments.length) || !host?.codexAssistantSend) return;
   if (!currentSessionId) await ensureAssistantSession();
   if (!assistantReady) {
     setStatus("Install Codex CLI or sign in before sending.", "error");
     return;
   }
 
-  assistantMessages.push({ role: "user", content: text, timestamp: nowIso() });
-  appendMessage("user", text);
+  const userText = text || "Use the attached file context.";
+  const requestAttachments = assistantAttachments.map((attachment) => ({ ...attachment }));
+  const visibleText = requestAttachments.length
+    ? `${userText}\n\nAttached: ${requestAttachments.map((item) => item.name).join(", ")}`
+    : userText;
+  assistantMessages.push({ role: "user", content: visibleText, timestamp: nowIso() });
+  appendMessage("user", visibleText);
   currentSessionTitle = assistantMessages.find((message) => message.role === "user")?.content?.slice(0, 42) || currentSessionTitle;
   if (input) input.value = "";
+  assistantAttachments = [];
+  renderAssistantAttachments();
   autoGrowAssistantInput();
   currentRequestId = `arcbot_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   currentRunStartedAt = performance.now();
   currentStepStartedAt = currentRunStartedAt;
+  assistantCancelRequested = false;
+  assistantHostRequestSubmitted = false;
   assistantActivities = [];
   assistantDebugLogs = [];
   renderActivities();
@@ -1111,17 +1448,35 @@ async function sendAssistantMessage() {
 
   assistantBusy = true;
   setComposerEnabled(false);
-  setStatus("ArcBot is checking the active page context...");
+  setStatus(assistantAppContextEnabled ? "ArcBot is checking the active page context..." : "ArcBot is responding without app context...");
   try {
-    const activeContext = await requestActivePageContext();
+    const activeContext = assistantAppContextEnabled
+      ? await requestActivePageContext()
+      : {
+          available: false,
+          disabled: true,
+          tabType: "off",
+          title: "App Context Off",
+          targetPath: "",
+        };
     currentContext = {
       available: !!activeContext?.available,
       tabType: activeContext?.tabType || "home",
       title: activeContext?.title || "",
       targetPath: activeContext?.targetPath || activeContext?.path || "",
+      fileState: activeContext?.disabled ? "disabled" : (activeContext?.fileState || ""),
     };
     updateContextPanel();
+    if (assistantCancelRequested) {
+      const message = "Request canceled.";
+      if (pending) pending.textContent = message;
+      assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
+      appendActivity("Request canceled", "activity");
+      setStatus("ArcBot request canceled.");
+      return;
+    }
     setStatus(`Codex is responding in ${getModeLabel()}...`);
+    assistantHostRequestSubmitted = true;
     const result = await host.codexAssistantSend({
       requestId: currentRequestId,
       sessionId: currentSessionId,
@@ -1129,14 +1484,27 @@ async function sendAssistantMessage() {
       model: ASSISTANT_MODEL,
       messages: assistantMessages,
       activeContext,
+      attachments: requestAttachments,
     });
     currentUsage = result?.usage || currentUsage;
     updateContextPanel();
-    if (!result?.ok) {
-      const message = result?.error || "Codex request failed.";
+    if (assistantCancelRequested && result?.ok) {
+      const message = "Request canceled.";
       if (pending) pending.textContent = message;
       assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
-      if (result?.needsAuth) {
+      appendActivity("Request canceled", "activity");
+      setStatus("ArcBot request canceled.");
+      return;
+    }
+    if (!result?.ok) {
+      const wasCanceled = !!result?.canceled || assistantCancelRequested;
+      const message = wasCanceled ? "Request canceled." : (result?.error || "Codex request failed.");
+      if (pending) pending.textContent = message;
+      assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
+      if (wasCanceled) {
+        setStatus("ArcBot request canceled.");
+        appendActivity("Request canceled", "activity");
+      } else if (result?.needsAuth) {
         assistantReady = false;
         setStatus("Codex CLI needs sign-in.", "error");
         setSetup({
@@ -1147,31 +1515,33 @@ async function sendAssistantMessage() {
         });
       } else {
         setStatus(message, "error");
+        appendActivity("Request failed", "error");
       }
-      appendActivity("Request failed", "error");
       return;
     }
     const reply = String(result?.text || "").trim() || "No response.";
     if (pending) pending.textContent = reply;
     assistantMessages.push({ role: "assistant", content: reply, timestamp: nowIso() });
     if (result?.editApplied) notifyActivePageJsonUpdated(result);
-    appendActivity(result?.editApplied ? "Applied JSON edit with host validation." : "Response completed.", "activity");
-    setStatus(result?.editApplied ? "ArcBot applied a JSON edit." : `Codex ready. ${getModeLabel()}.`);
+    appendActivity(result?.editApplied ? "Applied JSON-backed edit with host validation." : "Response completed.", "activity");
+    setStatus(result?.editApplied ? "ArcBot applied a JSON-backed edit." : `Codex ready. ${getModeLabel()}.`);
   } catch (err) {
-    const message = String(err?.message || err || "Codex request failed.");
+    const message = assistantCancelRequested ? "Request canceled." : String(err?.message || err || "Codex request failed.");
     if (pending) pending.textContent = message;
     assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
-    appendActivity("Request failed", "error");
-    setStatus(message, "error");
+    appendActivity(assistantCancelRequested ? "Request canceled" : "Request failed", assistantCancelRequested ? "activity" : "error");
+    setStatus(message, assistantCancelRequested ? "" : "error");
   } finally {
     currentRequestId = "";
-    currentPendingMessageEl = null;
     currentRunStartedAt = 0;
     currentStepStartedAt = 0;
     renderActivities();
+    currentPendingMessageEl = null;
     await saveCurrentSession();
     await refreshSessionList(currentSessionId);
     assistantBusy = false;
+    assistantCancelRequested = false;
+    assistantHostRequestSubmitted = false;
     setComposerEnabled(assistantReady);
   }
 }
@@ -1203,13 +1573,13 @@ function handleAssistantEvent(event) {
   if (!text) return;
   appendDebugLog(text, event.type || "activity");
   const lower = text.toLowerCase();
-  if (lower.includes("checking active json access")) appendActivity("Read active JSON", "activity");
-  else if (lower.includes("creating editable local json copy")) appendActivity("Edit started", "activity");
+  if (lower.includes("checking active json")) appendActivity("Read active file", "activity");
+  else if (lower.includes("creating editable local json")) appendActivity("Edit started", "activity");
   else if (lower.includes("cleaned explanatory text")) appendActivity("Cleaned edited JSON", "activity");
   else if (lower.includes("validating and applying")) appendActivity("Edit completed", "activity");
   else if (lower.includes("codex response received")) appendActivity("Response received", "activity");
   else if (lower.includes("checking latest arcbot edit history")) appendActivity("Revert started", "activity");
-  else if (lower.includes("starting codex cli")) appendActivity("Codex started", "activity");
+  else if (lower.includes("starting codex cli") || lower.includes("starting warm codex session")) appendActivity("Codex started", "activity");
   else if (lower.includes("resolving arcbot project")) appendActivity("Session prepared", "activity");
 }
 
@@ -1239,8 +1609,15 @@ export function initAiAssistant() {
   $("aiAssistantRefreshBtn")?.addEventListener("click", refreshAssistantStatus);
   $("aiAssistantSetupBtn")?.addEventListener("click", installCodexCli);
   $("aiAssistantLoginBtn")?.addEventListener("click", loginCodexCli);
-  $("aiAssistantNewSessionBtn")?.addEventListener("click", () => {
-    createAssistantSession();
+  $("aiAssistantAttachBtn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleAttachMenu();
+  });
+  $("aiAssistantAttachFileOption")?.addEventListener("click", attachAssistantContextFile);
+  $("aiAssistantNewChatBtn")?.addEventListener("click", async () => {
+    await createAssistantSession();
+    closeHistoryPage();
+    setStatus("New ArcBot chat started.");
   });
   $("aiAssistantHistoryBtn")?.addEventListener("click", () => {
     const page = $("aiAssistantHistoryPage");
@@ -1250,16 +1627,31 @@ export function initAiAssistant() {
   $("aiAssistantHistoryCloseBtn")?.addEventListener("click", () => {
     closeHistoryPage();
   });
-  $("aiAssistantSessionSelect")?.addEventListener("change", (event) => {
-    const sessionId = String(event.target?.value || "");
-    if (sessionId && sessionId !== currentSessionId) loadAssistantSession(sessionId);
+  $("aiAssistantAppContextBtn")?.addEventListener("click", async () => {
+    setAssistantAppContextEnabled(!assistantAppContextEnabled);
+    if (assistantAppContextEnabled) {
+      const activeContext = await requestActivePageContext();
+      currentContext = {
+        available: !!activeContext?.available,
+        tabType: activeContext?.tabType || "home",
+        title: activeContext?.title || "",
+        targetPath: activeContext?.targetPath || activeContext?.path || "",
+        fileState: activeContext?.fileState || "",
+      };
+      updateContextPanel();
+    }
+    refreshAppContextTooltip({ probe: assistantAppContextEnabled });
   });
-  $("aiAssistantContextBtn")?.addEventListener("click", () => {
-    const panel = $("aiAssistantContextPanel");
-    const open = !panel?.classList.contains("open");
-    panel?.classList.toggle("open", open);
-    $("aiAssistantContextBtn")?.setAttribute("aria-expanded", open ? "true" : "false");
-    updateContextPanel();
+  $("aiAssistantAppContextBtn")?.addEventListener("mouseenter", () => {
+    const tooltip = $("aiAssistantAppContextTooltip");
+    if (tooltip) {
+      tooltip.textContent = formatAppContextTooltip(getActiveTabPreviewContext());
+      tooltip.classList.add("open");
+    }
+    refreshAppContextTooltip({ probe: assistantAppContextEnabled });
+  });
+  $("aiAssistantAppContextBtn")?.addEventListener("mouseleave", () => {
+    $("aiAssistantAppContextTooltip")?.classList.remove("open");
   });
   $("aiAssistantDebugBtn")?.addEventListener("click", () => {
     const panel = $("aiAssistantDebugPanel");
@@ -1279,6 +1671,7 @@ export function initAiAssistant() {
   });
   $("aiAssistantModeButton")?.addEventListener("click", (event) => {
     event.stopPropagation();
+    closeAttachMenu();
     toggleModeMenu();
   });
   $("aiAssistantReviewModeOption")?.addEventListener("click", () => {
@@ -1292,6 +1685,7 @@ export function initAiAssistant() {
   });
   $("aiAssistantModelButton")?.addEventListener("click", (event) => {
     event.stopPropagation();
+    closeAttachMenu();
     toggleModelMenu();
   });
   $("aiAssistantCodexModelOption")?.addEventListener("click", () => {
@@ -1302,12 +1696,16 @@ export function initAiAssistant() {
   $("aiAssistantCopilotModelOption")?.addEventListener("click", () => showUnavailableModel("Copilot"));
   composer.addEventListener("submit", (event) => {
     event.preventDefault();
-    sendAssistantMessage();
+    if (assistantBusy) {
+      cancelAssistantMessage();
+    } else {
+      sendAssistantMessage();
+    }
   });
   $("aiAssistantInput")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      sendAssistantMessage();
+      if (!assistantBusy) sendAssistantMessage();
     }
   });
   $("aiAssistantInput")?.addEventListener("input", autoGrowAssistantInput);
@@ -1315,13 +1713,21 @@ export function initAiAssistant() {
 
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.closest?.(".aiAssistantSelectWrap")) return;
+    if (event.target?.closest?.("#aiAssistantAttachMenu") || event.target?.closest?.("#aiAssistantAttachBtn")) return;
     closeSelectMenus();
+    closeAttachMenu();
   }, true);
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeSelectMenus();
+    if (event.key === "Escape") {
+      closeSelectMenus();
+      closeAttachMenu();
+    }
   }, true);
   initAssistantDrag(panel);
   initAssistantResize(panel);
   initAssistantLauncherDrag(launcher);
+  setAssistantAppContextEnabled(true);
+  renderAssistantAttachments();
+  loadAssistantUserAvatarName();
   setComposerEnabled(false);
 }

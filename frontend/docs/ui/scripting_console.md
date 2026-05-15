@@ -13,7 +13,9 @@ Detected `fetch(...)` targets in key JS files:
 - `${API_BASE}${path}`
 
 Detected `arcrho:*` message types in key JS files:
+- `arcrho:assistant-context-result`
 - `arcrho:hotkey`
+- `arcrho:scripting-dirty`
 - `arcrho:status`
 - `arcrho:update-active-tab-title`
 <!-- AUTO-GEN:END -->
@@ -34,13 +36,17 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Called from shell as a scripting tab iframe.
 - Uses `/scripting/*` app-server routes for execution, variables, preferences, and notebook persistence.
+- In the desktop app, File > Open Notebook (Ctrl+O) uses the Electron host file picker and can load `.ipynb` or legacy `.arcnb` notebooks from any folder. Browser sessions fall back to the in-app saved-notebooks list under the scripting directory.
+- File-backed notebooks track a disk revision token. Clean tabs auto-reload external disk edits, dirty tabs pause autosave and show a conflict banner with Reload, Save Copy, and Overwrite actions.
+- Responds to ArcBot active-context requests with the current notebook path, dirty/file state, autosave state, and JSON-backed notebook payload so ArcBot can use the active scripting tab as default app context.
 - Sends `arcrho:*` status and command messages to/from the shell.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Stores per-tab draft notebook state with tab-scoped browser storage keys.
-- Saves notebooks as `.ipynb` files under the user scripting directory by default.
+- Saves notebooks as `.ipynb` files under the user scripting directory by default; opened desktop files save back to their current disk path unless the user chooses Save Copy.
+- Tracks clean/dirty state against the last loaded or saved notebook snapshot and notifies the shell so scripting tabs participate in close confirmation.
 - Persists keyboard shortcut preferences under APPDATA with browser storage fallback.
 <!-- MANUAL:END -->
 

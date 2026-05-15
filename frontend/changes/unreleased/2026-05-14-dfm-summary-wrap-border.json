@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Keep wrapped DFM average formula row borders visible.",
+  "details": [
+    "Wrapped average formula labels in the Ratios summary table now keep their bottom grid line visible in the sticky drag-handle column."
+  ]
+}

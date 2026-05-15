@@ -167,6 +167,43 @@
     .sc-sep { width: 1px; height: 18px; background: #e0e0e0; margin: 0 2px; }
     .sc-spacer { flex: 1; }
     .sc-status { font-size: 11px; color: #888; }
+    .sc-file-banner {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 7px 12px;
+      border-bottom: 1px solid #e5d3a1;
+      background: #fff8e1;
+      color: #4f3b00;
+      font-size: 12px;
+      line-height: 1.35;
+      box-sizing: border-box;
+    }
+    .sc-file-banner.open {
+      display: flex;
+    }
+    .sc-file-banner-message {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sc-file-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .sc-file-banner .sc-btn {
+      height: 24px;
+      background: #fffdf5;
+    }
+    .sc-file-banner .sc-btn.primary {
+      background: #2563eb;
+      color: #fff;
+    }
 
     /* ===== Main layout ===== */
     .sc-main {
@@ -1432,14 +1469,21 @@
       Stop
     </button>
     <div class="sc-sep"></div>
-    <button class="sc-btn" id="openNbBtn" title="Open notebook from file">Open</button>
-    <div class="sc-sep"></div>
     <button class="sc-btn danger" id="restartBtn" title="Reset session (clear all variables)">Restart</button>
     <button class="sc-btn" id="clearOutputBtn" title="Clear all outputs">Clear Output</button>
     <button class="sc-btn" id="shortcutsBtn" title="View and customize keyboard shortcuts">Keyboard Shortcuts</button>
     <span class="sc-spacer"></span>
     <button class="sc-btn" id="toggleVarsBtn" title="Toggle variables panel">Variables</button>
     <span class="sc-status" id="statusText"></span>
+  </div>
+
+  <div class="sc-file-banner" id="notebookFileBanner" role="status" aria-live="polite">
+    <span class="sc-file-banner-message" id="notebookFileBannerMessage"></span>
+    <span class="sc-file-banner-actions">
+      <button class="sc-btn" id="reloadDiskNotebookBtn" type="button">Reload</button>
+      <button class="sc-btn" id="saveNotebookCopyBtn" type="button">Save Copy</button>
+      <button class="sc-btn primary" id="overwriteDiskNotebookBtn" type="button">Overwrite</button>
+    </span>
   </div>
 
   <div class="sc-main">

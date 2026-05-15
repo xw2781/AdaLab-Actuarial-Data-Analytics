@@ -1,0 +1,13 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a DFM % Developed curve plot.",
+  "details": [
+    "Right-clicking the DFM Ratios selected-summary table now offers `Show Percentage Developed Curve`.",
+    "The new floating plot window charts the `% Developed` row against the matching Data-tab development-month labels for each ratio column, so `(1) 11-23` plots at month 11 rather than month 23 or column index 1.",
+    "The first segment starts at month 1 and ends at the first actual point, so monthly values such as months 1-13 are interpolated before a month-14 actual point.",
+    "Each ratio-column segment has its own curve selector arranged in a horizontally scrollable `Curve Type By Segment` table with `Period` and `Curve Type` rows, defaulting to linear interpolation with smooth, step, exponential, logarithmic, and power choices available per segment.",
+    "The curve window can optionally load the same Reserving Class path and DFM method name from a prior project and overlay that project's `% Developed` curve; the prior-project input includes the shared project tree picker, and missing or incomplete matches show an error and do not add a line."
+  ]
+}

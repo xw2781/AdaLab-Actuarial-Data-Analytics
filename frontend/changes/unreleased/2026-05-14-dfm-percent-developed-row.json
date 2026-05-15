@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a DFM % Developed selected-ratio row.",
+  "details": [
+    "The DFM Ratios selected-summary table now includes a `% Developed` row below `Cumulative`, calculated as `1 / Cumulative` for each development period."
+  ]
+}

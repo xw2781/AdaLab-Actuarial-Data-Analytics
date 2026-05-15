@@ -70,7 +70,11 @@ export function runHotkeyAction(action) {
     else if (shell.isActiveProjectSettingsDatasetTypesTab?.()) shell.sendProjectSettingsCommand?.("arcrho:project-settings-dataset-types-load-local");
     return;
   }
-  if (action === "file_import") return shell.importWorkflow?.();
+  if (action === "file_import") {
+    if (shell.isActiveScriptingTab?.()) shell.sendScriptingCommand?.("arcrho:scripting-open");
+    else if (shell.isActiveWorkflowTab?.()) shell.importWorkflow?.();
+    return;
+  }
   if (action === "file_print") return shell.printActiveTab?.();
   if (action === "view_toggle_nav") return shell.toggleNavigationPanel?.();
   if (action === "view_toggle_line_numbers") { if (shell.isActiveScriptingTab?.()) shell.sendScriptingCommand?.("arcrho:scripting-toggle-line-numbers"); return; }

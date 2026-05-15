@@ -318,12 +318,70 @@ def _extract_pattern_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _extract_average_formula_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
+    ratios_tab = _json_tab(payload, "ratios tab")
+    formula_payload = ratios_tab.get("average formulas", {})
+    if not isinstance(formula_payload, dict):
+        formula_payload = {}
+    labels = formula_payload.get("label", [])
+    selected = formula_payload.get("selected", [])
+    ratio_triangle = _json_tab(ratios_tab, "ratio triangle")
+    data_tab = _json_tab(payload, "data tab")
+    development_labels = ratio_triangle.get("development labels")
+    if not isinstance(development_labels, list):
+        development_labels = data_tab.get("development labels")
+    preview_labels = [
+        _clean_text(label)
+        for label in labels
+    ] if isinstance(labels, list) else []
+    preview_development_labels = [
+        _clean_text(label)
+        for label in development_labels
+    ] if isinstance(development_labels, list) else []
+    if not isinstance(selected, list):
+        return {
+            "exists": False,
+            "rows": 0,
+            "columns": 0,
+            "selected_count": 0,
+            "preview": [],
+            "formula_labels": preview_labels,
+            "development_labels": preview_development_labels,
+        }
+    columns = 0
+    selected_count = 0
+    preview = []
+    for row in selected:
+        if isinstance(row, list):
+            columns = max(columns, len(row))
+            normalized_row = []
+            for cell in row:
+                value = 1 if cell in (1, True, "1", "true", "True") else 0
+                if value == 1:
+                    selected_count += 1
+                normalized_row.append(value)
+            preview.append(normalized_row)
+        else:
+            preview.append([])
+    rows = max(len(preview), len(preview_labels))
+    return {
+        "exists": True,
+        "rows": rows,
+        "columns": columns,
+        "selected_count": selected_count,
+        "preview": preview,
+        "formula_labels": preview_labels,
+        "development_labels": preview_development_labels,
+    }
+
+
 def _build_json_snapshot(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         return {
             "available": False,
             "error": "",
             "ratio_pattern": _extract_pattern_snapshot({}),
+            "average_formula_pattern": _extract_average_formula_snapshot({}),
             "notes": "",
             "notes_preview": "",
             "average_formulas": [],
@@ -336,6 +394,7 @@ def _build_json_snapshot(path: str) -> Dict[str, Any]:
             "available": False,
             "error": _clean_text(err.detail),
             "ratio_pattern": _extract_pattern_snapshot({}),
+            "average_formula_pattern": _extract_average_formula_snapshot({}),
             "notes": "",
             "notes_preview": "",
             "average_formulas": [],
@@ -350,6 +409,7 @@ def _build_json_snapshot(path: str) -> Dict[str, Any]:
         "available": True,
         "error": "",
         "ratio_pattern": _extract_pattern_snapshot(payload),
+        "average_formula_pattern": _extract_average_formula_snapshot(payload),
         "notes": notes,
         "notes_preview": notes[:600],
         "average_formulas": [str(item) for item in formulas],

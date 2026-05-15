@@ -38,6 +38,21 @@ function ensureStyles() {
       height: auto;
       resize: none;
     }
+    .dfmRpcOverlay.dfmRpcToastOverlay {
+      align-items: flex-start;
+      background: transparent;
+      pointer-events: none;
+      padding-top: 22px;
+    }
+    .dfmRpcToastOverlay .dfmRpcMessageWindow {
+      width: min(420px, calc(100vw - 32px));
+      min-width: min(280px, calc(100vw - 32px));
+      pointer-events: auto;
+    }
+    .dfmRpcToastOverlay .dfmRpcHeader,
+    .dfmRpcToastOverlay .dfmRpcActions {
+      display: none;
+    }
     .dfmRpcHeader {
       display: flex;
       align-items: center;
@@ -81,7 +96,9 @@ function ensureStyles() {
       flex: 1 1 auto;
       min-height: 0;
       padding: 16px;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
     }
     .dfmRpcMessageWindow .dfmRpcBody {
       min-height: 0;
@@ -120,7 +137,7 @@ function ensureStyles() {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-height: 0;
       align-items: stretch;
     }
@@ -132,8 +149,8 @@ function ensureStyles() {
       background: #fbfcff;
       padding: 12px;
       min-width: 0;
-      min-height: 0;
-      overflow: hidden;
+      min-height: max-content;
+      overflow: visible;
     }
     .dfmRpcVersionCard.selectable {
       cursor: pointer;
@@ -202,6 +219,26 @@ function ensureStyles() {
       line-height: 1;
       white-space: nowrap;
     }
+    .dfmRpcTimestampBadge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .dfmRpcTimestampBadge.new {
+      border: 1px solid #4d9a70;
+      background: #e7f7ee;
+      color: #17613a;
+    }
+    .dfmRpcTimestampBadge.old {
+      border: 1px solid #c34646;
+      background: #fff0f0;
+      color: #9d2d2d;
+    }
     .dfmRpcMeta {
       display: grid;
       gap: 7px;
@@ -212,12 +249,12 @@ function ensureStyles() {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
+      flex: 0 0 auto;
+      min-height: auto;
       margin-top: 10px;
       padding-top: 10px;
       border-top: 1px solid #e2e7ef;
-      overflow: auto;
+      overflow: visible;
     }
     .dfmRpcSnapshotTitle {
       margin: 0;
@@ -269,6 +306,38 @@ function ensureStyles() {
       border-color: transparent;
       background: transparent;
     }
+    .dfmRpcFormulaPreview {
+      display: grid;
+      gap: var(--dfmRpcFormulaGap, 3px);
+      align-items: start;
+      justify-content: start;
+      max-width: 100%;
+      overflow: auto;
+      padding: 6px;
+      border: 1px solid #e2e7ef;
+      border-radius: 5px;
+      background: #fff;
+    }
+    .dfmRpcFormulaRow {
+      display: grid;
+      grid-template-columns: minmax(86px, 116px) auto;
+      gap: 3px;
+      align-items: center;
+      min-width: 0;
+    }
+    .dfmRpcFormulaLabel {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #5b6678;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .dfmRpcFormulaCells {
+      display: flex;
+      gap: var(--dfmRpcFormulaGap, 3px);
+      min-width: 0;
+    }
     .dfmRpcPatternLegend {
       display: flex;
       flex-wrap: wrap;
@@ -284,8 +353,8 @@ function ensureStyles() {
       line-height: 1.2;
     }
     .dfmRpcNotesPreview {
-      flex: 1 1 42px;
-      min-height: 42px;
+      flex: 0 0 auto;
+      min-height: 96px;
       max-height: 300px;
       height: auto;
       margin: 0;
@@ -326,6 +395,12 @@ function ensureStyles() {
     }
     .dfmRpcMessageWindow .dfmRpcActions {
       padding: 10px 14px;
+    }
+    .dfmRpcConfirmText {
+      margin: 0;
+      color: #253046;
+      font-size: 13px;
+      line-height: 1.45;
     }
     .dfmRpcBtn {
       min-height: 30px;
@@ -409,14 +484,14 @@ function getOrderedVersions(data) {
   if (Math.abs(localModified - remoteModified) <= 1e-6) return [];
   const localVersion = {
     key: "local",
-    source: "Local",
+    source: "ArcRho - Local",
     meta: local,
     snapshot: data?.snapshots?.local || {},
     action: data?.comparison === "local_latest" ? "update-remote" : "keep-local",
   };
   const remoteVersion = {
     key: "remote",
-    source: "Remote Server",
+    source: "RPC - Remote",
     meta: remote,
     snapshot: data?.snapshots?.remote || {},
     action: "update-local",
@@ -495,15 +570,36 @@ function getPatternCellClass(value, otherValue, versionAge, insideTriangle) {
   return "";
 }
 
+function getSelectionCellClass(value, otherValue, versionAge) {
+  if (value === 1 && otherValue === 1) return "excludedCommon";
+  if (value === 1 && versionAge === "new") return "excludedAdded";
+  if (value === 1 && versionAge === "old") return "excludedRemoved";
+  return "";
+}
+
 function getPatternPreviewStyle(pattern) {
   const columns = Math.max(1, Number(pattern?.columns || 0));
   const gap = columns > 24 ? 2 : 3;
-  const targetWidth = 520;
+  const targetWidth = 360;
   const availableForCells = targetWidth - Math.max(0, columns - 1) * gap;
-  const cellWidth = Math.max(5, Math.min(20, Math.floor(availableForCells / columns)));
-  const cellHeight = Math.max(4, Math.round(cellWidth / 2));
+  const cellWidth = Math.max(6, Math.min(18, Math.floor(availableForCells / columns)));
+  const cellHeight = Math.max(5, Math.round(cellWidth / 2));
   return [
     `--dfmRpcPatternGap:${gap}px`,
+    `--dfmRpcPatternCellWidth:${cellWidth}px`,
+    `--dfmRpcPatternCellHeight:${cellHeight}px`,
+  ].join(";");
+}
+
+function getFormulaPreviewStyle(pattern) {
+  const columns = Math.max(1, Number(pattern?.columns || 0));
+  const gap = columns > 24 ? 2 : 3;
+  const targetWidth = 360;
+  const availableForCells = targetWidth - Math.max(0, columns - 1) * gap;
+  const cellWidth = Math.max(6, Math.min(18, Math.floor(availableForCells / columns)));
+  const cellHeight = Math.max(5, Math.round(cellWidth / 2));
+  return [
+    `--dfmRpcFormulaGap:${gap}px`,
     `--dfmRpcPatternCellWidth:${cellWidth}px`,
     `--dfmRpcPatternCellHeight:${cellHeight}px`,
   ].join(";");
@@ -520,6 +616,18 @@ function renderPatternLegend(versionAge, hasMissingInsideTriangle) {
   }
   if (hasMissingInsideTriangle) {
     legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell missingInsideTriangle"></span>Missing inside triangle</span>');
+  }
+  return `<div class="dfmRpcPatternLegend">${legendItems.join("")}</div>`;
+}
+
+function renderSelectionLegend(versionAge) {
+  const legendItems = [
+    '<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedCommon"></span>Common selected</span>',
+  ];
+  if (versionAge === "new") {
+    legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedAdded"></span>Newly selected</span>');
+  } else if (versionAge === "old") {
+    legendItems.push('<span class="dfmRpcPatternLegendItem"><span class="dfmRpcPatternCell excludedRemoved"></span>No longer selected</span>');
   }
   return `<div class="dfmRpcPatternLegend">${legendItems.join("")}</div>`;
 }
@@ -555,6 +663,74 @@ function renderPatternPreview(pattern, otherPattern, versionAge, labelFallbacks 
     <div class="small">${pattern.rows || 0} x ${pattern.columns || 0}; excluded cells: ${pattern.selected_count || 0}</div>
     ${renderPatternLegend(versionAge, hasMissingInsideTriangle)}
     <div class="dfmRpcPatternPreview" style="${style}">${renderedRows || '<div class="small">Empty preview</div>'}</div>
+  `;
+}
+
+function getFormulaPreviewRows(pattern) {
+  return Array.isArray(pattern?.preview) ? pattern.preview : [];
+}
+
+function getFormulaCellValue(pattern, rowIndex, colIndex) {
+  const row = getFormulaPreviewRows(pattern)[rowIndex];
+  if (!Array.isArray(row)) return 0;
+  return Number(row[colIndex] ?? 0) === 1 ? 1 : 0;
+}
+
+function getFormulaLabel(pattern, rowIndex) {
+  const labels = Array.isArray(pattern?.formula_labels) ? pattern.formula_labels : [];
+  return String(labels[rowIndex] ?? `Formula ${rowIndex + 1}`).trim() || `Formula ${rowIndex + 1}`;
+}
+
+function findFormulaRowIndex(pattern, formulaLabel, fallbackIndex) {
+  const target = String(formulaLabel || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const labels = Array.isArray(pattern?.formula_labels) ? pattern.formula_labels : [];
+  if (target) {
+    const labelIndex = labels.findIndex((label) => (
+      String(label || "").replace(/\s+/g, " ").trim().toLowerCase() === target
+    ));
+    if (labelIndex >= 0) return labelIndex;
+  }
+  return fallbackIndex;
+}
+
+function getFormulaDevelopmentLabel(pattern, colIndex, labelFallbacks = {}) {
+  const labels = Array.isArray(pattern?.development_labels) ? pattern.development_labels : [];
+  const fallbackLabels = Array.isArray(labelFallbacks?.development_labels) ? labelFallbacks.development_labels : [];
+  return String(labels[colIndex] ?? fallbackLabels[colIndex] ?? "").trim();
+}
+
+function renderFormulaPatternPreview(pattern, otherPattern, versionAge, labelFallbacks = {}) {
+  if (!pattern?.exists) return `<div class="small">No average formula selections in this JSON.</div>`;
+  const rows = getFormulaPreviewRows(pattern);
+  const rowCount = Math.max(Number(pattern.rows || 0), rows.length);
+  const colCount = Math.max(Number(pattern.columns || 0), rows.reduce((max, row) => (
+    Math.max(max, Array.isArray(row) ? row.length : 0)
+  ), 0));
+  const style = getFormulaPreviewStyle({ ...pattern, columns: colCount });
+  const renderedRows = Array.from({ length: rowCount }, (_unused, rowIndex) => {
+    const formulaLabel = getFormulaLabel(pattern, rowIndex);
+    const otherRowIndex = findFormulaRowIndex(otherPattern, formulaLabel, rowIndex);
+    const cells = Array.from({ length: colCount }, (_item, colIndex) => {
+      const value = getFormulaCellValue(pattern, rowIndex, colIndex);
+      const otherValue = getFormulaCellValue(otherPattern, otherRowIndex, colIndex);
+      const cls = getSelectionCellClass(value, otherValue, versionAge);
+      const developmentLabel = getFormulaDevelopmentLabel(pattern, colIndex, labelFallbacks);
+      const tooltip = developmentLabel
+        ? `Formula: ${formulaLabel}\nDev: ${developmentLabel}`
+        : `Formula: ${formulaLabel}`;
+      return `<span class="dfmRpcPatternCell ${cls}" title="${escapeHtml(tooltip)}"></span>`;
+    }).join("");
+    return `
+      <div class="dfmRpcFormulaRow">
+        <span class="dfmRpcFormulaLabel" title="${escapeHtml(formulaLabel)}">${escapeHtml(formulaLabel)}</span>
+        <span class="dfmRpcFormulaCells">${cells}</span>
+      </div>
+    `;
+  }).join("");
+  return `
+    <div class="small">${rowCount} x ${colCount}; selected cells: ${pattern.selected_count || 0}</div>
+    ${renderSelectionLegend(versionAge)}
+    <div class="dfmRpcFormulaPreview" style="${style}">${renderedRows || '<div class="small">Empty preview</div>'}</div>
   `;
 }
 
@@ -652,7 +828,8 @@ function renderNotesPreview(version, otherVersion) {
 }
 
 function versionPrimaryLabel(version) {
-  if (version?.action === "update-remote") return "Update Remote DFM";
+  if (version?.action === "update-remote") return "Confirm";
+  if (version?.action === "update-local") return "Confirm";
   if (version?.key === "local") return "Keep Using Local";
   if (version?.key === "remote") return "Use Remote Version";
   return "Use Selected Version";
@@ -716,7 +893,7 @@ function renderVersionCard(version, selectedKey, versions, labelFallbacks = {}) 
     ? versions.find((item) => item.key !== version.key)
     : null;
   const otherPattern = otherVersion?.snapshot?.ratio_pattern || {};
-  const formulas = Array.isArray(snapshot.average_formulas) ? snapshot.average_formulas : [];
+  const otherFormulaPattern = otherVersion?.snapshot?.average_formula_pattern || {};
   return `
     <div
       class="dfmRpcVersionCard selectable ${version.age === "new" ? "newest" : ""} ${selectedKey === version.key ? "selected" : ""}"
@@ -730,13 +907,13 @@ function renderVersionCard(version, selectedKey, versions, labelFallbacks = {}) 
         <span class="dfmRpcVersionBadges">${version.age === "new" ? '<span class="dfmRpcNewSeal">NEW</span>' : ""}</span>
       </div>
       <div class="dfmRpcMeta">
-        <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(version.meta))}</div>
+        <div><strong>Last Modified:</strong> <span class="dfmRpcTimestampBadge ${version.age === "new" ? "new" : "old"}">${escapeHtml(formatTime(version.meta))}</span></div>
       </div>
       <div class="dfmRpcSnapshot">
         <p class="dfmRpcSnapshotTitle">Ratio Selection Snapshot</p>
         ${renderPatternPreview(snapshot.ratio_pattern || {}, otherPattern, version.age, labelFallbacks)}
         <p class="dfmRpcSnapshotTitle">Average Formulas</p>
-        <div class="small">${formulas.length ? escapeHtml(formulas.join(", ")) : "None listed"}</div>
+        ${renderFormulaPatternPreview(snapshot.average_formula_pattern || {}, otherFormulaPattern, version.age, labelFallbacks)}
         <p class="dfmRpcSnapshotTitle">Notes</p>
         <pre class="dfmRpcNotesPreview">${renderNotesPreview(version, otherVersion)}</pre>
       </div>
@@ -751,7 +928,7 @@ export function createDfmRpcBridgeDialog() {
   overlay.innerHTML = `
     <div class="dfmRpcWindow" role="dialog" aria-modal="true" aria-labelledby="dfmRpcTitle">
       <div class="dfmRpcHeader">
-        <h2 class="dfmRpcTitle" id="dfmRpcTitle">Compare DFM Versions</h2>
+        <h2 class="dfmRpcTitle" id="dfmRpcTitle">Review Changes &amp; Select One Version</h2>
         <button class="dfmRpcClose" type="button" aria-label="Close">&times;</button>
       </div>
       <div class="dfmRpcBody"></div>
@@ -857,13 +1034,13 @@ export function createDfmRpcBridgeDialog() {
         <div class="dfmRpcStatus ${msg.tone}">${msg.text}</div>
         <div class="dfmRpcGrid">
           <div class="dfmRpcVersionCard">
-            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">Local</span></div>
+            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">ArcRho - Local</span></div>
             <div class="dfmRpcMeta">
               <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(local))}</div>
             </div>
           </div>
           <div class="dfmRpcVersionCard">
-            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">Remote Server</span></div>
+            <div class="dfmRpcVersionTitle"><span class="dfmRpcSourceLabel">RPC - Remote</span></div>
             <div class="dfmRpcMeta">
               <div><strong>Last Modified:</strong> ${escapeHtml(formatTime(remote))}</div>
             </div>
@@ -908,13 +1085,27 @@ export function createDfmRpcBridgeMessageBox(initialText = "", tone = "", option
   const body = overlay.querySelector(".dfmRpcBody");
   const closeBtns = overlay.querySelectorAll(".dfmRpcClose, [data-action='close']");
   let busyState = false;
+  let pendingAutoDismiss = false;
+  let dismissTimer = null;
+  const autoDismissMs = Math.max(0, Number(options?.autoDismissMs ?? 2000));
 
   placeDialogWindow(dialogWindow);
   enableDialogDrag(dialogWindow, header);
 
   function close() {
     document.removeEventListener("keydown", onKeyDown);
+    if (dismissTimer) clearTimeout(dismissTimer);
     overlay.remove();
+  }
+
+  function showTemporaryNotification() {
+    if (dismissTimer || busyState || !pendingAutoDismiss) return;
+    overlay.classList.add("dfmRpcToastOverlay");
+    dialogWindow.classList.add("dfmRpcToastWindow");
+    dialogWindow.setAttribute("role", "status");
+    dialogWindow.removeAttribute("aria-modal");
+    dialogWindow.removeAttribute("aria-labelledby");
+    dismissTimer = setTimeout(close, autoDismissMs);
   }
 
   function setBusy(busy) {
@@ -923,14 +1114,22 @@ export function createDfmRpcBridgeMessageBox(initialText = "", tone = "", option
       if (btn.classList.contains("dfmRpcClose")) return;
       btn.disabled = !!busy;
     });
+    showTemporaryNotification();
   }
 
   function setMessage(text, nextTone = "") {
     const toneClass = nextTone ? ` ${nextTone}` : "";
     body.innerHTML = `<div class="dfmRpcStatus${toneClass}">${escapeHtml(text || "")}</div>`;
+    pendingAutoDismiss = nextTone === "ok";
+    showTemporaryNotification();
   }
 
   function setWaiting(text) {
+    pendingAutoDismiss = false;
+    if (dismissTimer) {
+      clearTimeout(dismissTimer);
+      dismissTimer = null;
+    }
     setMessage(text || "Waiting...");
   }
 
@@ -957,4 +1156,59 @@ export function createDfmRpcBridgeMessageBox(initialText = "", tone = "", option
     setMessage,
     setWaiting,
   };
+}
+
+export function confirmDfmRpcBridgeAction(message, options = {}) {
+  ensureStyles();
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "dfmRpcOverlay";
+    const title = String(options?.title || "Confirm DFM Sync");
+    const confirmLabel = String(options?.confirmLabel || "Confirm");
+    const cancelLabel = String(options?.cancelLabel || "Cancel");
+    overlay.innerHTML = `
+      <div class="dfmRpcWindow dfmRpcMessageWindow" role="dialog" aria-modal="true" aria-labelledby="dfmRpcConfirmTitle">
+        <div class="dfmRpcHeader">
+          <h2 class="dfmRpcTitle" id="dfmRpcConfirmTitle">${escapeHtml(title)}</h2>
+          <button class="dfmRpcClose" type="button" aria-label="Close">&times;</button>
+        </div>
+        <div class="dfmRpcBody">
+          <p class="dfmRpcConfirmText">${escapeHtml(message || "")}</p>
+        </div>
+        <div class="dfmRpcActions">
+          <button class="dfmRpcBtn" type="button" data-action="cancel">${escapeHtml(cancelLabel)}</button>
+          <button class="dfmRpcBtn primary" type="button" data-action="confirm">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const dialogWindow = overlay.querySelector(".dfmRpcWindow");
+    const header = overlay.querySelector(".dfmRpcHeader");
+
+    placeDialogWindow(dialogWindow);
+    enableDialogDrag(dialogWindow, header);
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+      resolve(value);
+    };
+    function onKeyDown(event) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      finish(false);
+    }
+
+    overlay.querySelector(".dfmRpcClose")?.addEventListener("click", () => finish(false));
+    overlay.querySelector("[data-action='cancel']")?.addEventListener("click", () => finish(false));
+    overlay.querySelector("[data-action='confirm']")?.addEventListener("click", () => finish(true));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(false);
+    });
+    document.addEventListener("keydown", onKeyDown);
+  });
 }

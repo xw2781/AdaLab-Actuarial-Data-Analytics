@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Remove loading popups from DFM pages.",
+  "details": [
+    "DFM method setting loads no longer show the centered loading animation.",
+    "DFM pages also suppress the shared Dataset Viewer loading popup while validating reserving class inputs or refreshing embedded triangle data."
+  ]
+}

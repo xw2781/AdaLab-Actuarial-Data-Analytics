@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Show DFM Ratios N/A borders by default.",
+  "details": [
+    "New DFM sessions now start with N/A borders visible unless the user previously chose to hide them."
+  ]
+}

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "arcrho-api"
+version = "0.1.0"
+description = "Python API for scripting ArcRho project and DFM workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [
+  { name = "Xiao Wei" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+pandas = ["pandas>=2"]
+dev = ["pytest>=8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/arcrho_api"]
+

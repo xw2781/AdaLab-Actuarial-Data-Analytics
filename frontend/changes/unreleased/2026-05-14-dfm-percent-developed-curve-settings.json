@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Saved % Developed Curve chart settings with DFM methods.",
+  "details": [
+    "DFM method JSON now stores the % Developed Curve x-axis label and each displayed segment's selected curve type/display name under the Ratios tab, reopens the curve window with those saved curve choices restored, parses ratio range labels as positive development-month endpoints, and starts the curve from 0m at 0%."
+  ]
+}

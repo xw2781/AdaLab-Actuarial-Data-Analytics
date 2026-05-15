@@ -1,0 +1,14 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a DFM average formula table plot window.",
+  "details": [
+    "The DFM Ratios summary table right-click menu now includes `Plot Table Data`.",
+    "The new floating plot window charts each average formula row across the current development-period columns and includes a row legend.",
+    "The plot toolbar includes a zoom tool: drag over the chart to zoom into an area, or click the chart once to reset to the original view.",
+    "The current Selected row is plotted as a distinct dashed line, Esc deselects the active plot tool, and the toolbar includes a hand-drag tool that pans the full chart view with pointer-captured dragging.",
+    "The plot legend now follows the Dataset Viewer chart legend behavior: label rows and checkboxes hide/show lines, Select All controls all lines, and right-clicking a legend row isolates that line.",
+    "The plot toolbar includes a pencil tool that lets users click an average-formula point to make that formula the selected value for the clicked development period; points on the Selected line are ignored."
+  ]
+}

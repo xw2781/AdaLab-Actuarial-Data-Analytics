@@ -92,6 +92,17 @@ export function initShellMessages() {
       shell.saveState?.();
       return;
     }
+    if (msg.type === "arcrho:scripting-dirty") {
+      const tab = shell.state.tabs.find(t => t.type === "scripting" && t.iframe?.contentWindow === e.source);
+      if (!tab) return;
+      const dirty = !!msg.dirty;
+      if (tab.isDirty === dirty) return;
+      tab.isDirty = dirty;
+      if (dirty) shell.clearSavedStatusOnDirty?.();
+      shell.renderTabs?.();
+      shell.saveState?.();
+      return;
+    }
     if (msg.type === "arcrho:zoom") return shell.adjustZoomByDelta?.(Number(msg.deltaY || 0));
     if (msg.type === "arcrho:zoom-step") {
       const delta = Number(msg.delta || 0);

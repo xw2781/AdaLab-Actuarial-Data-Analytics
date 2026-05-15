@@ -12,6 +12,7 @@ Routes:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/dfm/method-index?project_name=<name>&refresh=false` | Return the cached DFM method index for a project, rebuilding it if the cache file is missing or `refresh=true`. |
+| `GET` | `/dfm/percent-developed-curve?project_name=<name>&reserving_class=<path>&method_name=<name>` | Read the matching local DFM method JSON from a project and return computed `% Developed` curve points for prior-project comparison overlays. |
 | `POST` | `/dfm/method-index/refresh` | Rebuild the project DFM method index after a DFM method save or an explicit chooser refresh. |
 <!-- MANUAL:END -->
 
@@ -30,6 +31,7 @@ Routes:
 - Indexed method files must match local DFM method naming: `DFM@<ReservingClass>@<Name>.json`.
 - The index stores only method entries with `path` and `name`. `path` is the filename-safe Reserving Class path component used by local DFM method JSON files, and `name` is the DFM method name component.
 - Normal DFM saves request an index refresh for the current project after the JSON file is written, so newly created DFM objects are available in the Details `Name` selector.
+- `% Developed` curve lookup is read-only. It uses the same local DFM filename convention, reads `data tab`.`development labels` for x-axis month indexes, reads `ratios tab`.`ratio triangle`.`development labels` for displayed ratio period labels, reads `ratios tab`.`average formulas`.`selected` and `values`, derives selected/cumulative/% developed values, and returns only plot points and request metadata. Missing or incomplete DFM methods return explicit API errors so the frontend does not add a comparison line.
 <!-- MANUAL:END -->
 
 ## Known Risks

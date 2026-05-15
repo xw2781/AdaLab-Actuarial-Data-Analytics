@@ -1,5 +1,5 @@
 import { shell } from "./shell_context.js?v=20260510a";
-import { isAiAssistantLauncherVisible, toggleAiAssistantLauncherVisible } from "./ai_assistant.js?v=20260510a";
+import { isAiAssistantLauncherVisible, toggleAiAssistantLauncherVisible } from "./ai_assistant.js?v=20260515a";
 
 const fileMenuBtn = document.querySelector('.menu[data-menu="file"]');
 const fileMenuDropdown = document.getElementById("fileMenuDropdown");
@@ -185,6 +185,7 @@ export function initShellMenus() {
     toggleFileMenu(false);
     if (action === "save-workflow") { shell.updateStatusBar?.("Saving..."); sendWorkflowCommand("arcrho:workflow-save"); }
     else if (action === "save-workflow-as") { shell.updateStatusBar?.("Saving as..."); sendWorkflowCommand("arcrho:workflow-save-as"); }
+    else if (action === "open-notebook") { shell.updateStatusBar?.("Opening notebook..."); sendScriptingCommand("arcrho:scripting-open"); }
     else if (action === "save") {
       if (isActiveWorkflowTab()) { shell.updateStatusBar?.("Saving..."); sendWorkflowCommand("arcrho:workflow-save"); }
       else if (isActiveDFMTab()) { shell.updateStatusBar?.("Saving..."); sendDFMCommand("arcrho:dfm-save"); }

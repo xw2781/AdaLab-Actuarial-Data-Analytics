@@ -5,7 +5,7 @@
   "summary": "Enable confirmed DFM RPC server write-back.",
   "details": [
     "Updating the remote DFM through RPC now asks for an additional confirmation before using RPC server write access.",
-    "When the local DFM JSON is newer, the comparison window shows `Update Remote DFM` for the Local card.",
+    "When the local DFM JSON is newer, the comparison window uses a `Confirm` action for the Local card and shows an app-styled RPC server write confirmation before sending the update.",
     "Confirmed `SyncDFM` requests include the local DFM JSON path so `arcrho_bridge` can write excluded ratios, selected formulas, and notes back into the RPC server DFM method and return a status JSON."
   ]
 }

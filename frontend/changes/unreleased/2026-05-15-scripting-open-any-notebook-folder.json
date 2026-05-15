@@ -1,0 +1,4 @@
+{
+  "scope": "scripting",
+  "summary": "Move scripting notebook open into the File menu and allow loading notebooks from any desktop folder."
+}

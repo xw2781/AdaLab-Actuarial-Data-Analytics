@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Shorten DFM save status messages by hiding full success paths.",
+  "details": [
+    "DFM method save success messages now show the save time without appending the full JSON or CSV path."
+  ]
+}

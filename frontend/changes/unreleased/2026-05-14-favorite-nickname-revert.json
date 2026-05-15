@@ -1,0 +1,9 @@
+{
+  "area": "dataset",
+  "type": "improvement",
+  "summary": "Add a favorite nickname revert action.",
+  "details": [
+    "The reserving-class favorite path context menu now includes a `Revert Nickname to Raw Path` action for favorites with custom nicknames.",
+    "Dragging is temporarily disabled while editing a favorite nickname inline, preventing accidental drag starts during text selection or cursor movement."
+  ]
+}

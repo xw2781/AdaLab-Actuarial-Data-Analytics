@@ -58,10 +58,6 @@ import {
 } from "/ui/dfm/dfm_results_tab.js";
 import { getDfmNotesText, setDfmNotesText } from "/ui/dfm/dfm_notes_tab.js";
 import {
-  hideDfmSettingsLoadingPopup,
-  showDfmSettingsLoadingPopup,
-} from "/ui/dfm/dfm_loading_popup.js";
-import {
   buildDfmAverageFormulaObject,
   buildDfmSummaryRowsFromAverageFormulaObject,
   buildDfmSummaryRowsFromAverageFormulas,
@@ -73,6 +69,10 @@ import {
   recordCurrentDfmObjectSnapshot,
   refreshDfmMethodIndex,
 } from "/ui/dfm/dfm_startup_state.js";
+import {
+  applySavedPercentDevelopedCurveSettings,
+  getPercentDevelopedCurveSettings,
+} from "/ui/dfm/dfm_percent_developed_curve_window.js?v=20260514e";
 
 let ratioLoadTimer = null;
 let ratioLoadPendingReason = "";
@@ -660,6 +660,7 @@ function buildDfmGroupedMethodPayload(methodPayload) {
   copyExistingField(data, "excluded", ratioTriangle);
   ratiosTab["ratio triangle"] = ratioTriangle;
   copyExistingField(data, "average formulas", ratiosTab);
+  copyExistingField(data, "percent developed curve", ratiosTab);
   const grouped = {
     "json format": DFM_METHOD_JSON_FORMAT,
     "details tab": copyExistingFields(data, [
@@ -725,6 +726,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     const formulas = getDfmAverageFormulaLabels(averageFormulas);
     const matrix = getDfmAverageFormulaSelectedIndex(averageFormulas);
     const averageFormulaValues = getDfmAverageFormulaValues(averageFormulas);
+    const percentDevelopedCurve = ratiosTab["percent developed curve"];
     const averageFormulaRows = buildDfmSummaryRowsFromAverageFormulaObject(averageFormulas);
     const resolvedSummary = buildDfmSummaryRowsFromAverageFormulas(averageFormulaRows, formulas);
     const summaryRows = hydrateUserEntryValuesFromAverageFormulaValues(
@@ -756,12 +758,14 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     setResultsUltimateRatioDecimalPlacesSelection(savedUltimateRatioDecimalPlaces, { silent: true, render: false });
     setDfmNotesText(notesText);
     await setResultsRatioBasisSelection(ratioBasisDataset, { silent: true, render: false });
+    applySavedPercentDevelopedCurveSettings(percentDevelopedCurve);
     if (Array.isArray(formulas) && Array.isArray(matrix)) {
       applyAverageSelectionFromSaved(formulas, matrix);
     }
   } else {
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
+    applySavedPercentDevelopedCurveSettings(null);
   }
 
   if (datasetInputsChanged) {
@@ -779,7 +783,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     markMethodSaved();
     markDfmClean();
   }
-  return { ok: applied };
+  return { ok: applied, datasetInputsChanged };
 }
 
 export async function loadRatioSelectionIfExists(reason) {
@@ -802,33 +806,28 @@ export async function loadRatioSelectionIfExists(reason) {
   const standardPath = await buildRatioSavePath();
   let path = standardPath;
   postDfmLookupDebugStatus(`checking ${path}`, { reason });
-  const loadingToken = showDfmSettingsLoadingPopup("Loading saved DFM settings...");
-  try {
-    const result = await hostApi.readJsonFile({ path });
-    if (!result || !result.exists) {
-      emitDfmInstancePresence("missing");
-      postDfmStatus("This method object has not been created yet, changes will be saved to a new container.", { tone: "warn" });
-      if (getDfmIsDirty()) {
-        return;
-      }
-      ratioStrikeSet.clear();
-      selectedSummaryByCol.clear();
-      setDfmNotesText("");
-      await setResultsRatioBasisSelection("", { silent: true, render: false });
-      clearMethodSavedFlag();
-      if (isRatiosTabVisible()) renderRatioTable();
-      if (isResultsTabVisible()) renderResultsTable();
+  const result = await hostApi.readJsonFile({ path });
+  if (!result || !result.exists) {
+    emitDfmInstancePresence("missing");
+    postDfmStatus("This method object has not been created yet, changes will be saved to a new container.", { tone: "warn" });
+    if (getDfmIsDirty()) {
       return;
     }
-    emitDfmInstancePresence("found");
-    const applied = await applyDfmMethodPayload(result.data);
-    if (applied.ok) {
-      postDfmStatus(`Ready: Loaded method settings from ${path}`);
-    } else if (reason) {
-      postDfmStatus("Error: Ratio file found but could not be applied.");
-    }
-  } finally {
-    hideDfmSettingsLoadingPopup(loadingToken);
+    ratioStrikeSet.clear();
+    selectedSummaryByCol.clear();
+    setDfmNotesText("");
+    await setResultsRatioBasisSelection("", { silent: true, render: false });
+    clearMethodSavedFlag();
+    if (isRatiosTabVisible()) renderRatioTable();
+    if (isResultsTabVisible()) renderResultsTable();
+    return;
+  }
+  emitDfmInstancePresence("found");
+  const applied = await applyDfmMethodPayload(result.data);
+  if (applied.ok) {
+    postDfmStatus(`Ready: Loaded method settings from ${path}`);
+  } else if (reason) {
+    postDfmStatus("Error: Ratio file found but could not be applied.");
   }
 }
 
@@ -867,6 +866,7 @@ export function buildDfmMethodPayload(options = {}) {
   const ultimateRatioDecimalPlaces = getResultsUltimateRatioDecimalPlacesSelection();
   const cfgKey = getSummaryConfigKey();
   const summaryRows = getSummaryRowsForPersistence(cfgKey);
+  const percentDevelopedCurve = getPercentDevelopedCurveSettings();
   const data = {
     excluded: pattern,
     "origin labels": originLabels,
@@ -876,6 +876,7 @@ export function buildDfmMethodPayload(options = {}) {
     "input data triangle csv path": String(options?.inputTriangleCsvPath || ""),
     "ratio values": calculatedRatioTriangleValues,
     "average formulas": buildDfmAverageFormulaObject(summaryRows, avgSelection.matrix, averageFormulaValues),
+    "percent developed curve": percentDevelopedCurve,
     "ultimate vector": resultVector,
     notes: notesText,
     name: methodName,
@@ -963,9 +964,9 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
       console.warn("Failed to refresh DFM method index:", err);
     });
     const time = new Date().toLocaleTimeString();
-    let statusText = `Method saved at ${time}: ${result.path}`;
+    let statusText = `Method saved at ${time}.`;
     if (baseCsvSaved) {
-      statusText += ` | CSV saved: ${csvPath}${aggregatedCsvPaths.length ? ` (+${aggregatedCsvPaths.length} aggregated)` : ""}`;
+      statusText += ` | CSV saved${aggregatedCsvPaths.length ? ` (+${aggregatedCsvPaths.length} aggregated)` : ""}`;
     }
     if (csvError) {
       statusText += ` | CSV save failed: ${csvError}`;

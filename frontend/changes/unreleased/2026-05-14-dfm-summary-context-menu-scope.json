@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Limit DFM average formula management menu items to label cells.",
+  "details": [
+    "`Rename`, `Delete`, and `Custom Average` now appear only when right-clicking average formula label cells; value-cell right-clicks keep table plotting available."
+  ]
+}

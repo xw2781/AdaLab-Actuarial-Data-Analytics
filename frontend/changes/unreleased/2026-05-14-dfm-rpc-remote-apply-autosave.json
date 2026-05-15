@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Save recalculated local DFM JSON after applying a remote DFM with different length settings.",
+  "details": [
+    "When a remote DFM version changes Input Triangle, Origin Length, or Development Length, the app now saves the recalculated local JSON after refreshing the UI.",
+    "If the final save cannot complete, the DFM tab is marked dirty so the user is prompted to save before closing."
+  ]
+}

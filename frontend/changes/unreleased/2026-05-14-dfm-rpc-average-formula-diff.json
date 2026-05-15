@@ -1,0 +1,8 @@
+{
+  "area": "dfm",
+  "type": "improvement",
+  "summary": "Show DFM RPC average formula selection diffs.",
+  "details": [
+    "The DFM RPC comparison window now renders Average Formulas as a compact formula-selection snapshot diff instead of a flat formula-name list, with common/new/removed selections color-coded like the ratio selection snapshot."
+  ]
+}

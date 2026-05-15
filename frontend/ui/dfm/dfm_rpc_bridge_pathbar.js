@@ -1,4 +1,4 @@
-import { startDfmRpcBridgeSync } from "/ui/dfm/dfm_rpc_bridge_client.js?v=20260513d";
+import { startDfmRpcBridgeSync } from "/ui/dfm/dfm_rpc_bridge_client.js?v=20260514d";
 
 const STYLE_ID = "dfm-rpc-bridge-pathbar-style";
 

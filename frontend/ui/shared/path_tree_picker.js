@@ -284,6 +284,7 @@ function ensureStyles(doc) {
       box-shadow: inset 0 0 0 1px #8fb0f4;
     }
     .ptree-favorite-name {
+      flex: 1 1 auto;
       color: #222;
       font-size: 13px;
       font-weight: 500;
@@ -363,9 +364,12 @@ function ensureStyles(doc) {
       white-space: nowrap;
     }
     .ptree-favorite-rename-input {
-      min-width: 90px;
-      max-width: 220px;
+      flex: 1 1 auto;
+      min-width: 140px;
+      max-width: none;
+      width: auto;
       height: 22px;
+      box-sizing: border-box;
       border: 1px solid #8fb0f4;
       border-radius: 4px;
       padding: 1px 5px;
@@ -1387,6 +1391,9 @@ function closeFavoriteContextMenu(doc) {
 function startInlineFavoriteRename(doc, labelEl, initialValue, onCommit) {
   if (!doc || !labelEl || typeof onCommit !== "function") return;
   const originalText = String(initialValue || labelEl.textContent || "").trim();
+  const rowEl = typeof labelEl.closest === "function" ? labelEl.closest(".ptree-favorite-row") : null;
+  const previousDraggable = rowEl ? rowEl.draggable : null;
+  if (rowEl) rowEl.draggable = false;
   const input = doc.createElement("input");
   input.type = "text";
   input.className = "ptree-favorite-rename-input";
@@ -1400,6 +1407,7 @@ function startInlineFavoriteRename(doc, labelEl, initialValue, onCommit) {
     const nextValue = String(input.value || "").trim();
     if (input.parentNode) input.parentNode.replaceChild(labelEl, input);
     labelEl.style.display = "";
+    if (rowEl && previousDraggable !== null) rowEl.draggable = previousDraggable;
     if (save && nextValue && nextValue !== originalText) {
       try { onCommit(nextValue); } catch {}
     }
@@ -1459,6 +1467,11 @@ function openFavoriteContextMenu(doc, item, options = {}, ctx = {}) {
       );
     }
   });
+  if (typeof options?.onRevertFavoriteNickname === "function" && item.nickname && item.nickname !== item.path) {
+    addItem("Revert Nickname to Raw Path", () => {
+      options.onRevertFavoriteNickname(item.path, item, { menuElement: menu });
+    });
+  }
   addItem("Remove from Favorite", () => {
     if (typeof options?.onDeleteFavorite === "function") {
       options.onDeleteFavorite(item.path, item, { menuElement: menu });

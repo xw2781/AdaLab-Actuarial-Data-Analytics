@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ArcRho Python API</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 32px; line-height: 1.5; color: #1f2933; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { background: #f5f7fa; padding: 14px; border: 1px solid #d8dee9; overflow: auto; }
+    h1, h2 { color: #102a43; }
+  </style>
+</head>
+<body>
+  <h1>ArcRho Python API</h1>
+  <p>The ArcRho Python API scripts project and DFM workflows against an ArcRho Server root folder.</p>
+
+  <h2>Connect</h2>
+  <pre><code>from arcrho_api import ArcRhoClient
+
+client = ArcRhoClient(r"E:\ArcRho Server")
+print(client.list_projects())</code></pre>
+
+  <h2>Open A DFM</h2>
+  <pre><code>project = client.project("Current Reserve Review")
+rc = project.reserving_class(r"Auto\Private Passenger")
+dfm = rc.dfm("Paid Loss Ultimate")
+
+print(dfm.input_triangle)
+print(dfm.output_vector)
+print(dfm.notes)</code></pre>
+
+  <h2>Update A DFM</h2>
+  <pre><code>dfm.clear()
+dfm.exclude_covid_years()
+dfm.exclude_high(dev_period=2, count=1, reason="High selected ratio reviewed.")
+dfm.set_selected_average("Simple - 3")
+dfm.add_notes("Updated through arcrho_api.")
+dfm.save()</code></pre>
+
+  <h2>Create A DFM</h2>
+  <pre><code>dfm = rc.new_dfm(
+    "New Paid Loss Ultimate",
+    output_vector="New Paid Loss Ultimate",
+    input_triangle="Paid Loss",
+    origin_length=12,
+    development_length=12,
+)
+dfm.save()</code></pre>
+
+  <h2>Migrate Legacy Notebook Style</h2>
+  <pre><code>from arcrho_api.migration import ArcRhoSession
+
+session = ArcRhoSession(r"E:\ArcRho Server")
+session.set_project("Current Reserve Review")
+session.set_reserving_class(r"Auto\Private Passenger")
+
+aDFM = session.DFM("Paid Loss Ultimate")
+aDFM.clear()
+aDFM.ex_COVID_AY()
+aDFM.set_selected_estimate("Simple - 3")
+aDFM.save()</code></pre>
+</body>
+</html>
+

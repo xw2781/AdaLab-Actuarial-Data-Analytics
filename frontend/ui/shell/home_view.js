@@ -5,7 +5,7 @@ let cachedHomeBrandName = null;
 let homeBrandNamePromise = null;
 
 const DEFAULT_HOME_BRAND_NAME = "ArcRho";
-const INITIAL_CODES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const HOME_AVATAR_TEXT = "#526071";
 
 export function getHomeBrandInitial(name) {
   const text = String(name || "").trim();
@@ -13,39 +13,11 @@ export function getHomeBrandInitial(name) {
   return firstAscii ? firstAscii.toUpperCase() : "#";
 }
 
-export function getHomeBrandColors(initial) {
-  const normalized = getHomeBrandInitial(initial);
-  const index = INITIAL_CODES.indexOf(normalized);
-  if (index < 0) {
-    return {
-      start: "hsl(210 28% 38%)",
-      end: "hsl(222 34% 24%)",
-      ring: "hsl(211 36% 72%)",
-    };
-  }
-  const hue = Math.round((index * 137.508 + 184) % 360);
-  return {
-    start: `hsl(${hue} 76% 38%)`,
-    end: `hsl(${(hue + 34) % 360} 72% 28%)`,
-    ring: `hsl(${(hue + 18) % 360} 70% 70%)`,
-  };
-}
-
 function createHomeBrandMarkSvg(initial) {
   const safeInitial = getHomeBrandInitial(initial);
-  const colors = getHomeBrandColors(safeInitial);
-  const gradientId = `homeBrandGradient${safeInitial === "#" ? "Fallback" : safeInitial}`;
   return `
     <svg viewBox="0 0 32 32" role="img" aria-label="${safeInitial} initial mark" focusable="false">
-      <defs>
-        <linearGradient id="${gradientId}" x1="6" y1="4" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="${colors.start}"></stop>
-          <stop offset="1" stop-color="${colors.end}"></stop>
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#${gradientId})"></rect>
-      <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="${colors.ring}" stroke-opacity="0.7"></rect>
-      <text x="16" y="21.6" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="800">${safeInitial}</text>
+      <text x="16" y="21" text-anchor="middle" fill="${HOME_AVATAR_TEXT}" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">${safeInitial}</text>
     </svg>
   `;
 }

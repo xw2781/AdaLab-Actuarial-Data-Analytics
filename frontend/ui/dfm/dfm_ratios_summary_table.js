@@ -20,6 +20,7 @@ import {
 import {
   getExcelActiveSelection, readExcelCell, readExcelCellsBatch, openExcelWorkbook, excelWaitForEnter,
 } from "/ui/shared/api.js";
+import { openDfmSummaryPlotWindow } from "/ui/dfm/dfm_summary_plot_window.js?v=20260514g";
 
 // =============================================================================
 // Excel Cell Reference Utilities
@@ -1888,6 +1889,7 @@ export function wireSummaryContextMenu(summaryTable) {
   summaryTable.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const row = e.target?.closest?.("tr[data-row-id]");
+    const onLabelCell = !!e.target?.closest?.("th.summaryDragHandle");
     setLastSummaryCtxRowId(row?.dataset?.rowId || null);
     const lastId = getLastSummaryCtxRowId();
     const cfg = summaryRowMap.get(lastId || "");
@@ -1897,8 +1899,13 @@ export function wireSummaryContextMenu(summaryTable) {
       const disableDelete = !cfg || summaryRowConfigs.length <= 1;
       const renameBtn = menu.querySelector('[data-action="rename-average"]');
       const deleteBtn = menu.querySelector('[data-action="delete-average"]');
+      const customBtn = menu.querySelector('[data-action="custom-average"]');
+      menu.querySelectorAll("[data-label-only], .dfmCtxSep[data-label-only]").forEach((item) => {
+        item.style.display = onLabelCell ? "" : "none";
+      });
       if (renameBtn) renameBtn.disabled = disableRename;
       if (deleteBtn) deleteBtn.disabled = disableDelete;
+      if (customBtn) customBtn.disabled = !onLabelCell;
     }
     showAvgMenu(e.clientX, e.clientY);
   });
@@ -1913,6 +1920,13 @@ export function wireSummaryContextMenu(summaryTable) {
       hideAvgMenu();
       if (action === "custom-average") {
         showAvgModal();
+        return;
+      }
+      if (action === "plot-summary-table") {
+        const table = document.querySelector("#ratioWrap table.ratioSummaryTable");
+        openDfmSummaryPlotWindow(table, {
+          onSelectAveragePoint: ({ rowId, col }) => selectSummaryCell(table, rowId, col),
+        });
         return;
       }
       if (action === "rename-average") {
@@ -1992,9 +2006,11 @@ function ensureSelectedRowValues(summaryTable, selectedTable) {
   if (!selectedTable) return;
   const selectedRow = selectedTable.querySelector('tr[data-row-id="selected"]');
   const cumulativeRow = selectedTable.querySelector('tr[data-row-id="cumulative"]');
+  const developedRow = selectedTable.querySelector('tr[data-row-id="percent-developed"]');
   if (!selectedRow) return;
   const selectedCells = Array.from(selectedRow.querySelectorAll("td[data-col]"));
   const selectedValues = new Array(selectedCells.length).fill(null);
+  const cumulativeValues = new Array(selectedCells.length).fill(null);
 
   selectedCells.forEach((td) => {
     const col = Number(td.dataset.col);
@@ -2037,8 +2053,22 @@ function ensureSelectedRowValues(summaryTable, selectedTable) {
         continue;
       }
       const rounded = roundRatio(running, 6);
+      cumulativeValues[i] = rounded;
       target.textContent = formatRatio(rounded, getDfmDecimalPlaces());
     }
+  }
+
+  if (developedRow) {
+    const developedCells = Array.from(developedRow.querySelectorAll("td[data-col]"));
+    developedCells.forEach((target) => {
+      const col = Number(target.dataset.col);
+      const cumulativeValue = cumulativeValues[col];
+      if (!Number.isFinite(cumulativeValue) || cumulativeValue === 0) {
+        target.textContent = "";
+        return;
+      }
+      target.textContent = formatRatio(roundRatio(1 / cumulativeValue, 6), getDfmDecimalPlaces());
+    });
   }
 }
 
@@ -2058,6 +2088,28 @@ export function applySummarySelection(summaryTable, selectedTable) {
     cell.classList.add("ratioSelectedCell");
   });
   ensureSelectedRowValues(summaryTable, selectedTable);
+}
+
+export function selectSummaryCell(summaryTable, rowId, col) {
+  if (!summaryTable) return false;
+  const rowKey = String(rowId || "");
+  const colIndex = Number(col);
+  if (!rowKey || !Number.isFinite(colIndex) || colIndex < 0) return false;
+  const cell = summaryTable.querySelector(`td.summaryCell[data-r="${CSS.escape(rowKey)}"][data-col="${colIndex}"]`);
+  if (!cell) return false;
+  const selectedTable = summaryTable.closest("#ratioWrap")?.querySelector("table.ratioSelectedTable");
+  selectedSummaryByCol.set(colIndex, rowKey);
+  summaryTable.querySelectorAll(`td.summaryCell[data-col="${colIndex}"]`)
+    .forEach((el) => el.classList.remove("ratioSelectedCell"));
+  cell.classList.add("ratioSelectedCell");
+  summaryTable.querySelectorAll("td.summaryCell.summaryActiveCell")
+    .forEach((el) => el.classList.remove("summaryActiveCell"));
+  cell.classList.add("summaryActiveCell");
+  summaryActiveCellState = { rowId: rowKey, col: colIndex };
+  ensureSelectedRowValues(summaryTable, selectedTable);
+  updateSummaryFormulaBarForCell(cell);
+  _onRatioStateMutated();
+  return true;
 }
 
 export function initDefaultSummarySelection(summaryTable) {

@@ -34,7 +34,7 @@ Routes:
 - `Function = SyncDFM` request files contain the same Details page fields plus `DataPath`, where `DataPath` points to an expected `SyncDFM...json` status file. They also include `MethodJsonPath` for the local DFM JSON to write into the RPC server and `RPCServerWriteConfirmed = true`; the app-server route rejects update-remote requests without this explicit confirmation.
 - `SyncDFM` status JSON must include fields that let the frontend report final result, for example `ok`, `status`, and `message`.
 - `arcrho_bridge` handles confirmed `SyncDFM` requests by reading `MethodJsonPath`, writing excluded ratio cells, selected average formula indexes, and notes to the RPC server DFM method, calling `Save()`, and writing the status JSON to `DataPath`.
-- Compare responses include snapshots read from canonical grouped local and remote DFM JSON files: `method metadata`.`last modified`, `ratio triangle`.`excluded` dimensions/excluded count/full preview with `0`/`1`/`2` values preserved, preview `origin_labels` and `development_labels` for ratio-cell tooltips, average formula names, and notes preview.
+- Compare responses include snapshots read from canonical grouped local and remote DFM JSON files: `method metadata`.`last modified`, `ratio triangle`.`excluded` dimensions/excluded count/full preview with `0`/`1`/`2` values preserved, preview `origin_labels` and `development_labels` for ratio-cell tooltips, `average formulas`.`label` plus `average formulas`.`selected` dimensions/selected count/full preview for formula-selection diffs, and notes preview.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches

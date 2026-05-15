@@ -450,18 +450,18 @@
       position: fixed;
       right: 18px;
       bottom: calc(var(--statusbar-h) + 70px);
-      width: min(480px, calc(100vw - 36px));
+      width: 465px;
       height: min(640px, calc(100vh - 132px));
-      min-width: 360px;
+      min-width: 465px;
       min-height: 340px;
       max-width: calc(100vw - 16px);
       max-height: calc(100vh - var(--statusbar-h) - 16px);
       display: flex;
       flex-direction: column;
-      background: rgba(248, 250, 252, 0.98);
-      border: 1px solid rgba(167, 179, 194, 0.72);
-      border-radius: 12px;
-      box-shadow: 0 24px 56px rgba(15, 23, 42, 0.22);
+      background: #f4f5f6;
+      border: 1px solid #c9ced6;
+      border-radius: 10px;
+      box-shadow: 0 14px 34px rgba(17, 24, 39, 0.16);
       z-index: 9001;
       overflow: hidden;
       opacity: 0;
@@ -475,7 +475,7 @@
         visibility 0s linear 170ms;
     }
     body.win11-frame #aiAssistantPanel {
-      border-radius: 12px;
+      border-radius: 10px;
     }
     #aiAssistantPanel.open {
       opacity: 1;
@@ -493,29 +493,57 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 0 8px 0 12px;
-      background: linear-gradient(#f7f9fc, #edf2f8);
-      border-bottom: 1px solid rgba(203, 211, 221, 0.82);
+      padding: 0 8px;
+      background: #edf0f3;
+      border-bottom: 1px solid #cfd4dc;
       box-sizing: border-box;
       font-size: 13px;
       font-weight: 700;
-      color: #202327;
+      color: #1f2933;
       cursor: move;
     }
     #aiAssistantHeaderTitle {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    #aiAssistantConnectionStatus {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #4b5563;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #aiAssistantConnectionStatus::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #9ca3af;
+      box-shadow: 0 0 0 1px rgba(31, 41, 55, 0.08);
+    }
+    #aiAssistantConnectionStatus.online::before {
+      background: #22c55e;
+    }
+    #aiAssistantConnectionStatus.offline::before {
+      background: #ef4444;
+    }
+    .aiAssistantHeaderSpacer {
+      flex: 1 1 auto;
+      min-width: 8px;
+    }
     .aiAssistantIconBtn {
       width: 24px;
       height: 24px;
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       background: transparent;
-      color: #333;
+      color: #4b5563;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -523,7 +551,7 @@
       padding: 0;
     }
     .aiAssistantIconBtn:hover {
-      background: #dfe6ef;
+      background: #dfe3e8;
     }
     .aiAssistantIconBtn svg {
       width: 14px;
@@ -534,57 +562,58 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    #aiAssistantStatus {
-      flex: 0 0 auto;
-      min-height: 26px;
-      padding: 6px 10px;
-      border-bottom: 1px solid #e6ebf1;
-      background: #fbfcfe;
-      color: #526071;
-      font-size: 12px;
-      line-height: 1.35;
-      box-sizing: border-box;
-    }
-    #aiAssistantStatus.error {
-      color: #7a1f1f;
-      background: #fff7f7;
-    }
     .aiAssistantSelectWrap {
       position: relative;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 0;
     }
     .aiAssistantControlLabel {
-      color: #6b7280;
-      font-size: 10.5px;
-      font-weight: 600;
-      line-height: 1;
-      white-space: nowrap;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
     }
     .aiAssistantSelectButton {
-      height: 24px;
-      min-width: 92px;
+      height: 28px;
+      min-width: 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
       gap: 6px;
-      border: 1px solid #d1d9e4;
+      border: none;
       border-radius: 7px;
-      background: linear-gradient(#ffffff, #f8fafc);
-      color: #30363d;
+      background: transparent;
+      color: #374151;
       cursor: pointer;
-      font-size: 11px;
-      padding: 0 7px;
+      font-size: 12px;
+      padding: 0 8px;
       white-space: nowrap;
     }
+    .aiAssistantSelectButton > span,
+    .aiAssistantComposerIconBtn > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #aiAssistantModeButton {
+      max-width: 174px;
+      justify-content: flex-start;
+    }
+    #aiAssistantModelButton {
+      max-width: 94px;
+    }
+    #aiAssistantModeMenu {
+      min-width: 160px;
+    }
     .aiAssistantSelectButton:hover {
-      background: #f5f8fc;
-      border-color: #aebed2;
+      background: #e8eef6;
+      color: #111827;
     }
     .aiAssistantSelectButton[aria-expanded="true"] {
-      border-color: #8ca9d1;
-      box-shadow: 0 0 0 2px rgba(43,109,246,0.12);
+      background: #dbeafe;
+      color: #1d4ed8;
     }
     .aiAssistantSelectChevron {
       width: 10px;
@@ -603,10 +632,10 @@
       min-width: 128px;
       display: none;
       padding: 4px;
-      border: 1px solid #bdc6d1;
+      border: 1px solid #c8d2e1;
       border-radius: 8px;
-      background: #ffffff;
-      box-shadow: 0 12px 24px rgba(15,23,42,0.18);
+      background: #f8fafc;
+      box-shadow: 0 10px 22px rgba(17,24,39,0.14);
       z-index: 9100;
       box-sizing: border-box;
     }
@@ -622,7 +651,7 @@
       border: none;
       border-radius: 6px;
       background: transparent;
-      color: #30363d;
+      color: #374151;
       cursor: pointer;
       font-size: 11px;
       padding: 0 7px;
@@ -630,10 +659,10 @@
       white-space: nowrap;
     }
     .aiAssistantSelectOption:hover {
-      background: #eef4ff;
+      background: #e8eef6;
     }
     .aiAssistantSelectOption.active {
-      color: #1d4ed8;
+      color: #2563eb;
       font-weight: 700;
     }
     .aiAssistantSelectOption:disabled {
@@ -662,47 +691,27 @@
       min-width: 0;
       line-height: 1.35;
     }
-    #aiAssistantSessionBar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      border-bottom: 1px solid #e6ebf1;
-      background: #f9fbfe;
-    }
-    #aiAssistantSessionSelect {
-      flex: 1 1 auto;
-      min-width: 0;
-      height: 28px;
-      border: 1px solid #d1d9e4;
-      border-radius: 8px;
-      background: #ffffff;
-      color: #1f2937;
-      font: inherit;
-      font-size: 12px;
-      padding: 0 8px;
-    }
     .aiAssistantMiniBtn {
       height: 28px;
-      border: 1px solid #d1d9e4;
-      border-radius: 8px;
-      background: linear-gradient(#ffffff, #f8fafc);
-      color: #1f2937;
+      border: 1px solid #c8ced6;
+      border-radius: 5px;
+      background: #f7f8f9;
+      color: #374151;
       cursor: pointer;
       font-size: 12px;
       padding: 0 9px;
       white-space: nowrap;
     }
     .aiAssistantMiniBtn:hover {
-      background: #eef5ff;
-      border-color: #a2bee7;
+      background: #eceff3;
+      border-color: #b9c0ca;
     }
     #aiAssistantContextPanel {
       display: none;
       padding: 8px 12px;
-      border-bottom: 1px solid #e3e8ef;
-      background: #fbfdff;
-      color: #536170;
+      border-bottom: 1px solid #d9dee5;
+      background: #f7f8f9;
+      color: #4b5563;
       font-size: 11.5px;
       line-height: 1.35;
     }
@@ -711,8 +720,8 @@
     }
     #aiAssistantDebugPanel {
       display: none;
-      border-bottom: 1px solid #d7dfe9;
-      background: #f8fafc;
+      border-bottom: 1px solid #d9dee5;
+      background: #f7f8f9;
     }
     #aiAssistantDebugPanel.open {
       display: block;
@@ -757,7 +766,7 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow: hidden;
-      background: #f8fafc;
+      background: #f4f5f6;
       flex-direction: column;
     }
     #aiAssistantHistoryPage.open {
@@ -775,8 +784,8 @@
       justify-content: space-between;
       gap: 10px;
       padding: 12px;
-      border-bottom: 1px solid #e2e8f0;
-      background: #ffffff;
+      border-bottom: 1px solid #d9dee5;
+      background: #f7f8f9;
     }
     #aiAssistantHistoryTitle {
       color: #172033;
@@ -800,10 +809,10 @@
       gap: 8px;
       align-items: center;
       padding: 9px;
-      border: 1px solid #e0e7ef;
-      border-radius: 10px;
-      background: #ffffff;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      border: 1px solid #d9dee5;
+      border-radius: 6px;
+      background: #f9fafb;
+      box-shadow: none;
       margin-bottom: 8px;
     }
     .aiAssistantHistoryRow.archived {
@@ -861,15 +870,85 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      background: linear-gradient(#ffffff, #fbfcfe);
+      background: #f7f8f9;
       user-select: text;
+    }
+    .aiAssistantMessageRow {
+      max-width: 96%;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      align-self: flex-start;
+    }
+    .aiAssistantMessageRow.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+    .aiAssistantMessageRow.system {
+      align-self: center;
+      max-width: 100%;
+    }
+    .aiAssistantAvatar {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+      border: 1px solid #c8d2e1;
+      background: #eef2f6;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 700;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    .aiAssistantMessageRow.assistant .aiAssistantAvatar {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .aiAssistantMessageRow.user .aiAssistantAvatar {
+      border-color: #cfd6df;
+      background: #eef2f6;
+    }
+    .aiAssistantAvatarUser {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .aiAssistantAvatarUser svg,
+    .aiAssistantAvatarArcBot img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .aiAssistantAvatarArcBot {
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .aiAssistantAvatarArcBot img {
+      object-fit: cover;
+    }
+    .aiAssistantAvatar:not(.aiAssistantAvatarUser) svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .aiAssistantMessage {
       max-width: 88%;
       padding: 8px 10px;
-      border: 1px solid #d8e0ea;
-      border-radius: 12px;
-      background: #f7f9fc;
+      border: 1px solid #d8dde4;
+      border-radius: 8px;
+      background: #f4f5f6;
       color: #1f2933;
       font-size: 12.5px;
       line-height: 1.4;
@@ -877,16 +956,14 @@
       overflow-wrap: anywhere;
       box-sizing: border-box;
     }
-    .aiAssistantMessage.user {
-      align-self: flex-end;
-      background: #e8f1ff;
-      border-color: #bdd4f4;
+    .aiAssistantMessageRow .aiAssistantMessage {
+      max-width: min(100%, 440px);
     }
-    .aiAssistantMessage.assistant {
-      align-self: flex-start;
+    .aiAssistantMessage.user {
+      background: #eef0f3;
+      border-color: #d0d5dd;
     }
     .aiAssistantMessage.system {
-      align-self: center;
       max-width: 100%;
       background: transparent;
       border: none;
@@ -939,11 +1016,11 @@
     .aiAssistantWorkCard {
       align-self: flex-start;
       width: min(92%, 360px);
-      border: 1px solid #d9e1ec;
-      border-radius: 12px;
-      background: #ffffff;
+      border: 1px solid #d9dee5;
+      border-radius: 8px;
+      background: #f9fafb;
       color: #344054;
-      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+      box-shadow: none;
       overflow: hidden;
     }
     .aiAssistantWorkCard summary {
@@ -960,7 +1037,7 @@
       display: none;
     }
     .aiAssistantWorkCard.running summary {
-      background: #f8fbff;
+      background: #f0f2f5;
     }
     .aiAssistantWorkTitle {
       color: #253244;
@@ -974,7 +1051,7 @@
       white-space: nowrap;
     }
     .aiAssistantWorkSteps {
-      border-top: 1px solid #edf1f6;
+      border-top: 1px solid #e1e5ea;
       padding: 7px 10px 9px;
       color: #596579;
       font-size: 11.5px;
@@ -985,23 +1062,253 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding: 10px 12px 12px;
-      border-top: 1px solid #e2e8f0;
+      margin: 10px 12px 12px;
+      padding: 8px;
+      border: 1px solid #d1d7df;
+      border-radius: 14px;
       background: #f8fafc;
       box-sizing: border-box;
+      box-shadow: 0 1px 2px rgba(17,24,39,0.06);
+      position: relative;
     }
     #aiAssistantComposerTop {
       display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
+      grid-template-columns: 1fr;
+      gap: 0;
       align-items: end;
     }
     #aiAssistantComposerControls {
+      display: grid;
+      grid-template-columns: minmax(28px, 1fr) auto auto auto minmax(30px, 1fr);
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .aiAssistantComposerIconBtn {
+      width: auto;
+      height: 28px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: #374151;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 8px;
+      position: relative;
+      font-size: 12px;
+      white-space: nowrap;
+      box-sizing: border-box;
+    }
+    #aiAssistantAppContextBtn {
+      max-width: 124px;
+      border-color: #c8ced6;
+      background: #e5e7eb;
+      color: #4b5563;
+    }
+    #aiAssistantAppContextBtn.active {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    #aiAssistantAppContextBtn:not(.active):hover {
+      background: #dfe3e8;
+      color: #374151;
+    }
+    .aiAssistantComposerIconBtn:hover {
+      background: #e8eef6;
+      color: #111827;
+    }
+    #aiAssistantAppContextBtn.active:hover {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .aiAssistantComposerIconBtn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    #aiAssistantAppContextTooltip {
+      position: absolute;
+      left: 12px;
+      bottom: 64px;
+      max-width: min(360px, calc(100% - 24px));
+      display: none;
+      padding: 8px 10px;
+      border: 1px solid #cfd8e3;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #263445;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+      font-size: 11.5px;
+      line-height: 1.35;
+      z-index: 9120;
+      pointer-events: none;
+      white-space: pre-line;
+    }
+    #aiAssistantAppContextTooltip.open {
+      display: block;
+    }
+    #aiAssistantAttachBtn {
+      width: 28px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+      justify-self: start;
+    }
+    #aiAssistantAttachMenu {
+      position: absolute;
+      left: 8px;
+      bottom: 48px;
+      min-width: 184px;
+      display: none;
+      padding: 6px;
+      border: 1px solid #c8d2e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      box-shadow: 0 10px 22px rgba(17,24,39,0.14);
+      z-index: 9120;
+      box-sizing: border-box;
+    }
+    #aiAssistantAttachMenu.open {
+      display: block;
+    }
+    .aiAssistantAttachMenuItem {
+      width: 100%;
+      min-height: 34px;
       display: flex;
       align-items: center;
-      gap: 10px;
-      min-height: 24px;
+      gap: 8px;
+      border: none;
+      border-radius: 7px;
+      background: transparent;
+      color: #374151;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0 8px;
+      text-align: left;
+    }
+    .aiAssistantAttachMenuItem:hover {
+      background: #e8eef6;
+      color: #111827;
+    }
+    .aiAssistantAttachMenuItem svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
+    }
+    #aiAssistantAttachmentList {
+      display: none;
       flex-wrap: wrap;
+      gap: 6px;
+    }
+    #aiAssistantAttachmentList.open {
+      display: flex;
+    }
+    .aiAssistantAttachmentChip {
+      max-width: 236px;
+      min-width: 0;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid #d1d7df;
+      border-radius: 10px;
+      background: #f1f5f9;
+      color: #374151;
+      font-size: 12px;
+      padding: 6px 6px 6px 8px;
+      box-sizing: border-box;
+    }
+    .aiAssistantAttachmentIcon {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      border-radius: 7px;
+      background: #e0ecff;
+      color: #2563eb;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .aiAssistantAttachmentIcon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .aiAssistantAttachmentIcon.type-data {
+      background: #eaf7ef;
+      color: #15803d;
+    }
+    .aiAssistantAttachmentIcon.type-code {
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    .aiAssistantAttachmentIcon.type-note {
+      background: #fff7ed;
+      color: #c2410c;
+    }
+    .aiAssistantAttachmentText {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .aiAssistantAttachmentName {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+      color: #2f3847;
+    }
+    .aiAssistantAttachmentType {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #6b7280;
+      font-size: 11px;
+    }
+    .aiAssistantAttachmentRemove {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      border: none;
+      border-radius: 50%;
+      background: #d1d7df;
+      color: #374151;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1;
+    }
+    .aiAssistantAttachmentRemove:hover {
+      background: #c2cad4;
+      color: #111827;
     }
     #aiAssistantInput {
       min-height: 38px;
@@ -1019,14 +1326,27 @@
       overflow-y: hidden;
     }
     #aiAssistantSendBtn {
-      width: 34px;
-      height: 34px;
-      min-width: 34px;
-      border-radius: 9px;
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      margin-left: 0;
+      border: 1px solid #c8d2e1;
+      border-radius: 50%;
+      background: #f1f5f9;
+      color: #334155;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0;
+      justify-self: end;
+    }
+    #aiAssistantSendBtn:hover {
+      background: #e8eef6;
+      color: #1d4ed8;
+    }
+    #aiAssistantSendBtn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
     #aiAssistantSendBtn svg {
       width: 16px;
@@ -1036,6 +1356,30 @@
       stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+    #aiAssistantSendBtn .aiAssistantCancelIcon {
+      display: none;
+      fill: currentColor;
+      stroke: none;
+    }
+    #aiAssistantSendBtn.cancel .aiAssistantSendIcon {
+      display: none;
+    }
+    #aiAssistantSendBtn.cancel .aiAssistantCancelIcon {
+      display: block;
+    }
+    #aiAssistantSendBtn.canceling {
+      opacity: 0.75;
+    }
+    .aiAssistantControlIcon {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
     }
     #aiAssistantResizeHandle {
       position: absolute;
@@ -1584,11 +1928,12 @@
     .homeBrandMark {
       width: 32px;
       height: 32px;
-      border-radius: 7px;
+      border-radius: 50%;
       overflow: hidden;
-      background: #64748b;
-      box-shadow: 0 1px 2px rgba(31,41,51,0.18);
+      background: #eef2f6;
+      border: 1px solid #cfd6df;
       flex: 0 0 auto;
+      box-sizing: border-box;
     }
     .homeBrandMark svg {
       display: block;
@@ -2269,6 +2614,8 @@
   </div>
 
   <div id="fileMenuDropdown" class="menuDropdown">
+    <div class="menuItem" data-action="open-notebook" data-page-scopes="scripting"><span>Open Notebook...</span><span class="menuShortcut">Ctrl+O</span></div>
+    <div class="menuSep"></div>
     <div class="menuItem" data-action="close-tab"><span>Close Tab</span><span class="menuShortcut">Alt+W</span></div>
     <div class="menuSep"></div>
     <div class="menuItem" data-action="save"><span>Save</span><span class="menuShortcut">Ctrl+S</span></div>
@@ -2331,19 +2678,34 @@
   <section id="aiAssistantPanel" class="host-nodrag" aria-label="ArcBot">
     <div id="aiAssistantHeader">
       <span id="aiAssistantHeaderTitle">ArcBot</span>
-      <button id="aiAssistantDebugBtn" class="aiAssistantIconBtn" type="button" title="Debug log" aria-label="Debug log" aria-expanded="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 7h16"></path>
-          <path d="M4 12h16"></path>
-          <path d="M4 17h10"></path>
-        </svg>
-      </button>
+      <span id="aiAssistantConnectionStatus" class="offline" role="status" aria-live="polite">Offline</span>
       <button id="aiAssistantRefreshBtn" class="aiAssistantIconBtn" type="button" title="Refresh status" aria-label="Refresh status">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M20 6v5h-5"></path>
           <path d="M4 18v-5h5"></path>
           <path d="M18 9a7 7 0 0 0-11-3"></path>
           <path d="M6 15a7 7 0 0 0 11 3"></path>
+        </svg>
+      </button>
+      <span class="aiAssistantHeaderSpacer" aria-hidden="true"></span>
+      <button id="aiAssistantNewChatBtn" class="aiAssistantIconBtn" type="button" title="New chat" aria-label="New chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="5" y="5" width="14" height="14" rx="3"></rect>
+          <path d="M9 15l1.2-3.5 5.4-5.4a1.4 1.4 0 0 1 2 2l-5.4 5.4L9 15z"></path>
+          <path d="M14.5 7.2l2.3 2.3"></path>
+        </svg>
+      </button>
+      <button id="aiAssistantHistoryBtn" class="aiAssistantIconBtn" type="button" aria-expanded="false" title="Chat history" aria-label="Chat history">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16"></path>
+          <path d="M4 12h16"></path>
+          <path d="M4 17h10"></path>
+        </svg>
+      </button>
+      <button id="aiAssistantDebugBtn" class="aiAssistantIconBtn" type="button" title="Debug log" aria-label="Debug log" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M16 18l6-6-6-6"></path>
+          <path d="M8 6l-6 6 6 6"></path>
         </svg>
       </button>
       <button id="aiAssistantCloseBtn" class="aiAssistantIconBtn" type="button" title="Close" aria-label="Close">
@@ -2353,17 +2715,10 @@
         </svg>
       </button>
     </div>
-    <div id="aiAssistantStatus" role="status" aria-live="polite">Checking Codex CLI...</div>
     <div id="aiAssistantSetup">
       <div id="aiAssistantSetupText"></div>
       <button id="aiAssistantSetupBtn" class="aiAssistantBtn primary" type="button">Install</button>
       <button id="aiAssistantLoginBtn" class="aiAssistantBtn" type="button">Sign in</button>
-    </div>
-    <div id="aiAssistantSessionBar">
-      <select id="aiAssistantSessionSelect" aria-label="ArcBot session"></select>
-      <button id="aiAssistantNewSessionBtn" class="aiAssistantMiniBtn" type="button">New</button>
-      <button id="aiAssistantHistoryBtn" class="aiAssistantMiniBtn" type="button" aria-expanded="false">History</button>
-      <button id="aiAssistantContextBtn" class="aiAssistantMiniBtn" type="button" aria-expanded="false">Context</button>
     </div>
     <div id="aiAssistantContextPanel" aria-live="polite"></div>
     <div id="aiAssistantDebugPanel">
@@ -2386,32 +2741,46 @@
     <div id="aiAssistantMessages"></div>
     <div id="aiAssistantActivity" aria-live="polite"></div>
     <form id="aiAssistantComposer">
+      <div id="aiAssistantAttachmentList" aria-label="Attached context files"></div>
       <div id="aiAssistantComposerTop">
         <textarea id="aiAssistantInput" rows="2" placeholder="Ask ArcBot..." autocomplete="off"></textarea>
-        <button id="aiAssistantSendBtn" class="aiAssistantBtn primary" type="submit" title="Send" aria-label="Send">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h13"></path>
-            <path d="M13 6l6 6-6 6"></path>
-          </svg>
-        </button>
       </div>
       <div id="aiAssistantComposerControls">
-        <div id="aiAssistantModePicker" class="aiAssistantSelectWrap">
-          <label class="aiAssistantControlLabel" for="aiAssistantModeButton">Mode</label>
-          <button id="aiAssistantModeButton" class="aiAssistantSelectButton" type="button" aria-haspopup="menu" aria-expanded="false">
-            <span id="aiAssistantModeLabel">Edit Mode</span>
-            <svg class="aiAssistantSelectChevron" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 6l4 4 4-4"></path>
+        <button id="aiAssistantAttachBtn" class="aiAssistantComposerIconBtn" type="button" title="Attach context file" aria-label="Attach context file" aria-haspopup="menu" aria-expanded="false">
+          <span aria-hidden="true">+</span>
+        </button>
+        <div id="aiAssistantAttachMenu" role="menu" aria-label="Attach files and more">
+          <button id="aiAssistantAttachFileOption" class="aiAssistantAttachMenuItem" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+              <path d="M14 3v5h5"></path>
+              <path d="M8 13h8"></path>
+              <path d="M8 17h5"></path>
             </svg>
+            <span>Attach files and more</span>
           </button>
-          <div id="aiAssistantModeMenu" class="aiAssistantSelectMenu" role="menu" aria-label="ArcBot mode">
-            <button id="aiAssistantEditModeOption" class="aiAssistantSelectOption active" type="button" role="menuitem">Edit Mode</button>
-            <button id="aiAssistantReviewModeOption" class="aiAssistantSelectOption" type="button" role="menuitem">Review Mode</button>
-          </div>
         </div>
+        <button id="aiAssistantAppContextBtn" class="aiAssistantComposerIconBtn active" type="button" aria-label="App Context" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+            <path d="M8 9h8"></path>
+            <path d="M8 13h5"></path>
+          </svg>
+          <span>App Context</span>
+        </button>
         <div id="aiAssistantModelPicker" class="aiAssistantSelectWrap">
           <label class="aiAssistantControlLabel" for="aiAssistantModelButton">Model</label>
           <button id="aiAssistantModelButton" class="aiAssistantSelectButton" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg class="aiAssistantControlIcon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v3"></path>
+              <path d="M12 18v3"></path>
+              <path d="M3 12h3"></path>
+              <path d="M18 12h3"></path>
+              <path d="M7.8 7.8l-2-2"></path>
+              <path d="M18.2 18.2l-2-2"></path>
+              <path d="M16.2 7.8l2-2"></path>
+              <path d="M5.8 18.2l2-2"></path>
+            </svg>
             <span id="aiAssistantModelLabel">Codex</span>
             <svg class="aiAssistantSelectChevron" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M4 6l4 4 4-4"></path>
@@ -2423,7 +2792,36 @@
             <button id="aiAssistantCopilotModelOption" class="aiAssistantSelectOption" type="button" role="menuitem">Copilot</button>
           </div>
         </div>
+        <div id="aiAssistantModePicker" class="aiAssistantSelectWrap">
+          <label class="aiAssistantControlLabel" for="aiAssistantModeButton">Mode</label>
+          <button id="aiAssistantModeButton" class="aiAssistantSelectButton" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg id="aiAssistantModeIcon" class="aiAssistantControlIcon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 11V7a2 2 0 0 0-4 0v3"></path>
+              <path d="M14 10V6a2 2 0 0 0-4 0v7"></path>
+              <path d="M10 13V8a2 2 0 1 0-4 0v6"></path>
+              <path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-16 0"></path>
+            </svg>
+            <span id="aiAssistantModeLabel">Edit Automatically</span>
+            <svg class="aiAssistantSelectChevron" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 6l4 4 4-4"></path>
+            </svg>
+          </button>
+          <div id="aiAssistantModeMenu" class="aiAssistantSelectMenu" role="menu" aria-label="ArcBot mode">
+            <button id="aiAssistantEditModeOption" class="aiAssistantSelectOption active" type="button" role="menuitem">Edit Automatically</button>
+            <button id="aiAssistantReviewModeOption" class="aiAssistantSelectOption" type="button" role="menuitem">Read Only</button>
+          </div>
+        </div>
+        <button id="aiAssistantSendBtn" class="aiAssistantBtn primary" type="submit" title="Send" aria-label="Send">
+          <svg class="aiAssistantSendIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 19V5"></path>
+            <path d="M6 11l6-6 6 6"></path>
+          </svg>
+          <svg class="aiAssistantCancelIcon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="8" y="8" width="8" height="8" rx="1.5"></rect>
+          </svg>
+        </button>
       </div>
+      <div id="aiAssistantAppContextTooltip" role="tooltip"></div>
     </form>
     <div id="aiAssistantResizeHandle" aria-hidden="true"></div>
   </section>
@@ -2569,7 +2967,7 @@
       }
     })();
   </script>
-  <script type="module" src="/ui/shell/ui_shell.js?v=20260510a"></script>
+  <script type="module" src="/ui/shell/ui_shell.js?v=20260515b"></script>
 </body>
 </html>
 

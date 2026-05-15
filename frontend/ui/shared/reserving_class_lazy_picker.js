@@ -3586,6 +3586,12 @@ export async function openLazyReservingClassPicker(options = {}) {
           persistModelFavorites();
           refreshFavoritesInTreeWindow();
         },
+        onRevertFavoriteNickname: (path) => {
+          if (typeof model.setFavoriteNickname !== "function") return;
+          model.setFavoriteNickname(path, "");
+          persistModelFavorites();
+          refreshFavoritesInTreeWindow();
+        },
         onDeleteFavorite: (path) => {
           if (typeof model.toggleFavoritePath !== "function" || !model.isFavoritePath?.(path)) return;
           model.toggleFavoritePath(path);

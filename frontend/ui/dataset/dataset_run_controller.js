@@ -24,6 +24,7 @@ export function createDatasetRunController(deps) {
     setStatus,
     applyGridSelectionFromState,
     stepId,
+    suppressLoadingPopup = false,
   } = deps;
 
   let autoRunTimer = null;
@@ -122,6 +123,7 @@ export function createDatasetRunController(deps) {
   }
 
   function showDatasetLoadingPopup(message = "") {
+    if (suppressLoadingPopup) return;
     const doc = document;
     ensureDatasetLoadingPopupStyles(doc);
     if (!datasetLoadingPopupEl || !datasetLoadingPopupEl.isConnected) {
@@ -154,6 +156,7 @@ export function createDatasetRunController(deps) {
   }
 
   function hideDatasetLoadingPopup() {
+    if (suppressLoadingPopup) return;
     if (datasetLoadingPopupTimer) {
       cancelAnimationFrame(datasetLoadingPopupTimer);
       datasetLoadingPopupTimer = null;

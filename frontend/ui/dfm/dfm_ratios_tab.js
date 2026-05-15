@@ -18,6 +18,7 @@ import {
   saveNaBorders,
 } from "/ui/dfm/dfm_storage.js";
 import { renderResultsTable } from "/ui/dfm/dfm_results_tab.js";
+import { wirePercentDevelopedCurveMenu } from "/ui/dfm/dfm_percent_developed_curve_window.js?v=20260514e";
 import {
   buildRatioSelectionPattern,
   buildAverageSelectionPayload,
@@ -453,6 +454,18 @@ export function renderRatioTable() {
     cumulativeRow.appendChild(td);
   }
   selectedBody.appendChild(cumulativeRow);
+  const developedRow = document.createElement("tr");
+  developedRow.dataset.rowId = "percent-developed";
+  const developedTh = document.createElement("th");
+  developedTh.textContent = "% Developed";
+  developedRow.appendChild(developedTh);
+  for (let c = 0; c < ratioLabels.length; c++) {
+    const td = document.createElement("td");
+    td.dataset.col = String(c);
+    td.style.textAlign = "right";
+    developedRow.appendChild(td);
+  }
+  selectedBody.appendChild(developedRow);
   selectedTable.appendChild(selectedBody);
 
   wrap.appendChild(table);
@@ -462,6 +475,7 @@ export function renderRatioTable() {
 
   wireSummaryRowDrag(summaryBody);
   wireSummaryContextMenu(summaryTable);
+  wirePercentDevelopedCurveMenu(selectedTable);
 
   requestAnimationFrame(() => {
     const headerCells = table.querySelectorAll("thead th");
