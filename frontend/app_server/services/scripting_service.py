@@ -23,7 +23,7 @@ import types
 from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 
@@ -1161,6 +1161,27 @@ def _normalize_local_project_preferences(raw: Any) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if project:
         out["projectName"] = project
+    recent_raw = (
+        source.get("recentProjectNames")
+        or source.get("recent_project_names")
+        or source.get("recentProjects")
+        or source.get("recent_projects")
+        or []
+    )
+    if isinstance(recent_raw, (list, tuple)):
+        recent_projects: List[str] = []
+        seen_projects: Set[str] = set()
+        for item in recent_raw:
+            recent_project = str(item or "").strip()
+            recent_key = recent_project.lower()
+            if not recent_project or recent_key in seen_projects:
+                continue
+            seen_projects.add(recent_key)
+            recent_projects.append(recent_project)
+            if len(recent_projects) >= 3:
+                break
+        if recent_projects:
+            out["recentProjectNames"] = recent_projects
     if updated_at:
         out["updated_at"] = updated_at
     return out
@@ -1198,7 +1219,34 @@ def save_local_project_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
             existing = {}
 
         incoming = _normalize_local_project_preferences(prefs)
+        incoming_source = prefs if isinstance(prefs, dict) else {}
+        incoming_has_recent_projects = any(
+            key in incoming_source
+            for key in ("recentProjectNames", "recent_project_names", "recentProjects", "recent_projects")
+        )
+        incoming_project = str(incoming.get("projectName") or "").strip()
+        existing_recent = existing.get("recentProjectNames")
+        incoming_recent = incoming.get("recentProjectNames")
+        merged_recent: List[str] = []
+        if incoming_has_recent_projects:
+            seen_recent: Set[str] = set()
+            for candidate in [
+                incoming_project,
+                *(incoming_recent if isinstance(incoming_recent, list) else []),
+                *(existing_recent if isinstance(existing_recent, list) else []),
+            ]:
+                recent_project = str(candidate or "").strip()
+                recent_key = recent_project.lower()
+                if not recent_project or recent_key in seen_recent:
+                    continue
+                seen_recent.add(recent_key)
+                merged_recent.append(recent_project)
+                if len(merged_recent) >= 3:
+                    break
+
         existing.update(incoming)
+        if incoming_has_recent_projects and merged_recent:
+            existing["recentProjectNames"] = merged_recent
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:

@@ -1,6 +1,7 @@
 import { openFloatingPathTreePicker } from "/ui/shared/path_tree_picker.js";
 
 const DEFAULT_SOURCE = "project_map";
+const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
 const PROJECT_NODE_MENU_STYLE_ID = "arcrho-project-name-node-menu-style";
 let PROJECT_TREE_CACHE = null;
 let activeProjectNodeMenu = null;
@@ -246,6 +247,71 @@ async function fetchProjectPaths(source = DEFAULT_SOURCE) {
   return Array.isArray(out?.project_paths) ? out.project_paths : [];
 }
 
+function normalizeLocalProjectPreference(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const projectName = toText(source.projectName || source.project_name || source.project);
+  const recentRaw = source.recentProjectNames
+    || source.recent_project_names
+    || source.recentProjects
+    || source.recent_projects
+    || [];
+  const recentProjectNames = [];
+  const seen = new Set();
+  for (const item of Array.isArray(recentRaw) ? recentRaw : []) {
+    const name = toText(item);
+    const key = normalizeNameKey(name);
+    if (!name || !key || seen.has(key)) continue;
+    seen.add(key);
+    recentProjectNames.push(name);
+    if (recentProjectNames.length >= 3) break;
+  }
+  return { projectName, recentProjectNames };
+}
+
+async function fetchLocalProjectPreference() {
+  try {
+    const resp = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, { cache: "no-store" });
+    if (!resp.ok) return { projectName: "", recentProjectNames: [] };
+    const payload = await resp.json().catch(() => ({}));
+    return normalizeLocalProjectPreference(payload?.preferences || payload);
+  } catch {
+    return { projectName: "", recentProjectNames: [] };
+  }
+}
+
+function mergeRecentProjectNames(projectName, recentProjectNames) {
+  const out = [];
+  const seen = new Set();
+  for (const item of [projectName, ...(Array.isArray(recentProjectNames) ? recentProjectNames : [])]) {
+    const name = toText(item);
+    const key = normalizeNameKey(name);
+    if (!name || !key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
+async function saveLocalProjectPreference(projectName, currentPreference = null) {
+  const project = toText(projectName);
+  if (!project) return null;
+  const pref = currentPreference || await fetchLocalProjectPreference();
+  const recentProjectNames = mergeRecentProjectNames(project, pref?.recentProjectNames);
+  const resp = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      projectName: project,
+      recentProjectNames,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!resp.ok) throw new Error(`Failed to update local project preferences (${resp.status}).`);
+  const payload = await resp.json().catch(() => ({}));
+  return normalizeLocalProjectPreference(payload?.preferences || payload);
+}
+
 function buildProjectEntries(projectNames, projectPaths) {
   const byName = new Map();
   for (const rawPath of Array.isArray(projectPaths) ? projectPaths : []) {
@@ -363,16 +429,54 @@ function buildProjectTreeNodes(entries) {
   return toPickerChildren(root);
 }
 
+function buildRecentProjectNode(preference, fullPathByProject) {
+  const storedRecent = Array.isArray(preference?.recentProjectNames) ? preference.recentProjectNames : [];
+  const recentNames = storedRecent.length ? storedRecent : [preference?.projectName];
+  const children = [];
+  const seen = new Set();
+  for (const recentName of recentNames) {
+    const key = normalizeNameKey(recentName);
+    const fullPath = fullPathByProject.get(key);
+    if (!key || !fullPath || seen.has(key)) continue;
+    seen.add(key);
+    children.push({
+      name: recentName,
+      path: fullPath,
+      level_label: "Project",
+      has_children: false,
+    });
+    if (children.length >= 3) break;
+  }
+  if (!children.length) return null;
+  return {
+    name: "Recent Projects",
+    path: "__virtual_recent_projects",
+    level_label: "Recent",
+    value_type: "recent-folder",
+    has_children: true,
+    children,
+  };
+}
+
 async function loadProjectTreeData(options = {}) {
   const forceReload = !!options?.forceReload;
   const source = toText(options?.source || DEFAULT_SOURCE) || DEFAULT_SOURCE;
   if (!forceReload && PROJECT_TREE_CACHE && PROJECT_TREE_CACHE.source === source) {
-    return PROJECT_TREE_CACHE;
+    const preference = await fetchLocalProjectPreference();
+    const recentNode = buildRecentProjectNode(preference, PROJECT_TREE_CACHE.fullPathByProject);
+    return {
+      ...PROJECT_TREE_CACHE,
+      preference,
+      rootNodes: recentNode
+        ? [recentNode, ...PROJECT_TREE_CACHE.realRootNodes]
+        : PROJECT_TREE_CACHE.realRootNodes,
+    };
   }
 
-  const [projectNames, projectPaths] = await Promise.all([
+  const [projectNames, projectPaths, preference] = await Promise.all([
     fetchProjectNames(),
     fetchProjectPaths(source),
+    fetchLocalProjectPreference(),
   ]);
 
   const entries = buildProjectEntries(projectNames, projectPaths);
@@ -381,11 +485,15 @@ async function loadProjectTreeData(options = {}) {
     fullPathByProject.set(normalizeNameKey(entry.projectName), entry.fullPath);
   }
 
+  const realRootNodes = buildProjectTreeNodes(entries);
+  const recentNode = buildRecentProjectNode(preference, fullPathByProject);
   const data = {
     source,
     entries,
-    rootNodes: buildProjectTreeNodes(entries),
+    realRootNodes,
+    rootNodes: recentNode ? [recentNode, ...realRootNodes] : realRootNodes,
     fullPathByProject,
+    preference,
   };
   PROJECT_TREE_CACHE = data;
   return data;
@@ -458,10 +566,20 @@ export async function openProjectNameTreePicker(options = {}) {
           },
         });
       },
-      onSelect: (path, node) => {
+      onSelect: async (path, node) => {
         closeProjectNodeMenu("selected");
         const projectName = toText(node?.name) || toText(splitProjectTreePath(path).projectName);
         if (!projectName || !onSelect) return;
+        try {
+          const savedPreference = await saveLocalProjectPreference(projectName, data?.preference);
+          data.preference = savedPreference || data.preference;
+          if (PROJECT_TREE_CACHE && PROJECT_TREE_CACHE.source === source) {
+            PROJECT_TREE_CACHE.preference = data.preference;
+          }
+        } catch (err) {
+          console.error("Failed to update recent project preference:", err);
+          setStatus("Selected project, but recent project preference was not updated.");
+        }
         onSelect(projectName, path, node);
       },
       onClose: (reason) => {

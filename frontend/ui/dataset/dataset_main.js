@@ -262,6 +262,16 @@ function setLastProjectSelection(value) {
   lastProjectSelection = String(value || "");
 }
 
+function notifyProjectSelectionCommitted(projectName, source = "") {
+  const projectInput = document.getElementById("projectSelect");
+  const project = String(projectName || "").trim();
+  if (!projectInput || !project) return;
+  projectInput.dispatchEvent(new CustomEvent("arcrho:project-selected", {
+    bubbles: true,
+    detail: { projectName: project, source },
+  }));
+}
+
 function setLastDatasetSelection(value) {
   lastDatasetSelection = String(value || "");
 }
@@ -2380,7 +2390,10 @@ async function handleProjectSelection(value, options = {}) {
     return false;
   }
   clearInputInvalid(projectInput);
-  if (project === lastProjectSelection) return true;
+  if (project === lastProjectSelection) {
+    notifyProjectSelectionCommitted(project, "project-selection");
+    return true;
+  }
 
   lastProjectSelection = project;
   if (!window.ADA_DFM_CONTEXT) {
@@ -2388,6 +2401,7 @@ async function handleProjectSelection(value, options = {}) {
   }
 
   if (projectInput) projectInput.value = project;
+  notifyProjectSelectionCommitted(project, "project-selection");
   showProjectDropdown(false);
 
   saveTriInputsToStorage();

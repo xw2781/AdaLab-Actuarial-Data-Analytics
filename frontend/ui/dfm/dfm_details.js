@@ -26,7 +26,6 @@ let outputTypeRequestSeq = 0;
 let triangleInputRequestSeq = 0;
 let dfmMethodNameRequestSeq = 0;
 let pendingOutputTypeFromUrl = null;
-let localProjectPreferenceSaved = "";
 let localProjectPreferenceLoadPromise = null;
 
 function toText(value) {
@@ -353,7 +352,6 @@ async function loadLastLocalProjectName() {
       if (!response.ok) return "";
       const payload = await response.json().catch(() => ({}));
       const project = normalizeLocalProjectPreference(payload?.preferences || payload);
-      localProjectPreferenceSaved = project;
       return project;
     } catch {
       return "";
@@ -362,22 +360,6 @@ async function loadLastLocalProjectName() {
     }
   })();
   return localProjectPreferenceLoadPromise;
-}
-
-function saveLastLocalProjectName(projectName) {
-  const project = toText(projectName);
-  if (!project || normalizeKey(project) === normalizeKey(localProjectPreferenceSaved)) return;
-  localProjectPreferenceSaved = project;
-  void fetch("/local-project/preferences", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      projectName: project,
-      updated_at: new Date().toISOString(),
-    }),
-  }).catch(() => {
-    localProjectPreferenceSaved = "";
-  });
 }
 
 function getLastReservingClassPathFromProjectPrefs(prefs) {
@@ -496,6 +478,14 @@ function saveLastReservingClassPathForCurrentProject() {
   scheduleProjectUserPreferencesSave(project, {
     lastReservingClassPath: path,
   });
+}
+
+function commitSelectedDfmProject(projectName, options = {}) {
+  const project = toText(projectName);
+  if (!project) return;
+  if (options?.applyPreferences !== false) {
+    void applyDfmProjectUserPreferences(project, { replace: true });
+  }
 }
 
 async function applyLastLocalProjectNameIfBlank() {
@@ -708,8 +698,10 @@ export function wireMethodName() {
   projectInput?.addEventListener("change", updatePathBar);
   projectInput?.addEventListener("input", updatePathBar);
   projectInput?.addEventListener("change", () => {
-    saveLastLocalProjectName(projectInput.value);
-    void applyDfmProjectUserPreferences(projectInput.value, { replace: true });
+    commitSelectedDfmProject(projectInput.value);
+  });
+  projectInput?.addEventListener("arcrho:project-selected", (event) => {
+    commitSelectedDfmProject(event?.detail?.projectName || projectInput.value);
   });
   pathInput?.addEventListener("change", updatePathBar);
   pathInput?.addEventListener("input", updatePathBar);
