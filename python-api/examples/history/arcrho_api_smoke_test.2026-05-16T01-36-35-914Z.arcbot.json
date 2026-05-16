@@ -1,0 +1,14 @@
+{
+  "type": "arcbot-json-edit",
+  "timestamp": "2026-05-16T01:36:35.923Z",
+  "targetPath": "C:\\Users\\xwei\\Documents\\Repos\\ArcRho\\python-api\\examples\\arcrho_api_smoke_test.ipynb",
+  "backupPath": "C:\\Users\\xwei\\Documents\\Repos\\ArcRho\\python-api\\examples\\history\\arcrho_api_smoke_test.2026-05-16T01-36-35-914Z.bak.json",
+  "manifestPath": "C:\\Users\\xwei\\Documents\\Repos\\ArcRho\\python-api\\examples\\history\\arcrho_api_smoke_test.2026-05-16T01-36-35-914Z.arcbot.json",
+  "requestText": "Traceback (most recent call last):\n  File \"C:\\Users\\xwei\\Documents\\Repos\\ArcRho\\frontend\\app_server\\services\\scripting_service.py\", line 592, in _worker\n    exec(compile(tree, \"<cell>\", \"exec\"), session.namespace)\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<cell>\", line 13, in <module>\n  File \"C:\\Users\\xwei\\Documents\\Repos\\ArcRho\\frontend\\app_server\\services\\scripting_service.py\", line 161, in _session_import\n    module = base_import(name, globals, locals, fromlist, level)\nModuleNotFoundError: No module named 'arcrho_api'",
+  "reply": "Updated the first code cell so the notebook searches for the local python-api/src/arcrho_api folder from the ArcBot session context and the expected Documents\\Repos\\ArcRho\\python-api location before importing arcrho_api. The JSON remains valid.",
+  "beforeSha256": "b59483306b54b07198285126b9355c4305c973e1983fdc7ec2d18182fbad0705",
+  "afterSha256": "c6108c9883977d6a2651ddbd67f9eb51153b8d3d4ba4b23d459573894fd205e1",
+  "backupSource": "file",
+  "allowedRoot": "active-page-context",
+  "resolvedAllowedRoot": ""
+}

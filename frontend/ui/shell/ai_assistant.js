@@ -13,18 +13,25 @@ let currentPendingMessageEl = null;
 let currentRunStartedAt = 0;
 let currentStepStartedAt = 0;
 let currentWorkCardEl = null;
+let assistantProgressSteps = [];
+let assistantProgressTicker = null;
 let latestSessionList = [];
 let assistantMode = "edit";
-const ASSISTANT_MODEL = "codex";
 const ASSISTANT_LAUNCHER_VISIBLE_KEY = "arcrho_ai_assistant_launcher_visible";
 const ASSISTANT_LAUNCHER_POSITION_KEY = "arcrho_ai_assistant_launcher_position";
 const ASSISTANT_PANEL_SIZE_KEY = "arcrho_ai_assistant_panel_size";
 const ASSISTANT_PANEL_OPENED_SESSION_KEY = "arcrho_ai_assistant_panel_opened_session";
-const ASSISTANT_PANEL_MIN_WIDTH = 465;
+const ASSISTANT_PANEL_MIN_WIDTH = 420;
 const ASSISTANT_PANEL_DEFAULT_HEIGHT = 640;
 const ASSISTANT_ATTACHMENT_EXTENSIONS = [
   "txt", "md", "csv", "tsv", "json", "jsonl", "ipynb", "arcnb", "py", "r", "sql",
   "js", "ts", "html", "css", "xml", "yaml", "yml", "toml", "ini", "log",
+];
+const ASSISTANT_WORK_STEP_DEFS = [
+  { id: "understanding", label: "Understanding request" },
+  { id: "scanning", label: "Scanning app contents" },
+  { id: "executing", label: "Executing / modifying" },
+  { id: "finalizing", label: "Finalizing" },
 ];
 let assistantReady = false;
 let assistantBusy = false;
@@ -118,7 +125,6 @@ function getSessionPayload() {
     id: currentSessionId,
     title: currentSessionTitle,
     mode: assistantMode,
-    model: ASSISTANT_MODEL,
     messages: assistantMessages,
     activities: assistantActivities,
     debugLogs: assistantDebugLogs,
@@ -160,6 +166,169 @@ function formatElapsed(ms) {
   return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)}s`;
 }
 
+function createAssistantProgressSteps() {
+  return ASSISTANT_WORK_STEP_DEFS.map((step) => ({
+    ...step,
+    state: "pending",
+    status: "",
+    elapsedMs: 0,
+    startedAt: 0,
+  }));
+}
+
+function getAssistantProgressStepIndex(stepId) {
+  return ASSISTANT_WORK_STEP_DEFS.findIndex((step) => step.id === stepId);
+}
+
+function finishAssistantProgressStep(step, state = "completed", status = "") {
+  if (!step) return;
+  const now = performance.now();
+  if (step.startedAt) {
+    step.elapsedMs += Math.max(0, now - step.startedAt);
+    step.startedAt = 0;
+  }
+  step.state = state;
+  if (status) step.status = status;
+}
+
+function updateAssistantProgressStep(stepId, state = "active", status = "", options = {}) {
+  if (!assistantProgressSteps.length) assistantProgressSteps = createAssistantProgressSteps();
+  const index = getAssistantProgressStepIndex(stepId);
+  if (index < 0) return;
+  const now = performance.now();
+  assistantProgressSteps.forEach((step, stepIndex) => {
+    if (stepIndex < index && (step.state === "pending" || step.state === "active")) {
+      finishAssistantProgressStep(step, "completed");
+    } else if (stepIndex !== index && step.state === "active") {
+      finishAssistantProgressStep(step, stepIndex < index ? "completed" : "pending");
+    }
+  });
+  const step = assistantProgressSteps[index];
+  if (state === "active") {
+    if (step.state !== "active") step.startedAt = now;
+    step.state = "active";
+    if (status) step.status = status;
+  } else {
+    finishAssistantProgressStep(step, state, status);
+  }
+  if (options.render !== false) renderActivities();
+}
+
+function getAssistantProgressElapsed(step) {
+  if (!step) return 0;
+  const liveMs = step.state === "active" && step.startedAt
+    ? performance.now() - step.startedAt
+    : 0;
+  return Math.max(0, Math.round(Number(step.elapsedMs || 0) + liveMs));
+}
+
+function completeAssistantProgress(status = "Completed") {
+  if (!assistantProgressSteps.length) assistantProgressSteps = createAssistantProgressSteps();
+  assistantProgressSteps.forEach((step, index) => {
+    const finalStatus = index === assistantProgressSteps.length - 1 ? status : "";
+    if (step.state !== "failed") finishAssistantProgressStep(step, "completed", finalStatus);
+  });
+  renderActivities();
+}
+
+function failAssistantProgress(status = "Request failed") {
+  if (!assistantProgressSteps.length) assistantProgressSteps = createAssistantProgressSteps();
+  const activeStep = assistantProgressSteps.find((step) => step.state === "active") ||
+    assistantProgressSteps.find((step) => step.state === "pending") ||
+    assistantProgressSteps.at(-1);
+  finishAssistantProgressStep(activeStep, "failed", status);
+  renderActivities();
+}
+
+function classifyAssistantActivity(activity) {
+  const text = String(activity?.text || "");
+  const lower = text.toLowerCase();
+  const type = String(activity?.type || "").toLowerCase();
+  if (type === "error" || lower.includes("failed") || lower.includes("could not") || lower.includes("error:")) {
+    return { stepId: "finalizing", state: "failed", status: text || "Request failed" };
+  }
+  if (lower.includes("request canceled") || lower.includes("cancel requested")) {
+    return { stepId: "finalizing", state: "failed", status: text || "Request canceled" };
+  }
+  if (lower.includes("request received") || lower.includes("understanding")) {
+    return { stepId: "understanding", state: "active", status: text || "Reading the request" };
+  }
+  if (
+    lower.includes("active context") ||
+    lower.includes("active app") ||
+    lower.includes("active page") ||
+    lower.includes("active json") ||
+    lower.includes("active file") ||
+    lower.includes("context estimate") ||
+    lower.includes("scanned")
+  ) {
+    return { stepId: "scanning", state: "active", status: text };
+  }
+  if (
+    lower.includes("codex") ||
+    lower.includes("editable local") ||
+    lower.includes("edit started") ||
+    lower.includes("session prepared") ||
+    lower.includes("resolving arcbot project") ||
+    lower.includes("warm session") ||
+    lower.includes("cli")
+  ) {
+    return { stepId: "executing", state: "active", status: text };
+  }
+  if (
+    lower.includes("validating") ||
+    lower.includes("applying") ||
+    lower.includes("response received") ||
+    lower.includes("response completed") ||
+    lower.includes("edit completed") ||
+    lower.includes("applied json") ||
+    lower.includes("cleaned edited json")
+  ) {
+    const complete = lower.includes("response completed") || lower.includes("applied json");
+    return { stepId: "finalizing", state: complete ? "completed" : "active", status: text };
+  }
+  return null;
+}
+
+function updateAssistantProgressFromActivity(activity, options = {}) {
+  const progress = classifyAssistantActivity(activity);
+  if (!progress) return;
+  updateAssistantProgressStep(progress.stepId, progress.state, progress.status, options);
+}
+
+function inferAssistantProgressSteps(activities) {
+  const savedSteps = createAssistantProgressSteps();
+  const previousSteps = assistantProgressSteps;
+  assistantProgressSteps = savedSteps;
+  for (const activity of activities || []) {
+    updateAssistantProgressFromActivity(activity, { render: false });
+  }
+  if ((activities || []).length && !savedSteps.some((step) => step.state === "failed")) {
+    savedSteps.forEach((step) => {
+      if (step.state === "active" || step.state === "pending") finishAssistantProgressStep(step, "completed");
+    });
+  }
+  assistantProgressSteps = previousSteps;
+  return savedSteps;
+}
+
+function startAssistantProgressTicker() {
+  stopAssistantProgressTicker();
+  assistantProgressTicker = window.setInterval(() => {
+    if (!currentRunStartedAt) {
+      stopAssistantProgressTicker();
+      return;
+    }
+    renderActivities();
+  }, 900);
+}
+
+function stopAssistantProgressTicker() {
+  if (!assistantProgressTicker) return;
+  window.clearInterval(assistantProgressTicker);
+  assistantProgressTicker = null;
+}
+
 function appendDebugLog(text, type = "debug") {
   const raw = String(text || "").trim();
   if (!raw) return;
@@ -192,6 +361,7 @@ function appendActivity(text, type = "activity", options = {}) {
   if (!activity.text) return;
   assistantActivities.push(activity);
   assistantActivities = assistantActivities.slice(-120);
+  updateAssistantProgressFromActivity(activity, { render: false });
   renderActivities();
   if (options.save !== false) saveCurrentSession();
 }
@@ -201,12 +371,14 @@ function renderActivities() {
   if (legacyPanel) legacyPanel.classList.remove("open");
   const container = $("aiAssistantMessages");
   if (!container) return;
-  const visible = assistantActivities.slice(-8);
-  if (!visible.length) {
+  if (!assistantActivities.length && !currentRunStartedAt) {
     currentWorkCardEl?.remove();
     currentWorkCardEl = null;
     return;
   }
+  const steps = currentRunStartedAt
+    ? (assistantProgressSteps.length ? assistantProgressSteps : createAssistantProgressSteps())
+    : inferAssistantProgressSteps(assistantActivities);
 
   if (!currentWorkCardEl || !currentWorkCardEl.isConnected) {
     currentWorkCardEl = document.createElement("details");
@@ -222,40 +394,61 @@ function renderActivities() {
     container.appendChild(currentWorkCardEl);
   }
 
-  const totalMs = assistantActivities.reduce((sum, item) => (
-    sum + (Number.isFinite(item.elapsedMs) ? Math.max(0, item.elapsedMs) : 0)
-  ), 0);
   const isRunning = !!currentRunStartedAt;
+  const totalMs = isRunning
+    ? performance.now() - currentRunStartedAt
+    : assistantActivities.reduce((sum, item) => (
+        sum + (Number.isFinite(item.elapsedMs) ? Math.max(0, item.elapsedMs) : 0)
+      ), 0);
+  const activeStep = steps.find((step) => step.state === "active");
+  const failedStep = steps.find((step) => step.state === "failed");
+  const completedSteps = steps.filter((step) => step.state === "completed").length;
   currentWorkCardEl.classList.toggle("running", isRunning);
+  currentWorkCardEl.classList.toggle("failed", !!failedStep);
   currentWorkCardEl.classList.toggle("complete", !isRunning);
   if (isRunning) currentWorkCardEl.open = true;
   else currentWorkCardEl.open = false;
 
   currentWorkCardEl.textContent = "";
   const summary = document.createElement("summary");
+  const titleWrap = document.createElement("span");
+  titleWrap.className = "aiAssistantWorkTitleWrap";
+  const pulse = document.createElement("span");
+  pulse.className = "aiAssistantWorkPulse";
   const title = document.createElement("span");
   title.className = "aiAssistantWorkTitle";
-  title.textContent = isRunning ? "Working" : "Worked";
+  title.textContent = failedStep ? "Needs attention" : isRunning ? "Working" : "Worked";
+  const subtitle = document.createElement("span");
+  subtitle.className = "aiAssistantWorkSubtitle";
+  subtitle.textContent = failedStep?.status || activeStep?.status || (isRunning ? "Waiting for the next update..." : "Task details collapsed.");
+  titleWrap.append(pulse, title, subtitle);
   const meta = document.createElement("span");
   meta.className = "aiAssistantWorkMeta";
-  meta.textContent = `${formatElapsed(totalMs)} · ${visible.length} step${visible.length === 1 ? "" : "s"}`;
-  summary.append(title, meta);
+  meta.textContent = `${formatElapsed(totalMs)} - ${completedSteps}/${steps.length}`;
+  summary.append(titleWrap, meta);
   currentWorkCardEl.appendChild(summary);
 
   const list = document.createElement("div");
   list.className = "aiAssistantWorkSteps";
-  for (const activity of visible) {
+  for (const step of steps) {
     const row = document.createElement("div");
-    row.className = "aiAssistantActivityItem";
+    row.className = `aiAssistantWorkStep ${step.state || "pending"}`;
     const marker = document.createElement("span");
-    marker.className = "aiAssistantActivityMarker";
-    const text = document.createElement("span");
-    text.className = "aiAssistantActivityText";
-    text.textContent = activity.text;
+    marker.className = "aiAssistantWorkStepMarker";
+    const body = document.createElement("span");
+    body.className = "aiAssistantWorkStepBody";
+    const label = document.createElement("span");
+    label.className = "aiAssistantWorkStepLabel";
+    label.textContent = step.label;
+    const status = document.createElement("span");
+    status.className = "aiAssistantWorkStepStatus";
+    status.textContent = step.status || (step.state === "active" ? "In progress..." : "");
     const time = document.createElement("span");
-    time.className = "aiAssistantActivityTime";
-    time.textContent = activity.elapsedMs == null ? "" : formatElapsed(activity.elapsedMs);
-    row.append(marker, text, time);
+    time.className = "aiAssistantWorkStepTime";
+    const stepElapsed = getAssistantProgressElapsed(step);
+    time.textContent = stepElapsed ? formatElapsed(stepElapsed) : "";
+    body.append(label, status);
+    row.append(marker, body, time);
     list.appendChild(row);
   }
   currentWorkCardEl.appendChild(list);
@@ -533,7 +726,7 @@ async function loadAssistantSession(sessionId) {
 async function createAssistantSession() {
   const host = getHostApi();
   if (!host?.codexAssistantCreateSession) return false;
-  const result = await host.codexAssistantCreateSession({ mode: assistantMode, model: ASSISTANT_MODEL });
+  const result = await host.codexAssistantCreateSession({ mode: assistantMode });
   if (!result?.ok || !result.session) return false;
   currentSessionId = result.session.id;
   currentSessionTitle = result.session.title || "New ArcBot Chat";
@@ -928,15 +1121,8 @@ function closeModeMenu() {
   button?.setAttribute("aria-expanded", "false");
 }
 
-function closeModelMenu() {
-  const button = $("aiAssistantModelButton");
-  $("aiAssistantModelMenu")?.classList.remove("open");
-  button?.setAttribute("aria-expanded", "false");
-}
-
 function closeSelectMenus() {
   closeModeMenu();
-  closeModelMenu();
 }
 
 function toggleModeMenu(forceOpen) {
@@ -944,24 +1130,8 @@ function toggleModeMenu(forceOpen) {
   const menu = $("aiAssistantModeMenu");
   if (!button || !menu) return;
   const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !menu.classList.contains("open");
-  closeModelMenu();
   menu.classList.toggle("open", shouldOpen);
   button.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-}
-
-function toggleModelMenu(forceOpen) {
-  const button = $("aiAssistantModelButton");
-  const menu = $("aiAssistantModelMenu");
-  if (!button || !menu) return;
-  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !menu.classList.contains("open");
-  closeModeMenu();
-  menu.classList.toggle("open", shouldOpen);
-  button.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-}
-
-function showUnavailableModel(name) {
-  closeModelMenu();
-  window.alert(`${name} is not currently available. ArcBot will continue using Codex.`);
 }
 
 function getLauncherDefaultPosition(launcher) {
@@ -1329,10 +1499,6 @@ function initAssistantDrag(panel) {
   header.addEventListener("pointercancel", stopDrag);
   window.addEventListener("resize", () => {
     if (!panel.classList.contains("open")) return;
-    applyPanelSize(panel, {
-      width: panel.getBoundingClientRect().width,
-      height: panel.getBoundingClientRect().height,
-    });
     const rect = panel.getBoundingClientRect();
     applyPanelPosition(panel, rect.left, rect.top);
   });
@@ -1435,13 +1601,15 @@ async function sendAssistantMessage() {
   currentRequestId = `arcbot_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   currentRunStartedAt = performance.now();
   currentStepStartedAt = currentRunStartedAt;
+  assistantProgressSteps = createAssistantProgressSteps();
+  startAssistantProgressTicker();
   assistantCancelRequested = false;
   assistantHostRequestSubmitted = false;
   assistantActivities = [];
   assistantDebugLogs = [];
   renderActivities();
   renderDebugLog();
-  appendActivity("Request received", "activity", { elapsedMs: 0 });
+  appendActivity("Understanding request", "activity", { elapsedMs: 0 });
   const pending = appendMessage("assistant", "...");
   currentPendingMessageEl = pending;
   await saveCurrentSession();
@@ -1449,6 +1617,11 @@ async function sendAssistantMessage() {
   assistantBusy = true;
   setComposerEnabled(false);
   setStatus(assistantAppContextEnabled ? "ArcBot is checking the active page context..." : "ArcBot is responding without app context...");
+  appendActivity(
+    assistantAppContextEnabled ? "Scanning active app contents" : "App context disabled",
+    "activity",
+    { save: false },
+  );
   try {
     const activeContext = assistantAppContextEnabled
       ? await requestActivePageContext()
@@ -1467,11 +1640,19 @@ async function sendAssistantMessage() {
       fileState: activeContext?.disabled ? "disabled" : (activeContext?.fileState || ""),
     };
     updateContextPanel();
+    appendActivity(
+      activeContext?.available
+        ? `Scanned ${activeContext.title || activeContext.tabType || "active tab"} context`
+        : "No active app context available",
+      "activity",
+      { save: false },
+    );
     if (assistantCancelRequested) {
       const message = "Request canceled.";
       if (pending) pending.textContent = message;
       assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
       appendActivity("Request canceled", "activity");
+      failAssistantProgress("Request canceled");
       setStatus("ArcBot request canceled.");
       return;
     }
@@ -1481,7 +1662,6 @@ async function sendAssistantMessage() {
       requestId: currentRequestId,
       sessionId: currentSessionId,
       mode: assistantMode,
-      model: ASSISTANT_MODEL,
       messages: assistantMessages,
       activeContext,
       attachments: requestAttachments,
@@ -1493,6 +1673,7 @@ async function sendAssistantMessage() {
       if (pending) pending.textContent = message;
       assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
       appendActivity("Request canceled", "activity");
+      failAssistantProgress("Request canceled");
       setStatus("ArcBot request canceled.");
       return;
     }
@@ -1504,6 +1685,7 @@ async function sendAssistantMessage() {
       if (wasCanceled) {
         setStatus("ArcBot request canceled.");
         appendActivity("Request canceled", "activity");
+        failAssistantProgress("Request canceled");
       } else if (result?.needsAuth) {
         assistantReady = false;
         setStatus("Codex CLI needs sign-in.", "error");
@@ -1516,6 +1698,7 @@ async function sendAssistantMessage() {
       } else {
         setStatus(message, "error");
         appendActivity("Request failed", "error");
+        failAssistantProgress(message);
       }
       return;
     }
@@ -1524,17 +1707,20 @@ async function sendAssistantMessage() {
     assistantMessages.push({ role: "assistant", content: reply, timestamp: nowIso() });
     if (result?.editApplied) notifyActivePageJsonUpdated(result);
     appendActivity(result?.editApplied ? "Applied JSON-backed edit with host validation." : "Response completed.", "activity");
+    completeAssistantProgress(result?.editApplied ? "Edit applied" : "Response completed");
     setStatus(result?.editApplied ? "ArcBot applied a JSON-backed edit." : `Codex ready. ${getModeLabel()}.`);
   } catch (err) {
     const message = assistantCancelRequested ? "Request canceled." : String(err?.message || err || "Codex request failed.");
     if (pending) pending.textContent = message;
     assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
     appendActivity(assistantCancelRequested ? "Request canceled" : "Request failed", assistantCancelRequested ? "activity" : "error");
+    failAssistantProgress(message);
     setStatus(message, assistantCancelRequested ? "" : "error");
   } finally {
     currentRequestId = "";
     currentRunStartedAt = 0;
     currentStepStartedAt = 0;
+    stopAssistantProgressTicker();
     renderActivities();
     currentPendingMessageEl = null;
     await saveCurrentSession();
@@ -1550,22 +1736,25 @@ function handleAssistantEvent(event) {
   if (!event || event.requestId !== currentRequestId) return;
   if (event.type === "stdout") {
     appendDebugLog(event.text, "stdout");
+    updateAssistantProgressStep("executing", "active", "Codex is streaming a response.");
     return;
   }
   if (event.type === "stderr") {
     appendDebugLog(event.text, "stderr");
+    updateAssistantProgressStep("executing", "active", "Codex reported command output.");
     return;
   }
   if (event.type === "usage") {
     currentUsage = event.usage || currentUsage;
     updateContextPanel();
+    updateAssistantProgressStep("scanning", "active", "Estimated context window usage.");
     appendDebugLog(event.text, "usage");
     return;
   }
   if (event.type === "context" && event.context) {
     currentContext = { ...(currentContext || {}), ...event.context };
     updateContextPanel();
-    appendActivity("Read active context", "activity");
+    appendActivity(`Read ${event.context.title || event.context.tabType || "active tab"} context`, "activity");
     appendDebugLog(`${event.text}\n${JSON.stringify(event.context, null, 2)}`, "context");
     return;
   }
@@ -1683,17 +1872,6 @@ export function initAiAssistant() {
     closeModeMenu();
     setAssistantMode("edit");
   });
-  $("aiAssistantModelButton")?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    closeAttachMenu();
-    toggleModelMenu();
-  });
-  $("aiAssistantCodexModelOption")?.addEventListener("click", () => {
-    closeModelMenu();
-    setStatus(assistantReady ? `Codex ready. ${getModeLabel()}.` : "Codex selected.");
-  });
-  $("aiAssistantClaudeModelOption")?.addEventListener("click", () => showUnavailableModel("Claude"));
-  $("aiAssistantCopilotModelOption")?.addEventListener("click", () => showUnavailableModel("Copilot"));
   composer.addEventListener("submit", (event) => {
     event.preventDefault();
     if (assistantBusy) {

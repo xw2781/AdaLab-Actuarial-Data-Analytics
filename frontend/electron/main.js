@@ -834,6 +834,8 @@ async function runCodexWarmTurn({ event, requestId, requestState, payload, mode,
   let turnId = "";
   let agentText = "";
   let canceled = false;
+  let agentStartedSent = false;
+  let lastNotificationSummary = "";
   const cancelTurn = () => {
     canceled = true;
     if (turnId) {
@@ -855,6 +857,16 @@ async function runCodexWarmTurn({ event, requestId, requestState, payload, mode,
           message.params?.threadId === threadId &&
           message.params?.turnId === turnId) {
         agentText += String(message.params?.delta || "");
+        if (!agentStartedSent) {
+          agentStartedSent = true;
+          sendArcBotActivity(event, requestId, "activity", "Codex is drafting a response.");
+        }
+      } else {
+        const summary = summarizeCodexTurnNotification(message);
+        if (summary && summary !== lastNotificationSummary) {
+          lastNotificationSummary = summary;
+          sendArcBotActivity(event, requestId, "activity", summary);
+        }
       }
       if (message?.method === "turn/completed" &&
           message.params?.threadId === threadId &&
@@ -1424,6 +1436,17 @@ function sendArcBotActivity(event, requestId, type, text, extra = {}) {
   } catch {
     // ignore stale renderer activity updates
   }
+}
+
+function summarizeCodexTurnNotification(message) {
+  const method = String(message?.method || "").toLowerCase();
+  if (!method || method === "item/agentmessage/delta" || method === "turn/completed") return "";
+  if (method.includes("command") || method.includes("exec") || method.includes("shell")) return "Codex is running a command.";
+  if (method.includes("web") || method.includes("search")) return "Codex is searching for context.";
+  if (method.includes("tool")) return "Codex is using a tool.";
+  if (method.includes("patch") || method.includes("file")) return "Codex is preparing file changes.";
+  if (method.includes("plan")) return "Codex updated the task plan.";
+  return "";
 }
 
 function loadMainWindowPrefs() {

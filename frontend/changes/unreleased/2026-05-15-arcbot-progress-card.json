@@ -1,0 +1,13 @@
+{
+  "type": "improvement",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Improved ArcBot's in-chat task progress card with live four-stage execution status.",
+  "details": [
+    "ArcBot now shows Understanding request, Scanning app contents, Executing / modifying, and Finalizing steps with pending, active, completed, and failed states, live status text, timing, and subtle animations while Codex work is still running.",
+    "The progress card and message rows keep their natural height in short chat panels so expanded task details scroll instead of being clipped.",
+    "Removed the ArcBot model dropdown so the composer only shows controls that are currently available.",
+    "Aligned ArcBot composer controls with context and mode on the left and send on the right, lowered the chat panel minimum width to 420px, and kept the chat panel size stable when the main app window is resized.",
+    "Slimmed the App Context composer control and increased its corner radius."
+  ]
+}

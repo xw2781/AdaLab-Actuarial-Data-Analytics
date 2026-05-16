@@ -40,6 +40,7 @@ Detected `arcrho:*` message types in key JS files:
 - File-backed notebooks track a disk revision token. Clean tabs auto-reload external disk edits, dirty tabs pause autosave and show a conflict banner with Reload, Save Copy, and Overwrite actions.
 - Responds to ArcBot active-context requests with the current notebook path, dirty/file state, autosave state, and JSON-backed notebook payload so ArcBot can use the active scripting tab as default app context.
 - Sends `arcrho:*` status and command messages to/from the shell.
+- Imports the shared `ui/shared/scrollbars.css` WebKit scrollbar treatment so notebook, output, sidebar, and dialog scroll areas match the Dataset/DFM scrollbar style.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches

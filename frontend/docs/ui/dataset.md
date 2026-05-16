@@ -51,6 +51,7 @@ Detected `arcrho:*` message types in key JS files:
 - Uses `/project-user-preferences` to persist and restore the shared project-specific last Reserving Class path plus the Dataset Viewer Dataset Name in `projects/<project>/users/<windows-login>/preferences.json`.
 - Sends status/hotkey/close signals to parent shell.
 - Publishes dataset input updates and browsing-history updates to shell via `arcrho:dataset-settings-changed` and `arcrho:browsing-history-updated`.
+- Dataset/DFM shared styles import the reusable `ui/shared/scrollbars.css` WebKit scrollbar treatment that is also used by shell and scripting pages.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches

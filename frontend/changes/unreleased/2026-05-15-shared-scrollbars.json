@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "ui",
+  "audience": "user",
+  "summary": "Shared the Dataset scrollbar styling across app pages.",
+  "details": [
+    "Moved the Dataset WebKit scrollbar treatment into `ui/shared/scrollbars.css` and imported it in the shell, scripting console, Dataset/DFM shared styles, and Project Settings.",
+    "ArcBot chat/debug scroll areas and scripting notebook/output scroll areas now use the same scrollbar styling as Dataset/DFM."
+  ]
+}

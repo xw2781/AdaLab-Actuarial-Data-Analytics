@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>ArcRho</title>
+  <link rel="stylesheet" href="/ui/shared/scrollbars.css?v=20260515a"/>
   <style>
     .menubar{
       height: 16px;
@@ -452,10 +453,8 @@
       bottom: calc(var(--statusbar-h) + 70px);
       width: 465px;
       height: min(640px, calc(100vh - 132px));
-      min-width: 465px;
+      min-width: 420px;
       min-height: 340px;
-      max-width: calc(100vw - 16px);
-      max-height: calc(100vh - var(--statusbar-h) - 16px);
       display: flex;
       flex-direction: column;
       background: #f4f5f6;
@@ -600,9 +599,6 @@
     #aiAssistantModeButton {
       max-width: 174px;
       justify-content: flex-start;
-    }
-    #aiAssistantModelButton {
-      max-width: 94px;
     }
     #aiAssistantModeMenu {
       min-width: 160px;
@@ -879,6 +875,7 @@
       align-items: flex-start;
       gap: 8px;
       align-self: flex-start;
+      flex: 0 0 auto;
     }
     .aiAssistantMessageRow.user {
       align-self: flex-end;
@@ -1015,20 +1012,22 @@
     }
     .aiAssistantWorkCard {
       align-self: flex-start;
-      width: min(92%, 360px);
+      flex: 0 0 auto;
+      width: min(94%, 390px);
       border: 1px solid #d9dee5;
-      border-radius: 8px;
-      background: #f9fafb;
+      border-radius: 12px;
+      background: rgba(249, 250, 251, 0.96);
       color: #344054;
-      box-shadow: none;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
       overflow: hidden;
+      transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
     }
     .aiAssistantWorkCard summary {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
-      padding: 8px 10px;
+      padding: 9px 11px;
       cursor: pointer;
       list-style: none;
       user-select: none;
@@ -1037,25 +1036,173 @@
       display: none;
     }
     .aiAssistantWorkCard.running summary {
-      background: #f0f2f5;
+      background: linear-gradient(90deg, #f3f6fa, #f8fafc);
+    }
+    .aiAssistantWorkCard.failed {
+      border-color: #f0c7c7;
+      background: #fffafa;
+    }
+    .aiAssistantWorkTitleWrap {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 10px auto;
+      grid-template-areas:
+        "pulse title"
+        ". subtitle";
+      align-items: center;
+      column-gap: 7px;
+      row-gap: 1px;
+    }
+    .aiAssistantWorkPulse {
+      grid-area: pulse;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #9ca3af;
+      box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.12);
+    }
+    .aiAssistantWorkCard.running .aiAssistantWorkPulse {
+      background: #3b82f6;
+      animation: aiAssistantPulse 1.35s ease-in-out infinite;
+    }
+    .aiAssistantWorkCard.failed .aiAssistantWorkPulse {
+      background: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
     }
     .aiAssistantWorkTitle {
+      grid-area: title;
       color: #253244;
       font-size: 12px;
       font-weight: 700;
+    }
+    .aiAssistantWorkSubtitle {
+      grid-area: subtitle;
+      min-width: 0;
+      max-width: 270px;
+      color: #6b7280;
+      font-size: 11px;
+      font-weight: 400;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .aiAssistantWorkMeta {
       color: #778397;
       font-size: 11px;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
+      margin-top: 1px;
     }
     .aiAssistantWorkSteps {
       border-top: 1px solid #e1e5ea;
-      padding: 7px 10px 9px;
+      padding: 8px 9px 10px;
       color: #596579;
       font-size: 11.5px;
       line-height: 1.35;
+    }
+    .aiAssistantWorkStep {
+      position: relative;
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 7px;
+      min-height: 31px;
+      padding: 4px 6px;
+      border-radius: 9px;
+      opacity: 0.74;
+      transition: background-color 180ms ease, color 180ms ease, opacity 180ms ease, transform 180ms ease;
+    }
+    .aiAssistantWorkStep.active {
+      opacity: 1;
+      background: #f1f6ff;
+    }
+    .aiAssistantWorkStep.completed {
+      opacity: 0.9;
+    }
+    .aiAssistantWorkStep.failed {
+      opacity: 1;
+      background: #fff1f2;
+    }
+    .aiAssistantWorkStepMarker {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 1px solid #c4ccd8;
+      background: #f8fafc;
+      box-sizing: border-box;
+      justify-self: center;
+      transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+    .aiAssistantWorkStep.active .aiAssistantWorkStepMarker {
+      border-color: #3b82f6;
+      background: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+      animation: aiAssistantMarkerPulse 1.25s ease-in-out infinite;
+    }
+    .aiAssistantWorkStep.completed .aiAssistantWorkStepMarker {
+      border-color: #8fb3dd;
+      background: #8fb3dd;
+      box-shadow: inset 0 0 0 2px #f8fafc;
+    }
+    .aiAssistantWorkStep.failed .aiAssistantWorkStepMarker {
+      border-color: #ef4444;
+      background: #ef4444;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+    }
+    .aiAssistantWorkStepBody {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .aiAssistantWorkStepLabel {
+      color: #334155;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .aiAssistantWorkStepStatus {
+      min-height: 14px;
+      color: #768395;
+      font-size: 10.8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .aiAssistantWorkStep.active .aiAssistantWorkStepStatus::after {
+      content: "";
+      display: inline-block;
+      width: 18px;
+      height: 4px;
+      margin-left: 5px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, rgba(59,130,246,0.18), rgba(59,130,246,0.55), rgba(59,130,246,0.18));
+      background-size: 200% 100%;
+      animation: aiAssistantStatusSweep 1.15s ease-in-out infinite;
+      vertical-align: middle;
+    }
+    .aiAssistantWorkStep.failed .aiAssistantWorkStepStatus {
+      color: #b42318;
+    }
+    .aiAssistantWorkStepTime {
+      color: #8a95a5;
+      font-size: 10.6px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    @keyframes aiAssistantPulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12); }
+      50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.04); }
+    }
+    @keyframes aiAssistantMarkerPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(0.82); }
+    }
+    @keyframes aiAssistantStatusSweep {
+      0% { background-position: 0% 50%; opacity: 0.7; }
+      50% { opacity: 1; }
+      100% { background-position: 200% 50%; opacity: 0.7; }
     }
     #aiAssistantComposer {
       flex: 0 0 auto;
@@ -1078,8 +1225,7 @@
       align-items: end;
     }
     #aiAssistantComposerControls {
-      display: grid;
-      grid-template-columns: minmax(28px, 1fr) auto auto auto minmax(30px, 1fr);
+      display: flex;
       align-items: center;
       gap: 6px;
       min-height: 34px;
@@ -1107,10 +1253,13 @@
       box-sizing: border-box;
     }
     #aiAssistantAppContextBtn {
+      height: 24px;
       max-width: 124px;
+      border-radius: 12px;
       border-color: #c8ced6;
       background: #e5e7eb;
       color: #4b5563;
+      padding: 0 9px;
     }
     #aiAssistantAppContextBtn.active {
       border-color: #3b82f6;
@@ -1165,7 +1314,11 @@
       padding: 0;
       font-size: 18px;
       line-height: 1;
-      justify-self: start;
+      flex: 0 0 auto;
+    }
+    #aiAssistantAppContextBtn,
+    #aiAssistantModePicker {
+      flex: 0 0 auto;
     }
     #aiAssistantAttachMenu {
       position: absolute;
@@ -1338,7 +1491,8 @@
       align-items: center;
       justify-content: center;
       padding: 0;
-      justify-self: end;
+      margin-left: auto;
+      flex: 0 0 auto;
     }
     #aiAssistantSendBtn:hover {
       background: #e8eef6;
@@ -2768,30 +2922,6 @@
           </svg>
           <span>App Context</span>
         </button>
-        <div id="aiAssistantModelPicker" class="aiAssistantSelectWrap">
-          <label class="aiAssistantControlLabel" for="aiAssistantModelButton">Model</label>
-          <button id="aiAssistantModelButton" class="aiAssistantSelectButton" type="button" aria-haspopup="menu" aria-expanded="false">
-            <svg class="aiAssistantControlIcon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3v3"></path>
-              <path d="M12 18v3"></path>
-              <path d="M3 12h3"></path>
-              <path d="M18 12h3"></path>
-              <path d="M7.8 7.8l-2-2"></path>
-              <path d="M18.2 18.2l-2-2"></path>
-              <path d="M16.2 7.8l2-2"></path>
-              <path d="M5.8 18.2l2-2"></path>
-            </svg>
-            <span id="aiAssistantModelLabel">Codex</span>
-            <svg class="aiAssistantSelectChevron" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 6l4 4 4-4"></path>
-            </svg>
-          </button>
-          <div id="aiAssistantModelMenu" class="aiAssistantSelectMenu" role="menu" aria-label="ArcBot model">
-            <button id="aiAssistantCodexModelOption" class="aiAssistantSelectOption active" type="button" role="menuitem">Codex</button>
-            <button id="aiAssistantClaudeModelOption" class="aiAssistantSelectOption" type="button" role="menuitem">Claude</button>
-            <button id="aiAssistantCopilotModelOption" class="aiAssistantSelectOption" type="button" role="menuitem">Copilot</button>
-          </div>
-        </div>
         <div id="aiAssistantModePicker" class="aiAssistantSelectWrap">
           <label class="aiAssistantControlLabel" for="aiAssistantModeButton">Mode</label>
           <button id="aiAssistantModeButton" class="aiAssistantSelectButton" type="button" aria-haspopup="menu" aria-expanded="false">
@@ -2967,7 +3097,7 @@
       }
     })();
   </script>
-  <script type="module" src="/ui/shell/ui_shell.js?v=20260515b"></script>
+  <script type="module" src="/ui/shell/ui_shell.js?v=20260515c"></script>
 </body>
 </html>
 
