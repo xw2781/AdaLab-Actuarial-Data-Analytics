@@ -458,7 +458,7 @@ FRONTEND_DOC_META: Mapping[str, Dict[str, object]] = {
             ("ui/shell/root_path_settings.js", "Server Connection root path settings modal."),
             ("ui/shell/workflow_host_actions.js", "Workflow import and shell-side workflow helpers."),
             ("ui/shell/app_lifecycle.js", "Refresh, restart, shutdown, and app confirmation flows."),
-            ("ui/shell/titlebar_controls.js", "Electron titlebar and resize-handle controls."),
+            ("ui/shell/titlebar_controls.js", "Electron titlebar minimize, maximize, close, and drag-restore controls."),
             ("ui/shell/status_bar.js", "Status bar text, clock, and timestamp helpers."),
             ("ui/shell/shell_context.js", "Shared shell dependency registry."),
             ("electron/preload.js", "Renderer-safe host bridge APIs."),
@@ -519,7 +519,8 @@ FRONTEND_DOC_META: Mapping[str, Dict[str, object]] = {
             ("ui/project_instance/project_instance.js", "Project instance path selector, dataset table, and in-tab dataset viewer windows."),
             ("ui/dataset/dataset_viewer.html", "Reused dataset viewer page for floating dataset windows."),
             ("ui/dataset/dataset_types_source.js", "Shared dataset type payload loader and normalizer."),
-            ("ui/shared/path_tree_picker.js", "Shared path tree data builder used for reserving-class hierarchy rendering."),
+            ("ui/shared/reserving_class_lazy_picker.js", "Shared reserving-class lookup, filter, shortcut, and favorite-folder picker."),
+            ("ui/shared/path_tree_picker.js", "Shared path tree body renderer used by the embedded reserving-class picker."),
         ],
     },
     "scripting_console": {

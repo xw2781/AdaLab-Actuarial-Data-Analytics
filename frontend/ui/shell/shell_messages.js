@@ -8,6 +8,18 @@ function refreshDirtyIndicators() {
   shell.renderFloatingWindows?.();
 }
 
+function tryConsumeActiveFrameCloseShortcut() {
+  const active = shell.state.tabs.find((tab) => tab.id === shell.state.activeId);
+  const frameWin = active?.iframe?.contentWindow;
+  if (!frameWin) return false;
+  try {
+    const consume = frameWin.__arcrho_consume_close_shortcut;
+    return typeof consume === "function" && consume() === true;
+  } catch {
+    return false;
+  }
+}
+
 export function initShellMessages() {
   if (shellMessagesWired) return;
   shellMessagesWired = true;
@@ -162,7 +174,10 @@ export function initShellMessages() {
       return;
     }
     if (msg.type === "arcrho:workflow-import") return shell.importWorkflow?.();
-    if (msg.type === "arcrho:close-active-tab") return shell.closeTab?.(shell.state.activeId);
+    if (msg.type === "arcrho:close-active-tab") {
+      if (tryConsumeActiveFrameCloseShortcut()) return;
+      return shell.closeTab?.(shell.state.activeId);
+    }
     if (msg.type === "arcrho:app-shutdown") return shell.shutdownApplication?.();
     if (msg.type === "arcrho:hotkey") { const action = String(msg.action || ""); if (action) shell.runHotkeyAction?.(action); return; }
     if (msg.type !== "arcrho:update-active-tab-title") return;

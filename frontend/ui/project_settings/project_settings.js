@@ -1261,9 +1261,9 @@ function createProjectNode(project, depth) {
   const viewDatasetsBtn = document.createElement("button");
   viewDatasetsBtn.type = "button";
   viewDatasetsBtn.className = "tree-project-action";
-  viewDatasetsBtn.title = "View datasets";
-  viewDatasetsBtn.setAttribute("aria-label", `View datasets for ${project.name}`);
-  viewDatasetsBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 9v11"/><path d="M15 9v11"/></svg>`;
+  viewDatasetsBtn.title = "View project contents in a new tab";
+  viewDatasetsBtn.setAttribute("aria-label", `View project contents in a new tab for ${project.name}`);
+  viewDatasetsBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-2"/><path d="M13 4h7v7"/><path d="M11 13l9-9"/></svg>`;
   viewDatasetsBtn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();

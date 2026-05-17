@@ -8,7 +8,7 @@ Source Data tab derives origin/development date boundary inputs from table summa
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_settings.entry_points -->
-- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260516a`; inline imports _none_.
+- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260517c`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/headers/cache/clear`
@@ -52,7 +52,7 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Calls `/project_settings/*`, `/table_summary*`, `/field_mapping`, `/general_settings`, `/arcrho/headers/cache/clear`, and related endpoints.
 - Uses `POST /project_settings/{source}/open_project_folder` from the detail header action to open the selected project's folder in the OS file explorer.
-- Posts `arcrho:open-project-instance` when the project tree's View datasets action is clicked for a project.
+- Posts `arcrho:open-project-instance` when the project tree's `View project contents in a new tab` action is clicked for a project.
 - Folder tree "Create New Project" action calls `POST /project_settings/{source}/create_project_folder` before saving folder structure + settings JSON.
 - Dataset Types pane persists changes through `POST /dataset_types` (debounced auto-save).
 - Posts title/status events to shell.
@@ -61,7 +61,7 @@ Detected `arcrho:*` message types in key JS files:
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Reads/writes settings payloads and folder structures. Project map rows use `Project Name` and `Table Path`; folder placement is stored in `folder_structure.json`; obsolete `Folder`, `Preload`, `Project Settings`, and `Settings Profile` columns are stripped from in-memory data and saved payloads.
-- Project tree rows include a View datasets icon button that opens the selected project as a top-level project instance tab.
+- Project tree rows reveal a red open-corner `View project contents in a new tab` icon button on row hover or keyboard focus, opening the selected project as a top-level project instance tab.
 - `Project Settings` ribbon page includes an `Open Folder` action button with folder icon styling and disabled-state feedback while the request is in flight.
 - Coordinates feature modules for mapping/type editors.
 - Dataset Types row mutations (add/edit/delete) update in-memory state and schedule per-project debounced save.

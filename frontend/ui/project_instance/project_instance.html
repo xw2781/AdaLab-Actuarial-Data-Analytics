@@ -30,6 +30,26 @@
     input, iframe {
       user-select: text;
     }
+    body.resizing-left-panel,
+    body.resizing-left-panel * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+    body.resizing-left-panel iframe {
+      pointer-events: none !important;
+    }
+    body.resizing-left-panel .pi-layout {
+      transition: none !important;
+    }
+    body.resizing-left-panel .pi-path-tree,
+    body.resizing-left-panel .pi-table-wrap {
+      pointer-events: none !important;
+    }
+    body.pi-resizing-table-column,
+    body.pi-resizing-table-column * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
     .pi-root {
       height: 100%;
       display: flex;
@@ -39,49 +59,28 @@
       overflow: hidden;
     }
     .pi-toolbar {
-      height: 38px;
+      height: 32px;
       flex: 0 0 auto;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 0 12px;
+      gap: 8px;
+      padding: 0 10px;
       border-bottom: 1px solid var(--border);
       background: var(--header-bg);
       min-width: 0;
-    }
-    .pi-title {
-      font-size: 13px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .pi-subtitle {
-      font-size: 12px;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-    .pi-status {
-      margin-left: auto;
-      font-size: 12px;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 38%;
-    }
-    .pi-status.error {
-      color: #b42318;
+      position: relative;
+      z-index: 30;
     }
     .pi-layout {
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(260px, 30%) minmax(420px, 1fr);
+      grid-template-columns: var(--pi-left-width, 400px) 6px minmax(420px, 1fr);
       overflow: hidden;
+      transition: grid-template-columns 180ms ease;
+    }
+    .pi-layout.left-collapsed {
+      --pi-left-width: 0px;
     }
     .pi-left {
       border-right: 1px solid var(--border);
@@ -91,35 +90,375 @@
       flex-direction: column;
       overflow: hidden;
       background: #fcfcfd;
+      opacity: 1;
+      transition: opacity 140ms ease;
     }
-    .pi-panel-title {
-      height: 34px;
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      font-size: 12px;
-      font-weight: 700;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel-bg);
+    .pi-layout.left-collapsed .pi-left {
+      border-right: 0;
+      opacity: 0;
+      pointer-events: none;
     }
-    .pi-selected-path {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      background: #fff;
-      font-size: 12px;
+    .pi-left-resizer {
+      min-width: 0;
+      min-height: 0;
+      border-right: 1px solid var(--border);
+      background: #f7f8fb;
+      cursor: col-resize;
+      position: relative;
+      z-index: 3;
+      transition: background-color 140ms ease, border-color 140ms ease;
+    }
+    .pi-left-resizer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -3px;
+      right: -3px;
+    }
+    .pi-left-resizer:hover,
+    .pi-left-resizer.dragging {
+      background: #e6efff;
+      border-right-color: #8fb0f4;
+    }
+    .pi-layout.left-collapsed .pi-left-resizer {
+      cursor: e-resize;
+    }
+    .pi-toolbar-path {
+      flex: 0 1 auto;
+      width: fit-content;
+      max-width: min(38%, 560px);
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 600;
       color: var(--muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      min-height: 16px;
+    }
+    .pi-hidden-tabs-wrap {
+      position: relative;
+      flex: 1 1 auto;
+      max-width: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .pi-minimized-tabs {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+    }
+    .pi-minimized-tab {
+      height: 24px;
+      min-width: 88px;
+      max-width: 180px;
+      border: 1px solid #cfd7e6;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+      color: #263244;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      overflow: hidden;
+      flex: 0 1 auto;
+    }
+    .pi-minimized-tab:hover {
+      border-color: #8fb0f4;
+      box-shadow: 0 2px 7px rgba(31, 78, 153, 0.16);
+    }
+    .pi-minimized-tab-restore {
+      min-width: 0;
+      flex: 1 1 auto;
+      height: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 0 8px 0 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .pi-minimized-tab-close {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #667085;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 3px;
+      padding: 0 0 1px;
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .pi-minimized-tab-close:hover {
+      background: #fff1f0;
+      color: #b42318;
+    }
+    .pi-minimized-tab-tooltip {
+      position: fixed;
+      z-index: 10060;
+      max-width: min(620px, calc(100vw - 16px));
+      padding: 8px 12px;
+      border: 1px solid #b8c9ef;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 12px 24px rgba(20, 31, 51, 0.18);
+      color: #20242a;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+    .pi-minimized-tab-tooltip.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .pi-hidden-tabs-button {
+      min-width: 88px;
+      max-width: 118px;
+      height: 24px;
+      border: 1px dashed #c3cad8;
+      border-radius: 999px;
+      background: #fff;
+      color: #4f5b6f;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 10px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    }
+    .pi-hidden-tabs-button:hover,
+    .pi-hidden-tabs-wrap.open .pi-hidden-tabs-button {
+      border-color: #8fb0f4;
+      background: #f7faff;
+      color: #1f4e99;
+      box-shadow: 0 1px 4px rgba(31, 78, 153, 0.12);
+    }
+    .pi-hidden-tabs-wrap.drop-active .pi-hidden-tabs-button {
+      border-color: #2f6fec;
+      background: #eaf2ff;
+      color: #174ea6;
+      box-shadow: 0 0 0 2px rgba(47, 111, 236, 0.14);
+    }
+    .pi-hidden-drop-banner {
+      position: absolute;
+      top: 36px;
+      left: 50%;
+      z-index: 10040;
+      transform: translate(-50%, -8px);
+      min-width: 260px;
+      max-width: min(520px, calc(100% - 32px));
+      border: 1px solid #8fb0f4;
+      border-radius: 8px;
+      background: rgba(247, 250, 255, 0.98);
+      box-shadow: 0 12px 28px rgba(31, 78, 153, 0.18);
+      color: #174ea6;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 18px;
+      padding: 8px 14px;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+    .pi-hidden-drop-banner.active {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    .pi-hidden-tabs-caret {
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid currentColor;
+      opacity: 0.75;
+    }
+    .pi-hidden-tabs-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      width: max-content;
+      min-width: 260px;
+      max-width: min(720px, calc(100vw - 24px));
+      max-height: 320px;
+      overflow: auto;
+      border: 1px solid #cfd7e6;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 26px rgba(20, 31, 51, 0.18);
+      padding: 6px;
+      display: none;
+      z-index: 10020;
+    }
+    .pi-hidden-tabs-wrap.open .pi-hidden-tabs-menu {
+      display: block;
+    }
+    .pi-hidden-tabs-empty {
+      padding: 10px;
+      color: #7a8495;
+      font-size: 12px;
+      text-align: center;
+    }
+    .pi-hidden-tabs-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 2px 6px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid #edf0f5;
+    }
+    .pi-hidden-tabs-action {
+      height: 26px;
+      border: 1px solid #d4dbe8;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #344054;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pi-hidden-tabs-action:hover {
+      background: #eef3ff;
+      border-color: #b8c9ef;
+      color: #1f4e99;
+    }
+    .pi-hidden-tabs-action.danger:hover {
+      background: #fff1f0;
+      border-color: #f2b8b5;
+      color: #b42318;
+    }
+    .pi-hidden-tab-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 4px;
+    }
+    .pi-hidden-tab-item {
+      width: 100%;
+      min-height: 30px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #20242a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .pi-hidden-tab-item:hover {
+      background: #eef3ff;
+    }
+    .pi-hidden-tab-delete {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #8a94a6;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+    }
+    .pi-hidden-tab-delete:hover {
+      background: #fff1f0;
+      color: #b42318;
+    }
+    .pi-hidden-tab-delete svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+    }
+    .pi-hidden-tab-icon {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 auto;
+      color: #667085;
+    }
+    .pi-hidden-tab-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .pi-path-tree {
       flex: 1 1 auto;
       min-height: 0;
-      overflow: auto;
-      padding: 8px 0;
-      scrollbar-gutter: stable both-edges;
+      overflow: hidden;
+      padding: 0;
+      scrollbar-gutter: auto;
+    }
+    .pi-path-tree .ptree-window.ptree-window-embedded {
+      position: relative;
+      inset: auto;
+      top: auto;
+      left: auto;
+      transform: none;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      max-width: none;
+      max-height: none;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      resize: none;
+      z-index: auto;
+    }
+    .pi-path-tree .ptree-window-embedded .ptree-titlebar {
+      display: none;
+    }
+    .pi-path-tree .ptree-window-embedded .ptree-body {
+      min-height: 0;
+      height: 100%;
+      padding-left: 4px;
+      padding-right: 0;
+    }
+    .pi-path-tree .ptree-section {
+      padding-left: 2px;
+      padding-right: 2px;
+    }
+    .pi-path-tree .ptree-section-tree .ptree-section-title {
+      padding-left: 2px;
+      padding-right: 2px;
+    }
+    .pi-path-tree .ptree-favorite-row {
+      margin-right: -2px;
+      padding-right: 4px;
     }
     .ptree-empty {
       padding: 12px;
@@ -137,7 +476,7 @@
       min-height: 26px;
       min-width: 100%;
       width: max-content;
-      padding: 3px 10px;
+      padding: 3px 4px;
       box-sizing: border-box;
       cursor: pointer;
       font-size: 12px;
@@ -235,10 +574,34 @@
       background: #fff;
       scrollbar-gutter: stable both-edges;
     }
+    .pi-table-surface {
+      min-width: 1120px;
+      padding: 0;
+    }
+    .pi-table-group {
+      min-width: 0;
+    }
+    .pi-table-group + .pi-table-group {
+      margin-top: 14px;
+    }
+    .pi-table-group-label {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-bottom: 0;
+      background: #eef3fb;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
     .pi-table {
       width: 100%;
       min-width: 1120px;
       border-collapse: collapse;
+      table-layout: fixed;
       font-size: 12px;
     }
     .pi-table th,
@@ -250,7 +613,6 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 260px;
     }
     .pi-table th {
       position: sticky;
@@ -259,6 +621,81 @@
       background: #f5f5f5;
       font-weight: 700;
       color: #444c5a;
+      padding: 0;
+    }
+    .pi-table-group.has-label .pi-table th {
+      top: 29px;
+    }
+    .pi-table-header-cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      height: 30px;
+      padding: 0 24px 0 8px;
+    }
+    .pi-table-col-label {
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: grab;
+    }
+    .pi-table-col-label:active {
+      cursor: grabbing;
+    }
+    .pi-table th.pi-col-drag-over {
+      background: #e8f0ff;
+      box-shadow: inset 2px 0 0 #2f6fec;
+    }
+    .pi-table-filter-btn {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      border: 1px solid #c6ccd4;
+      border-radius: 4px;
+      background: #fff;
+      color: #66758b;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+    }
+    .pi-table-filter-btn:hover {
+      border-color: #8ea5c8;
+      color: #33455f;
+      background: #f7faff;
+    }
+    .pi-table-filter-btn.active {
+      border-color: #0d6efd;
+      color: #0d6efd;
+      background: #eaf2ff;
+    }
+    .pi-table-filter-btn svg {
+      width: 11px;
+      height: 11px;
+      fill: currentColor;
+      pointer-events: none;
+    }
+    .pi-table-col-resizer {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 4;
+    }
+    .pi-table-col-resizer:hover::after {
+      content: "";
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 3px;
+      border-left: 1px solid #2f6fec;
     }
     .pi-table tr {
       cursor: default;
@@ -270,6 +707,132 @@
       color: #8a94a6;
       text-align: center;
       padding: 18px;
+    }
+    .pi-table-context-menu,
+    .pi-table-filter-popover {
+      position: fixed;
+      z-index: 10080;
+      border: 1px solid #c9ced5;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+      display: none;
+    }
+    .pi-table-context-menu.open,
+    .pi-table-filter-popover.open {
+      display: block;
+    }
+    .pi-table-context-menu {
+      min-width: 190px;
+      padding: 4px;
+    }
+    .pi-context-menu-item {
+      width: 100%;
+      height: 28px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: #263244;
+      padding: 0 10px;
+      text-align: left;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pi-context-menu-item:hover {
+      background: #eef4ff;
+    }
+    .pi-table-filter-popover {
+      min-width: 210px;
+      max-width: 320px;
+      max-height: 360px;
+      padding: 8px;
+    }
+    .pi-table-filter-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #2f3a4a;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #eceff3;
+    }
+    .pi-table-filter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: auto;
+      max-height: 300px;
+      padding-right: 2px;
+    }
+    .pi-table-filter-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #2f3a4a;
+      padding: 2px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .pi-table-filter-option input[type="checkbox"] {
+      width: 13px;
+      height: 13px;
+      margin: 0;
+      accent-color: #2a63d4;
+    }
+    .pi-table-filter-empty {
+      font-size: 12px;
+      color: #9099a7;
+      padding: 6px 2px 2px;
+      font-style: italic;
+    }
+    .pi-view-settings-window {
+      position: absolute;
+      width: 340px;
+      min-height: 180px;
+      background: #fff;
+      border: 1px solid #aeb8ca;
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 40;
+    }
+    body.win11-frame .pi-view-settings-window {
+      border-radius: 8px;
+    }
+    .pi-view-settings-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      font-size: 12px;
+      color: #263244;
+    }
+    .pi-view-settings-field {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+    }
+    .pi-view-settings-field label {
+      color: #5a6678;
+      font-weight: 700;
+    }
+    .pi-view-settings-field select {
+      min-width: 0;
+      height: 28px;
+      border: 1px solid #c6ccd4;
+      border-radius: 5px;
+      background: #fff;
+      color: #263244;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+    .pi-view-settings-note {
+      color: #667085;
+      line-height: 16px;
     }
     .pi-window-layer {
       position: absolute;
@@ -289,6 +852,13 @@
       flex-direction: column;
       overflow: hidden;
     }
+    .pi-window.drop-target-active {
+      border-color: #2f6fec;
+      box-shadow: 0 0 0 2px rgba(47, 111, 236, 0.22), var(--shadow);
+    }
+    body.win11-frame .pi-window {
+      border-radius: 8px;
+    }
     .pi-window-titlebar {
       height: 30px;
       flex: 0 0 auto;
@@ -300,6 +870,10 @@
       background: #f0f3f8;
       cursor: move;
     }
+    body.win11-frame .pi-window-titlebar {
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+    }
     .pi-window-title {
       flex: 1 1 auto;
       min-width: 0;
@@ -309,26 +883,49 @@
       font-size: 12px;
       font-weight: 700;
     }
-    .pi-window-close {
-      width: 22px;
-      height: 22px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: #3f4652;
+    .pi-window-titlebar-controls {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pi-window-titlebar-btn {
+      width: 28px;
+      height: 20px;
+      border: 1px solid #bdbdbd;
+      border-radius: 4px;
+      background: #efefef;
+      color: #333;
       padding: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      user-select: none;
+    }
+    .pi-window-titlebar-btn:hover {
+      background: #e2e2e2;
+    }
+    .pi-window-titlebar-btn:active {
+      background: #d8d8d8;
+    }
+    .pi-window-minimize:hover,
+    .pi-window-maximize:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
     }
     .pi-window-close:hover {
-      background: #e3e7ef;
-      border-color: #c4cad6;
+      background: #fee2e2;
+      border-color: #fca5a5;
     }
-    .pi-window-close svg {
-      width: 13px;
-      height: 13px;
-      stroke: currentColor;
+    .pi-window-titlebar-icon {
+      width: 10px;
+      height: 10px;
+      stroke: #333;
+      stroke-width: 1.2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .pi-window-body {
       flex: 1 1 auto;
@@ -345,63 +942,164 @@
     }
     .pi-window-resize {
       position: absolute;
-      right: 0;
-      bottom: 0;
       width: 16px;
       height: 16px;
+    }
+    .pi-window-resize-ne,
+    .pi-window-resize-se,
+    .pi-window-resize-sw,
+    .pi-window-resize-nw {
+      width: 16px;
+      height: 16px;
+    }
+    .pi-window-resize-edge {
+      z-index: 1;
+    }
+    .pi-window-resize-nw {
+      left: 0;
+      top: 0;
       cursor: nwse-resize;
     }
-    .pi-window-resize::before {
+    .pi-window-resize-n {
+      left: 16px;
+      right: 16px;
+      top: 0;
+      width: auto;
+      height: 8px;
+      cursor: ns-resize;
+    }
+    .pi-window-resize-ne {
+      right: 0;
+      top: 0;
+      cursor: nesw-resize;
+    }
+    .pi-window-resize-e {
+      right: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 8px;
+      height: auto;
+      cursor: ew-resize;
+    }
+    .pi-window-resize-se {
+      right: 0;
+      bottom: 0;
+      cursor: nwse-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pi-window-resize-s {
+      left: 16px;
+      right: 16px;
+      bottom: 0;
+      width: auto;
+      height: 8px;
+      cursor: ns-resize;
+    }
+    .pi-window-resize-sw {
+      left: 0;
+      bottom: 0;
+      cursor: nesw-resize;
+    }
+    .pi-window-resize-w {
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 8px;
+      height: auto;
+      cursor: ew-resize;
+    }
+    .pi-window-resize .resizeIcon {
+      width: 16px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pi-window-resize .resizeIcon::after {
       content: "";
+      width: 10px;
+      height: 10px;
+      background-image:
+        radial-gradient(circle at 9px 1px, #999 1.1px, transparent 1.2px),
+        radial-gradient(circle at 5px 5px, #999 1.1px, transparent 1.2px),
+        radial-gradient(circle at 9px 5px, #999 1.1px, transparent 1.2px),
+        radial-gradient(circle at 1px 9px, #999 1.1px, transparent 1.2px),
+        radial-gradient(circle at 5px 9px, #999 1.1px, transparent 1.2px),
+        radial-gradient(circle at 9px 9px, #999 1.1px, transparent 1.2px);
+      background-size: 10px 10px;
+      background-repeat: no-repeat;
+    }
+    .pi-window-drag-shield {
       position: absolute;
-      right: 4px;
-      bottom: 4px;
-      width: 7px;
-      height: 7px;
-      border-right: 2px solid #9aa4b5;
-      border-bottom: 2px solid #9aa4b5;
+      inset: 0;
+      z-index: 10000;
+      pointer-events: auto;
+      background: transparent;
+      user-select: none;
+    }
+    .pi-window-drag-shield.moving {
+      cursor: move;
+    }
+    .pi-window-drag-shield.resizing {
+      cursor: nwse-resize;
+    }
+    .pi-window-drag-shield.resizing-n,
+    .pi-window-drag-shield.resizing-s {
+      cursor: ns-resize;
+    }
+    .pi-window-drag-shield.resizing-e,
+    .pi-window-drag-shield.resizing-w {
+      cursor: ew-resize;
+    }
+    .pi-window-drag-shield.resizing-ne,
+    .pi-window-drag-shield.resizing-sw {
+      cursor: nesw-resize;
+    }
+    .pi-window-drag-shield.resizing-nw,
+    .pi-window-drag-shield.resizing-se {
+      cursor: nwse-resize;
     }
   </style>
 </head>
 <body>
   <div class="pi-root" id="projectInstanceRoot">
     <div class="pi-toolbar">
-      <div class="pi-title" id="projectTitle">Project</div>
-      <div class="pi-subtitle" id="projectSubtitle"></div>
-      <div class="pi-status" id="projectInstanceStatus"></div>
+      <div class="pi-toolbar-path" id="selectedPathText">Select a reserving class path.</div>
+      <div class="pi-hidden-tabs-wrap" id="hiddenTabsWrap">
+        <div class="pi-minimized-tabs" id="hiddenTabsList" aria-label="Minimized dataset windows"></div>
+        <button class="pi-hidden-tabs-button" id="hiddenTabsButton" type="button" aria-haspopup="menu" aria-expanded="false">
+          <span id="hiddenTabsLabel">0 hidden</span>
+          <span class="pi-hidden-tabs-caret" aria-hidden="true"></span>
+        </button>
+        <div class="pi-hidden-tabs-menu" id="hiddenTabsMenu" role="menu"></div>
+      </div>
     </div>
+    <div class="pi-hidden-drop-banner" id="hiddenDropBanner" aria-hidden="true">Release here to minimize this window</div>
     <div class="pi-layout">
       <section class="pi-left" aria-label="Reserving class paths">
-        <div class="pi-panel-title">Reserving Class</div>
-        <div class="pi-selected-path" id="selectedPathText">Select a reserving class path.</div>
         <div class="pi-path-tree" id="pathTree"></div>
       </section>
+      <div class="pi-left-resizer" id="leftPanelResizer" role="separator" aria-label="Resize reserving class panel" aria-orientation="vertical" aria-valuemin="0" aria-valuenow="0" tabindex="0"></div>
       <section class="pi-right" aria-label="Project datasets">
-        <div class="pi-panel-title">Datasets</div>
-        <div class="pi-table-wrap">
-          <table class="pi-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Dataset Type Name</th>
-                <th>Data Format</th>
-                <th>Formula</th>
-                <th>Category</th>
-                <th>Method Type</th>
-                <th>Last Modified</th>
-                <th>Created</th>
-                <th>User</th>
-              </tr>
-            </thead>
-            <tbody id="datasetTableBody">
-              <tr><td class="pi-table-empty" colspan="9">Loading dataset types...</td></tr>
-            </tbody>
-          </table>
+        <div class="pi-table-wrap" id="datasetTableWrap">
+          <div class="pi-table-surface" id="datasetTableSurface">
+            <table class="pi-table">
+              <tbody>
+                <tr><td class="pi-table-empty" colspan="9">Loading dataset types...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
     <div class="pi-window-layer" id="datasetWindowLayer"></div>
+    <div class="pi-table-context-menu" id="datasetTableContextMenu" role="menu" aria-hidden="true">
+      <button class="pi-context-menu-item" id="tableViewSettingsBtn" type="button" role="menuitem">Table View Settings</button>
+    </div>
+    <div class="pi-table-filter-popover" id="datasetTableFilterPopover" aria-hidden="true"></div>
   </div>
-  <script type="module" src="/ui/project_instance/project_instance.js?v=20260517a"></script>
+  <script type="module" src="/ui/project_instance/project_instance.js?v=20260517al"></script>
 </body>
 </html>

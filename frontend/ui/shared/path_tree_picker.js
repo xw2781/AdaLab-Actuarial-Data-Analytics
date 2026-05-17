@@ -1693,6 +1693,10 @@ export function closeFloatingPathTreePicker(reason = "programmatic") {
 
 export function openFloatingPathTreePicker(options = {}) {
   const doc = options?.document || window.document;
+  const mountContainer = options?.container && typeof options.container.appendChild === "function"
+    ? options.container
+    : null;
+  const embedded = !!mountContainer || options?.embedded === true;
   ensureStyles(doc);
   const previousPicker = activePicker;
   const smoothReplaceExisting = !!previousPicker && options?.smoothReplaceExisting === true;
@@ -1759,6 +1763,7 @@ export function openFloatingPathTreePicker(options = {}) {
 
   const win = doc.createElement("div");
   win.className = "ptree-window";
+  if (embedded) win.classList.add("ptree-window-embedded");
   if (smoothReplaceExisting) {
     win.classList.add("ptree-refresh-enter");
   }
@@ -1877,14 +1882,15 @@ export function openFloatingPathTreePicker(options = {}) {
     tools.appendChild(prefBtn);
   }
 
-  const closeBtn = doc.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.className = "ptree-close";
-  closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
-  closeBtn.title = "Close";
-  closeBtn.addEventListener("click", () => closeFloatingPathTreePicker("close_button"));
-
-  tools.appendChild(closeBtn);
+  if (options?.showCloseButton !== false) {
+    const closeBtn = doc.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "ptree-close";
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+    closeBtn.title = "Close";
+    closeBtn.addEventListener("click", () => closeFloatingPathTreePicker("close_button"));
+    tools.appendChild(closeBtn);
+  }
   bar.append(titleWrap, tools);
   win.appendChild(bar);
 
@@ -2315,7 +2321,9 @@ export function openFloatingPathTreePicker(options = {}) {
   setActivePath(initialActivePath, null, false);
   win.appendChild(body);
 
-  makeDraggable(doc, win, bar);
+  if (options?.draggable !== false && !embedded) {
+    makeDraggable(doc, win, bar);
+  }
 
   const autoExpandSavedPaths = async () => {
     if (!hasExpandedPathsOverride || !expandedPaths?.length) return;
@@ -2390,14 +2398,21 @@ export function openFloatingPathTreePicker(options = {}) {
   const onEsc = (e) => {
     if (e.key === "Escape") closeFloatingPathTreePicker("escape");
   };
-  doc.addEventListener("keydown", onEsc);
-  doc.body.appendChild(win);
+  if (options?.closeOnEscape !== false) {
+    doc.addEventListener("keydown", onEsc);
+  }
+  if (mountContainer) {
+    mountContainer.innerHTML = "";
+    mountContainer.appendChild(win);
+  } else {
+    doc.body.appendChild(win);
+  }
   const onWheelGuard = isolateWheelScroll(doc, win);
 
   activePicker = {
     doc,
     win,
-    onEsc,
+    onEsc: options?.closeOnEscape !== false ? onEsc : null,
     onBeforeClose: options?.onBeforeClose,
     onWheelGuard,
     onClose: options?.onClose,

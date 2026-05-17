@@ -46,6 +46,18 @@ const hotkeys = {
   "Ctrl+Alt+R": "file_restart",
 };
 
+function tryConsumeActiveFrameCloseShortcut() {
+  const active = shell.state.tabs.find((tab) => tab.id === shell.state.activeId);
+  const frameWin = active?.iframe?.contentWindow;
+  if (!frameWin) return false;
+  try {
+    const consume = frameWin.__arcrho_consume_close_shortcut;
+    return typeof consume === "function" && consume() === true;
+  } catch {
+    return false;
+  }
+}
+
 export function runHotkeyAction(action) {
   if (action === "custom_refresh") return shell.refreshActiveTab?.();
   if (action === "custom_hard_refresh") return shell.customHardRefresh?.();
@@ -102,6 +114,7 @@ export function initHotkeys() {
     if (combo === "Ctrl+W") {
       e.preventDefault();
       e.stopPropagation();
+      if (tryConsumeActiveFrameCloseShortcut()) return;
       shell.closeTab?.(shell.state.activeId);
       return;
     }

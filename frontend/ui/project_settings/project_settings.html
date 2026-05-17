@@ -312,18 +312,26 @@
       height: 22px;
       border: 1px solid transparent;
       background: transparent;
-      color: #6c757d;
+      color: #d92d20;
       padding: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex: 0 0 auto;
       cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+    .tree-project:hover .tree-project-action,
+    .tree-project:focus-within .tree-project-action {
+      opacity: 1;
+      pointer-events: auto;
     }
     .tree-project-action:hover {
-      border-color: #c9d7f5;
-      background: #edf3ff;
-      color: #0d6efd;
+      border-color: #f2b8b5;
+      background: #fff1f0;
+      color: #b42318;
     }
     .tree-project-action svg {
       width: 15px;
@@ -2466,6 +2474,6 @@
     </div>
   </div>
 
-<script type="module" src="/ui/project_settings/project_settings.js?v=20260516a"></script>
+<script type="module" src="/ui/project_settings/project_settings.js?v=20260517c"></script>
 </body>
 </html>

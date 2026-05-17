@@ -4,8 +4,26 @@
   "audience": "user",
   "summary": "Added project instance tabs from Project Explorer for browsing reserving-class paths and project dataset types.",
   "details": [
-    "Project tree rows now include a View datasets icon that opens a top-level project instance tab titled with the project name.",
+    "Project tree rows now reveal a red open-corner View project contents in a new tab icon on hover or keyboard focus, opening a top-level project instance tab titled with the project name.",
     "Project instance tabs show a reserving-class path selector, a dataset type table, and floating in-tab dataset windows that reuse the existing Dataset Viewer page with project/path prefilled.",
-    "The reserving-class path selector preserves the server-provided hierarchy and level labels, uses the same node icon language as the shared path picker, and scrolls independently from the dataset table."
+    "Opening a dataset that already has an open or hidden floating window activates or restores the existing window instead of creating a duplicate.",
+    "New floating dataset windows default to about 80% of the project instance frame and reuse the most recent floating dataset window size for subsequent opens.",
+    "Floating dataset window titlebars show the full reserving-class path plus dataset name while minimized toolbar tabs use the dataset name.",
+    "Floating dataset window titlebars include shell-matching minimize, maximize/restore, and close icon buttons.",
+    "Floating dataset windows inside project instance tabs use rounded frame corners when the shell's Windows 11 frame flag is active.",
+    "Floating dataset windows inside project instance tabs can be resized from all corners and edges, with the same dotted resize glyph as the main shell on the southeast handle.",
+    "Floating dataset windows inside project instance tabs can be maximized within the project-instance frame by double-clicking the titlebar, then restored by double-clicking or dragging the titlebar.",
+    "Floating dataset window titlebar double-clicks are handled before drag capture so maximize and restore reliably trigger.",
+    "Floating dataset windows inside project instance tabs can be dragged partially off the left, right, and bottom edges while keeping a side grab area and titlebar reachable.",
+    "Project instance tabs support Ctrl+W to close the active floating dataset window, including while focus is inside the embedded Dataset Viewer or when Electron routes the close-tab shortcut through the parent shell first.",
+    "Project instance toolbars include a hidden-tab collection area where floating dataset windows dragged by titlebar anywhere above the main layout highlight the dragged window, show a release-to-minimize banner, minimize with a slower dock-style animation into the matching large-radius minimized toolbar tab showing only the dataset name with a styled full-title hover tooltip, and can later be previewed by full window title from the hidden-tabs button with a one-second hover grace period, restored from the matching minimized tab, restored in bulk, closed individually, or closed in bulk from a wider dropdown list.",
+    "The reserving-class path selector embeds the same lazy picker body used elsewhere in the app, including the Shortcut section, hidden/filter preferences, favorites, user-defined favorite folders, shared icons, and independent scrolling.",
+    "The project instance path tree uses tighter left and right spacing with a small left inset and removes the two-sided scrollbar gutter so more path text fits in the left panel.",
+    "Project instance dataset tables now support a right-click Table View Settings window for grouping by any dataset column, rendering one table per distinct grouped value with record counts, and each table header supports filter dropdowns, drag-to-reorder columns, and drag-to-resize column widths.",
+    "Project instance tabs initialize the selected reserving-class path from the project's last-used path, falling back to the first Shortcut item when no last-used path is available.",
+    "Dataset viewer windows keep move and resize tracking smooth over embedded iframe content by adding a temporary drag shield.",
+    "The project instance toolbar uses a compact height, shows only the selected reserving-class path without a duplicate selected-path strip in the left panel, uses larger selected-path text for readability, and caps the path label width so more minimized tabs can fit on the right.",
+    "Project instance panel title bars are omitted so the tree and dataset table start directly below the toolbar.",
+    "The reserving-class panel defaults to 400px, resizes between 200px and 600px, animates collapse/expand, disables grid transitions and throttles width updates during live splitter drag for responsiveness, collapses when dragged to 200px or smaller, and toggles collapse/expand on splitter double-click."
   ]
 }

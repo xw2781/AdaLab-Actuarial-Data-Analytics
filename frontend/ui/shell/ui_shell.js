@@ -9,9 +9,9 @@ import { closeTab, closeTabsExcept, dockTab, floatTab, openBrowsingHistoryTab, o
 import { applyDockedIframeLayout, clampFloatingTabsToContent, clampFloatRect, defaultFloatRectFromPointer, ensureContentContainers, ensureIframe, notifyBrowsingHistoryTabs, notifyServerConnectionUpdated, notifyTabActivated, printActiveTab, removeFloatPreview, renderContent, renderFloatingWindows, updateFloatPreview } from "./shell_content.js?v=20260516a";
 import { closeTabCtxMenu, initTabStrip, isTabStripDragging, renderTabs, togglePlusMenu } from "./tab_strip.js?v=20260510a";
 import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMTab, isActiveProjectSettingsDatasetTypesTab, isActiveProjectSettingsReservingClassTypesTab, isActiveScriptingTab, isActiveWorkflowTab, sendDFMCommand, sendProjectSettingsCommand, sendScriptingCommand, sendWorkflowCommand, setDfmEditEnabled, toggleNavigationPanel, updateEditMenuState, updateFileMenuState, updateViewMenuState } from "./shell_menus.js?v=20260515a";
-import { initHotkeys, runHotkeyAction } from "./shell_hotkeys.js?v=20260515a";
-import { initShellMessages } from "./shell_messages.js?v=20260516a";
-import { initResizeHandle, initTitlebarControls } from "./titlebar_controls.js?v=20260510a";
+import { initHotkeys, runHotkeyAction } from "./shell_hotkeys.js?v=20260517a";
+import { initShellMessages } from "./shell_messages.js?v=20260517a";
+import { initTitlebarControls } from "./titlebar_controls.js?v=20260517a";
 import { initAiAssistant } from "./ai_assistant.js?v=20260515b";
 
 const UI_VERSION_PARAM = new URLSearchParams(window.location.search).get("v") || String(Date.now());
@@ -146,6 +146,4 @@ render();
 
 if (getHostApi()) initTitlebarControls();
 window.addEventListener("adaHostReady", () => initTitlebarControls());
-if (getHostApi()) initResizeHandle();
-window.addEventListener("adaHostReady", () => initResizeHandle());
 initClock();

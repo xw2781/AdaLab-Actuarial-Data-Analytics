@@ -1,0 +1,10 @@
+{
+  "type": "change",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Disabled the main shell's custom status-bar resize handle.",
+  "details": [
+    "The status bar now keeps the clock and a decorative resize glyph without exposing custom drag-to-resize behavior.",
+    "Native window resizing and in-shell floating tab resize controls are unchanged."
+  ]
+}

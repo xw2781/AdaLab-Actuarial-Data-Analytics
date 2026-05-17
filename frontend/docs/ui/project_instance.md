@@ -7,7 +7,15 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517a`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517al`; inline imports _none_.
+
+Detected `fetch(...)` targets in key JS files:
+- `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
+- `/reserving_class_filter_spec`
+- `/reserving_class_filter_spec?project_name=${encodeURIComponent(projectName)}`
+- `/reserving_class_hidden_paths`
+- `/reserving_class_hidden_paths?project_name=${encodeURIComponent(projectName)}`
+- `/reserving_class_types?project_name=${encodeURIComponent(projectName)}`
 <!-- AUTO-GEN:END -->
 
 ## Key Files
@@ -16,21 +24,39 @@ Project instance workspace for browsing one project's reserving-class paths and 
 - [`ui/project_instance/project_instance.js`](../../ui/project_instance/project_instance.js) - Project instance path selector, dataset table, and in-tab dataset viewer windows.
 - [`ui/dataset/dataset_viewer.html`](../../ui/dataset/dataset_viewer.html) - Reused dataset viewer page for floating dataset windows.
 - [`ui/dataset/dataset_types_source.js`](../../ui/dataset/dataset_types_source.js) - Shared dataset type payload loader and normalizer.
-- [`ui/shared/path_tree_picker.js`](../../ui/shared/path_tree_picker.js) - Shared path tree data builder used for reserving-class hierarchy rendering.
+- [`ui/shared/reserving_class_lazy_picker.js`](../../ui/shared/reserving_class_lazy_picker.js) - Shared reserving-class lookup, filter, shortcut, and favorite-folder picker.
+- [`ui/shared/path_tree_picker.js`](../../ui/shared/path_tree_picker.js) - Shared path tree body renderer used by the embedded reserving-class picker.
 <!-- AUTO-GEN:END -->
 
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
 - Opened by shell as a `project_instance` iframe tab after Project Settings posts `arcrho:open-project-instance`.
-- Calls shared dataset-types and reserving-class path endpoints through existing frontend helpers.
-- Loads the reserving-class path selector from `/reserving_class_path_tree` so server-provided hierarchy, level labels, and cached tree structure are preserved.
+- Calls shared dataset-types and reserving-class picker helpers.
+- Embeds the same lazy reserving-class picker body used by Dataset/DFM/Workflow, so the project instance left panel loads the same hierarchy, filters, hidden-path preferences, Shortcut section, favorites, and user-defined favorite folders.
+- The embedded reserving-class path tree uses tight horizontal padding with a small left inset and does not reserve two-sided scrollbar gutters, so more path text fits in the left panel.
 - Embeds the existing Dataset Viewer page in draggable in-tab windows.
+- Double-clicking a dataset that already has an open or hidden floating window activates or restores the existing window instead of creating a duplicate for the same selected path and dataset.
+- New floating dataset windows default to about 80% of the project-instance frame and reuse the most recent floating dataset window size for subsequent dataset windows in the same project instance page.
+- Floating dataset window titlebars show the full reserving-class path plus dataset name; minimized toolbar tabs use the dataset name.
+- Floating dataset window titlebars include shell-matching minimize, maximize/restore, and close icon buttons; minimize sends the window into the toolbar hidden-tab strip.
+- Dataset viewer windows follow the shell's existing Windows 11 frame flag, using rounded frame corners on Windows 11 and square corners otherwise.
+- Dataset viewer windows can be resized from all corners and edges, with the southeast handle using the same dotted resize glyph as the main shell and shell floating tabs.
+- Double-clicking a floating dataset window titlebar toggles maximize/restore within the project-instance frame; dragging a maximized titlebar restores the prior size under the pointer before moving.
+- Dataset viewer windows are clamped below the project-instance toolbar; they may be dragged partially off the left, right, or bottom edge as long as a side grab area and the titlebar remain reachable.
+- `Ctrl+W` closes the active floating dataset window, including when keyboard focus is inside the embedded Dataset Viewer iframe or when the shell/Electron close-tab shortcut reaches the parent shell first; the project instance tab closes only when no floating dataset window can consume the shortcut.
+- The toolbar includes a hidden-tab collection area to the right of the selected path; dragging a floating dataset window titlebar anywhere above the main project-instance layout highlights the dragged window, shows a release-to-minimize banner, and hides the window with a slower dock-style minimize animation that moves to its minimized toolbar tab. Hidden windows appear as large-radius minimized tabs on the toolbar that show dataset names only plus a styled hover tooltip with the full window title, and hovering or clicking the hidden-tabs button opens a wider content-fitting dropdown that lists full hidden window titles with a one-second hover grace period, per-item close controls, Resume all tabs, Close all tabs, and a matching restore animation that starts from the matching minimized tab.
+- Dataset viewer windows add a transparent parent-page drag shield during move/resize so embedded iframes do not interrupt fast mouse movement.
+- The project instance toolbar is compact, shows only the currently selected reserving-class path, omits the duplicate selected path above the tree, and sizes the path label to its content with a capped width so minimized toolbar tabs get the remaining space.
+- The left and right panel title bars are omitted so the reserving-class tree and dataset table start directly below the toolbar.
+- The dataset table area supports a right-click Table View Settings menu. Users can group the table by any dataset column, producing one labeled table per distinct value, and every table header supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges.
+- The left reserving-class panel defaults to 400px and has a draggable splitter constrained to 200px-600px; collapse/expand is animated, live drag updates are frame-throttled with transitions disabled for responsiveness, dragging the panel to 200px or smaller collapses it, and double-clicking the splitter toggles collapse/expand.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Uses the shell-persisted project name/folder/table path as tab inputs.
-- Keeps the selected reserving-class path in page memory and passes it into new dataset viewer windows.
+- Loads the project's last selected reserving-class path from project-user preferences when the tab opens; if no last path exists, it selects the first Shortcut item when available, otherwise leaving the path empty.
+- Keeps the selected reserving-class path in page memory, saves user selections back to project-user preferences, and passes it into new dataset viewer windows.
 - Left and right panels own their scroll areas so overflowing path trees and dataset tables scroll inside the project instance tab frame.
 <!-- MANUAL:END -->
 

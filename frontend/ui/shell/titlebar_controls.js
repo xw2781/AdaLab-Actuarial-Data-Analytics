@@ -1,7 +1,6 @@
 import { $, shell } from "./shell_context.js?v=20260510a";
 
 let titlebarControlsWired = false;
-let resizeHandleWired = false;
 
 export function initTitlebarControls() {
   if (titlebarControlsWired) return;
@@ -43,58 +42,5 @@ export function initTitlebarControls() {
     const target = e.target;
     if (target?.closest?.(".host-nodrag")) return;
     api.isMaximized().then((isMax) => { if (isMax) api.restoreWindow?.(); else api.maximizeWindow?.(); }).catch(() => api?.maximizeWindow?.());
-  });
-}
-
-export function initResizeHandle() {
-  if (resizeHandleWired) return;
-  const api = shell.getHostApi?.();
-  const handle = $("resizeHandle");
-  if (!handle || !api?.getWindowSize || !api?.resizeWindow) return;
-  resizeHandleWired = true;
-  let dragging = false;
-  let startX = 0;
-  let startY = 0;
-  let startW = 0;
-  let startH = 0;
-  let rafPending = false;
-  let nextW = 0;
-  let nextH = 0;
-  let lastApplyTs = 0;
-  const applyResize = () => {
-    rafPending = false;
-    const now = Date.now();
-    if (now - lastApplyTs < 30) return;
-    lastApplyTs = now;
-    api.resizeWindow(Math.max(820, Math.round(nextW)), Math.max(620, Math.round(nextH)));
-  };
-  const onMove = (e) => {
-    if (!dragging) return;
-    nextW = startW + (e.clientX - startX);
-    nextH = startH + (e.clientY - startY);
-    if (!rafPending) { rafPending = true; requestAnimationFrame(applyResize); }
-  };
-  const onUp = () => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove("is-resizing");
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
-  };
-  handle.addEventListener("mousedown", async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      const size = await api.getWindowSize();
-      startW = Number(size?.width || size?.w || 0);
-      startH = Number(size?.height || size?.h || 0);
-    } catch { return; }
-    if (!startW || !startH) return;
-    dragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    document.body.classList.add("is-resizing");
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
   });
 }

@@ -12,7 +12,7 @@ Detailed menu, floating-window, lifecycle, and bridge behavior belongs in focuse
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.shell.entry_points -->
-- `ui/index.html`: external scripts `/ui/shell/ui_shell.js?v=20260516a`; inline imports _none_.
+- `ui/index.html`: external scripts `/ui/shell/ui_shell.js?v=20260517c`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/`
@@ -58,7 +58,7 @@ Detected `arcrho:*` message types in key JS files:
 - [`ui/shell/root_path_settings.js`](../../ui/shell/root_path_settings.js) - Server Connection root path settings modal.
 - [`ui/shell/workflow_host_actions.js`](../../ui/shell/workflow_host_actions.js) - Workflow import and shell-side workflow helpers.
 - [`ui/shell/app_lifecycle.js`](../../ui/shell/app_lifecycle.js) - Refresh, restart, shutdown, and app confirmation flows.
-- [`ui/shell/titlebar_controls.js`](../../ui/shell/titlebar_controls.js) - Electron titlebar and resize-handle controls.
+- [`ui/shell/titlebar_controls.js`](../../ui/shell/titlebar_controls.js) - Electron titlebar minimize, maximize, close, and drag-restore controls.
 - [`ui/shell/status_bar.js`](../../ui/shell/status_bar.js) - Status bar text, clock, and timestamp helpers.
 - [`ui/shell/shell_context.js`](../../ui/shell/shell_context.js) - Shared shell dependency registry.
 - [`electron/preload.js`](../../electron/preload.js) - Renderer-safe host bridge APIs.
@@ -70,6 +70,7 @@ Detected `arcrho:*` message types in key JS files:
 - Communicates with child iframes via `arcrho:*` postMessage events.
 - Invokes app-server endpoints for workflow import helpers and configuration endpoints.
 - Uses Electron host bridge and explicit shell commands for shutdown/clear-cache actions; ordinary document unloads and reloads do not send app shutdown.
+- The desktop shell status bar shows a decorative resize glyph only; it does not expose custom drag-to-resize behavior, so window resizing is left to the native Electron window frame while in-shell floating tab windows keep their own resize controls.
 - Clear Cache & Reload reloads the shell with a fresh timestamped UI URL after clearing Electron cache/storage, and Project Settings iframes include the shell UI version query parameter so reloads fetch the current Project Settings HTML/module graph consistently.
 - App-server startup is host-managed with retry on transient launch failures.
 - The home sidebar brand reads the Windows username from the Electron host bridge when available, then renders the username and a low-contrast circular SVG initial mark; plain browser sessions keep the default ArcRho brand.
@@ -83,6 +84,7 @@ Detected `arcrho:*` message types in key JS files:
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.
 - Receives `arcrho:open-dataset-from-history` from Browsing History tab to open dataset tabs with selected inputs.
 - Receives `arcrho:open-project-instance` from Project Settings to open or focus a top-level `project_instance` tab for the selected project.
+- Before closing the active top-level tab for `Ctrl+W`/close-tab shortcuts, the shell lets the active iframe consume the shortcut through `window.__arcrho_consume_close_shortcut`; project instance tabs use this to close their top floating dataset window first.
 - OS-level detached tab pop-out windows are not supported; floating tabs stay inside the main shell and reuse the same iframe/message contracts as docked tabs.
 <!-- MANUAL:END -->
 

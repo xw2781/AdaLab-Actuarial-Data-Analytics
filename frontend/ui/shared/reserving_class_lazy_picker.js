@@ -1,4 +1,4 @@
-import { closeFloatingPathTreePicker, openFloatingPathTreePicker } from "/ui/shared/path_tree_picker.js";
+import { closeFloatingPathTreePicker, openFloatingPathTreePicker } from "/ui/shared/path_tree_picker.js?v=20260517a";
 import { buildWorkflowPathRootNode } from "/ui/shared/workflow_global_picker_options.js";
 
 const LOOKUP_MODEL_CACHE = new Map();
@@ -3119,6 +3119,10 @@ export async function openLazyReservingClassPicker(options = {}) {
   const hiddenAllMessage =
     toText(options?.hiddenAllMessage) || "All reserving class paths are hidden. Use right-click menu: Unhide All.";
   const anchorElement = options?.anchorElement || null;
+  const inlineContainer = options?.inlineContainer && typeof options.inlineContainer.appendChild === "function"
+    ? options.inlineContainer
+    : null;
+  const inlineTree = !!inlineContainer;
   const pickerTitle = toText(options?.title) || "Reserving Class";
 
   const openWorkflowOnlyPathPicker = () => {
@@ -3134,6 +3138,11 @@ export async function openLazyReservingClassPicker(options = {}) {
     const picker = openFloatingPathTreePicker({
       title: pickerTitle,
       titleIcon: "hierarchy",
+      container: inlineContainer || undefined,
+      embedded: inlineTree,
+      draggable: !inlineTree,
+      closeOnEscape: !inlineTree,
+      showCloseButton: !inlineTree,
       rootNodes: [],
       shortcutRootNodes: [workflowRootNode],
       delimiter: "\\",
@@ -3141,7 +3150,7 @@ export async function openLazyReservingClassPicker(options = {}) {
       defaultExpandedDepth: Number.isInteger(options?.defaultExpandedDepth)
         ? Number(options.defaultExpandedDepth)
         : 1,
-      autoCloseOnSelect: true,
+      autoCloseOnSelect: inlineTree ? false : true,
       allowBranchSelect: false,
       onSelect: (path, node) => {
         closeReservingClassTreeNodeMenu("selected");
@@ -3158,7 +3167,7 @@ export async function openLazyReservingClassPicker(options = {}) {
         if (onClose) onClose(reason);
       },
     });
-    if (picker?.element && anchorElement) {
+    if (picker?.element && anchorElement && !inlineTree) {
       positionWindowBelowAnchor(window.document, picker.element, anchorElement, 8);
     }
     return picker || null;
@@ -3591,6 +3600,11 @@ export async function openLazyReservingClassPicker(options = {}) {
         titleFromActivePath: true,
         activePath,
         titleIcon: "hierarchy",
+        container: inlineContainer || undefined,
+        embedded: inlineTree,
+        draggable: !inlineTree,
+        closeOnEscape: !inlineTree,
+        showCloseButton: !inlineTree,
         rootNodes: rootChildren,
         levelLabels,
         delimiter: "\\",
@@ -3603,7 +3617,7 @@ export async function openLazyReservingClassPicker(options = {}) {
           ? Number(options.defaultExpandedDepth)
           : 0,
         autoExpandSingleChild: !!treeFilterPreferences.autoExpandSingleChild,
-        autoCloseOnSelect: !!treeFilterPreferences.autoCloseOnSelect,
+        autoCloseOnSelect: inlineTree ? false : !!treeFilterPreferences.autoCloseOnSelect,
         selectOnDoubleClick: !!treeFilterPreferences.selectOnDoubleClick,
         showFavoriteSection: true,
         favoriteSectionTitle: "Shortcut",
@@ -3848,12 +3862,12 @@ export async function openLazyReservingClassPicker(options = {}) {
       });
       treeWindowPicker = picker || null;
       treeWindowElement = picker?.element || null;
-      if (treeWindowElement) {
+      if (treeWindowElement && !inlineTree) {
         applyWindowSize(treeWindowElement, treeWindowSize);
       }
-      if (treeWindowElement && treeWindowPosition) {
+      if (treeWindowElement && treeWindowPosition && !inlineTree) {
         applyWindowPosition(treeWindowElement, treeWindowPosition);
-      } else if (treeWindowElement && anchorElement) {
+      } else if (treeWindowElement && anchorElement && !inlineTree) {
         positionWindowBelowAnchor(window.document, treeWindowElement, anchorElement, 8);
       }
       if (treeWindowElement) {
@@ -3869,7 +3883,7 @@ export async function openLazyReservingClassPicker(options = {}) {
     const opened = openTreeWindow();
     if (!opened) return { ok: false, reason: "empty" };
 
-    return { ok: true };
+    return { ok: true, picker: treeWindowPicker };
   } catch (err) {
     const statusCode = Number(err?.status || 0);
     closeReservingClassTreeNodeMenu("error");
