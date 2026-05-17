@@ -1385,7 +1385,7 @@ function createEditorForCell(cellId, container, code, cellType = CELL_TYPES.CODE
 
   // Auto-height: resize editor to fit content
   const updateHeight = () => {
-    const contentHeight = Math.max(38, Math.min(400, editor.getContentHeight()));
+    const contentHeight = Math.max(38, Math.ceil(editor.getContentHeight()));
     container.style.height = `${contentHeight}px`;
     editor.layout();
   };

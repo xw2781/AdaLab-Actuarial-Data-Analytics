@@ -30,7 +30,7 @@ const els = {
   datasetTableWrap: document.getElementById("datasetTableWrap"),
   datasetTableSurface: document.getElementById("datasetTableSurface"),
   datasetTableContextMenu: document.getElementById("datasetTableContextMenu"),
-  tableViewSettingsBtn: document.getElementById("tableViewSettingsBtn"),
+  datasetGroupContextMenu: document.getElementById("datasetGroupContextMenu"),
   datasetTableFilterPopover: document.getElementById("datasetTableFilterPopover"),
   windowLayer: document.getElementById("datasetWindowLayer"),
 };
@@ -47,9 +47,20 @@ const DATASET_TABLE_COLUMNS = Object.freeze([
   { key: "user", label: "User", minWidth: 110 },
 ]);
 const DATASET_COLUMNS = DATASET_TABLE_COLUMNS.length;
-const DATASET_TABLE_DEFAULT_WIDTHS = Object.freeze(
-  Object.fromEntries(DATASET_TABLE_COLUMNS.map((col) => [col.key, col.minWidth]))
-);
+const DATASET_TABLE_DEFAULT_WIDTHS = Object.freeze({
+  name: 180,
+  datasetTypeName: 180,
+  dataFormat: 140,
+  formula: 180,
+  category: 140,
+  methodType: 120,
+  lastModified: 140,
+  created: 120,
+  user: 120,
+});
+const DATASET_TABLE_AUTOFIT_MAX_WIDTH = 460;
+const DATASET_TABLE_AUTOFIT_CELL_EXTRA_WIDTH = 38;
+const DATASET_TABLE_AUTOFIT_HEADER_EXTRA_WIDTH = 76;
 const DATASET_TABLE_BLANK_LABEL = "(Blank)";
 const LEFT_PANEL_DEFAULT_WIDTH = 400;
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -72,7 +83,6 @@ let nextWindowZ = 1;
 let windowSeq = 1;
 let lastExpandedLeftWidth = LEFT_PANEL_DEFAULT_WIDTH;
 let lastDatasetWindowSize = null;
-let tableViewSettingsWindow = null;
 let activeDatasetWindow = null;
 let lastDatasetWindowShortcutCloseAt = 0;
 const hiddenWindows = new Map();
@@ -92,10 +102,11 @@ let debugTracePath = "";
 let debugTraceFetchWired = false;
 let debugTraceRawFetch = null;
 const datasetTableView = {
-  groupBy: "",
+  groupBy: [],
   columns: DATASET_TABLE_COLUMNS.map((col) => col.key),
   widths: { ...DATASET_TABLE_DEFAULT_WIDTHS },
   filters: new Map(),
+  collapsedGroups: new Set(),
   sort: {
     key: "",
     dir: "asc",
@@ -104,6 +115,8 @@ const datasetTableView = {
 let datasetTableFilterColumn = "";
 let datasetTableFilterAnchor = null;
 let datasetTableColumnDragStarted = false;
+let datasetGroupContextId = "";
+let datasetTableMeasureCanvas = null;
 
 function getDebugTraceElapsedMs() {
   return Math.round((performance.now() - debugTraceStartMs) * 10) / 10;
@@ -768,6 +781,35 @@ function getOrderedDatasetColumns() {
   return ordered.map(getDatasetColumn).filter(Boolean);
 }
 
+function getDatasetGroupByKeys() {
+  const raw = Array.isArray(datasetTableView.groupBy)
+    ? datasetTableView.groupBy
+    : [datasetTableView.groupBy];
+  const allowed = new Set(["dataFormat", "category"]);
+  const keys = [];
+  for (const key of raw) {
+    const normalized = toText(key);
+    if (!allowed.has(normalized) || keys.includes(normalized)) continue;
+    keys.push(normalized);
+    if (keys.length >= 2) break;
+  }
+  datasetTableView.groupBy = keys;
+  return keys;
+}
+
+function setDatasetGroupByKey(key) {
+  const normalized = toText(key);
+  if (!["dataFormat", "category"].includes(normalized)) return;
+  const keys = getDatasetGroupByKeys();
+  const next = keys.includes(normalized)
+    ? keys.filter((item) => item !== normalized)
+    : [...keys, normalized].slice(-2);
+  datasetTableView.groupBy = next;
+  datasetTableView.collapsedGroups.clear();
+  closeDatasetTableContextMenu();
+  renderDatasetTable();
+}
+
 function getDatasetCellValue(row, key) {
   const datasetName = getDatasetName(row);
   switch (key) {
@@ -814,6 +856,41 @@ function buildDatasetRecord(row, rowIndex) {
 
 function getDatasetRecordValue(record, key) {
   return toText(record?.values?.[key] ?? getDatasetCellValue(record?.row, key));
+}
+
+function measureDatasetTableText(text) {
+  if (!datasetTableMeasureCanvas) {
+    datasetTableMeasureCanvas = document.createElement("canvas");
+  }
+  const ctx = datasetTableMeasureCanvas.getContext?.("2d");
+  if (!ctx) return String(text || "").length * 7;
+  ctx.font = "12px Segoe UI, Arial, sans-serif";
+  return ctx.measureText(String(text || "")).width;
+}
+
+function clampInitialDatasetTableWidth(width, col) {
+  const minWidth = col?.minWidth || 80;
+  const measured = Math.ceil(Number(width) || minWidth);
+  return Math.max(minWidth, Math.min(DATASET_TABLE_AUTOFIT_MAX_WIDTH, measured));
+}
+
+function getInitialDatasetTableColumnWidth(col, rows = datasetRows) {
+  if (!col) return 120;
+  let width = measureDatasetTableText(col.label) + DATASET_TABLE_AUTOFIT_HEADER_EXTRA_WIDTH;
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  for (const row of sourceRows) {
+    const value = getDatasetCellValue(row, col.key);
+    if (!value) continue;
+    width = Math.max(width, measureDatasetTableText(value) + DATASET_TABLE_AUTOFIT_CELL_EXTRA_WIDTH);
+    if (width >= DATASET_TABLE_AUTOFIT_MAX_WIDTH) return DATASET_TABLE_AUTOFIT_MAX_WIDTH;
+  }
+  return clampInitialDatasetTableWidth(width, col);
+}
+
+function autoFitInitialDatasetTableWidths(rows = datasetRows) {
+  for (const col of DATASET_TABLE_COLUMNS) {
+    datasetTableView.widths[col.key] = getInitialDatasetTableColumnWidth(col, rows);
+  }
 }
 
 function buildDatasetTableRenderContext() {
@@ -910,7 +987,7 @@ function getDatasetFilterSelection(key, options = getDatasetColumnOptions(key)) 
   const optionKeys = new Set(options.map((opt) => opt.key));
   let selected = datasetTableView.filters.get(key);
   if (!(selected instanceof Set)) {
-    selected = new Set(optionKeys);
+    selected = new Set();
     datasetTableView.filters.set(key, selected);
     return selected;
   }
@@ -924,7 +1001,9 @@ function isDatasetColumnFilterActive(key, context = null) {
   const options = getDatasetColumnOptions(key, context);
   if (!options.length) return false;
   const selected = context?.selectionsByKey?.get?.(key) || getDatasetFilterSelection(key, options);
-  return selected.size !== options.length;
+  if (!(selected instanceof Set) || selected.size === 0) return false;
+  if (selected.size !== options.length) return true;
+  return options.some((opt) => !selected.has(opt.key));
 }
 
 function rowMatchesDatasetTableFilters(record, context) {
@@ -932,7 +1011,7 @@ function rowMatchesDatasetTableFilters(record, context) {
     const options = getDatasetColumnOptions(col.key, context);
     if (!options.length) continue;
     const selected = context?.selectionsByKey?.get?.(col.key) || getDatasetFilterSelection(col.key, options);
-    if (selected.size === options.length) continue;
+    if (!(selected instanceof Set) || selected.size === 0 || selected.size === options.length) continue;
     if (!selected.has(getDatasetFilterKey(getDatasetRecordValue(record, col.key)))) return false;
   }
   return true;
@@ -1053,16 +1132,119 @@ function createDatasetTableHeaderCell(col, colIndex, context = null) {
   return th;
 }
 
-function createDatasetTable(records, groupText = "", context = null) {
+function createDatasetRecordRow(item, columns) {
+  const tr = document.createElement("tr");
+  tr.title = selectedPath
+    ? `Open ${item.datasetName} for ${selectedPath}`
+    : "Select a reserving class path before opening a dataset.";
+  for (const col of columns) {
+    const value = getDatasetRecordValue(item, col.key);
+    const td = document.createElement("td");
+    td.title = value;
+    const text = document.createElement("span");
+    text.className = "pi-table-cell-text";
+    text.textContent = value;
+    td.appendChild(text);
+    tr.appendChild(td);
+  }
+  tr.addEventListener("dblclick", () => {
+    openDatasetWindow(item.datasetName);
+  });
+  return tr;
+}
+
+function getDatasetGroupId(parts) {
+  return JSON.stringify(parts.map((part) => [part.key, part.valueKey]));
+}
+
+function createDatasetGroupRow(part, depth, columns) {
+  const groupId = getDatasetGroupId(part.path);
+  const collapsed = datasetTableView.collapsedGroups.has(groupId);
+  const tr = document.createElement("tr");
+  tr.className = `pi-table-group-row depth-${Math.min(1, depth)}`;
+  tr.classList.toggle("collapsed", collapsed);
+  tr.dataset.groupId = groupId;
+  const td = document.createElement("td");
+  td.colSpan = columns.length;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "pi-table-group-button";
+  btn.innerHTML = `
+    <svg class="pi-table-group-caret" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M3.2 4.2h5.6L6 7.7z"></path>
+    </svg>
+    <span class="pi-table-group-text"></span>
+  `;
+  const text = btn.querySelector(".pi-table-group-text");
+  if (text) {
+    text.textContent = `${part.label}: ${part.valueLabel}`;
+  }
+  if (depth === 0) {
+    const count = document.createElement("span");
+    count.className = "pi-table-group-count";
+    count.textContent = String(part.records.length);
+    count.title = `${part.records.length} records`;
+    btn.appendChild(count);
+  }
+  btn.addEventListener("click", () => {
+    if (datasetTableView.collapsedGroups.has(groupId)) datasetTableView.collapsedGroups.delete(groupId);
+    else datasetTableView.collapsedGroups.add(groupId);
+    renderDatasetTable();
+  });
+  btn.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showDatasetGroupContextMenu(groupId, event.clientX, event.clientY);
+  });
+  td.appendChild(btn);
+  tr.appendChild(td);
+  return tr;
+}
+
+function buildDatasetGroupParts(records, groupKeys, depth = 0, path = []) {
+  const groupKey = groupKeys[depth];
+  const col = getDatasetColumn(groupKey);
+  if (!col) return [];
+  const groups = new Map();
+  for (const record of records) {
+    const valueKey = getDatasetFilterKey(getDatasetRecordValue(record, groupKey));
+    if (!groups.has(valueKey)) groups.set(valueKey, []);
+    groups.get(valueKey).push(record);
+  }
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => {
+      if (a === DATASET_TABLE_BLANK_LABEL) return 1;
+      if (b === DATASET_TABLE_BLANK_LABEL) return -1;
+      return compareTextValues(a, b);
+    })
+    .map(([valueKey, groupRecords]) => ({
+      key: groupKey,
+      label: col.label,
+      valueKey,
+      valueLabel: valueKey,
+      records: groupRecords,
+      path: [...path, { key: groupKey, valueKey }],
+    }));
+}
+
+function appendGroupedDatasetRows(tbody, records, groupKeys, columns, depth = 0, path = []) {
+  if (depth >= groupKeys.length) {
+    for (const item of sortDatasetRecords(records)) {
+      tbody.appendChild(createDatasetRecordRow(item, columns));
+    }
+    return;
+  }
+  for (const part of buildDatasetGroupParts(records, groupKeys, depth, path)) {
+    tbody.appendChild(createDatasetGroupRow(part, depth, columns));
+    const groupId = getDatasetGroupId(part.path);
+    if (datasetTableView.collapsedGroups.has(groupId)) continue;
+    appendGroupedDatasetRows(tbody, part.records, groupKeys, columns, depth + 1, part.path);
+  }
+}
+
+function createDatasetTable(records, context = null) {
   const group = document.createElement("div");
   group.className = "pi-table-group";
-  group.classList.toggle("has-label", !!groupText);
-  if (groupText) {
-    const label = document.createElement("div");
-    label.className = "pi-table-group-label";
-    label.textContent = groupText;
-    group.appendChild(label);
-  }
 
   const table = document.createElement("table");
   table.className = "pi-table";
@@ -1095,26 +1277,9 @@ function createDatasetTable(records, groupText = "", context = null) {
     tr.appendChild(td);
     tbody.appendChild(tr);
   } else {
-    for (const item of records) {
-      const tr = document.createElement("tr");
-      tr.title = selectedPath
-        ? `Open ${item.datasetName} for ${selectedPath}`
-        : "Select a reserving class path before opening a dataset.";
-      for (const col of columns) {
-        const value = getDatasetRecordValue(item, col.key);
-        const td = document.createElement("td");
-        td.title = value;
-        const text = document.createElement("span");
-        text.className = "pi-table-cell-text";
-        text.textContent = value;
-        td.appendChild(text);
-        tr.appendChild(td);
-      }
-      tr.addEventListener("dblclick", () => {
-        openDatasetWindow(item.datasetName);
-      });
-      tbody.appendChild(tr);
-    }
+    const groupKeys = getDatasetGroupByKeys();
+    if (groupKeys.length) appendGroupedDatasetRows(tbody, records, groupKeys, columns);
+    else for (const item of sortDatasetRecords(records)) tbody.appendChild(createDatasetRecordRow(item, columns));
   }
   table.appendChild(tbody);
   group.appendChild(table);
@@ -1161,9 +1326,21 @@ function autoFitDatasetTableColumn(key, colIndex) {
   for (const tr of rows) {
     const td = tr.children[colIndex];
     if (!td || td.classList.contains("pi-table-empty")) continue;
-    width = Math.max(width, Math.min(420, String(td.textContent || "").length * 7 + 36));
+    width = Math.max(
+      width,
+      Math.min(
+        DATASET_TABLE_AUTOFIT_MAX_WIDTH,
+        measureDatasetTableText(td.textContent || "") + DATASET_TABLE_AUTOFIT_CELL_EXTRA_WIDTH
+      )
+    );
   }
-  width = Math.max(width, Math.min(420, col.label.length * 8 + 58));
+  width = Math.max(
+    width,
+    Math.min(
+      DATASET_TABLE_AUTOFIT_MAX_WIDTH,
+      measureDatasetTableText(col.label) + DATASET_TABLE_AUTOFIT_HEADER_EXTRA_WIDTH
+    )
+  );
   setDatasetTableColumnWidth(key, width);
 }
 
@@ -1183,7 +1360,7 @@ function renderDatasetTable() {
   const records = getDatasetTableRecords(context);
   if (!records.length) {
     const fragment = document.createDocumentFragment();
-    fragment.appendChild(createDatasetTable([], "", context));
+    fragment.appendChild(createDatasetTable([], context));
     els.datasetTableSurface.replaceChildren(fragment);
     traceEvent("render_dataset_table_no_visible_rows", {
       datasetRows: datasetRows.length,
@@ -1192,50 +1369,15 @@ function renderDatasetTable() {
     return;
   }
 
-  const groupCol = getDatasetColumn(datasetTableView.groupBy);
-  if (!groupCol) {
-    const fragment = document.createDocumentFragment();
-    fragment.appendChild(createDatasetTable(sortDatasetRecords(records), "", context));
-    els.datasetTableSurface.replaceChildren(fragment);
-    traceEvent("render_dataset_table_end", {
-      datasetRows: datasetRows.length,
-      visibleRows: records.length,
-      groups: 0,
-      sortKey: datasetTableView.sort?.key || "",
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
-    return;
-  }
-
-  const groups = new Map();
-  for (const record of records) {
-    const value = getDatasetRecordValue(record, groupCol.key);
-    const key = getDatasetFilterKey(value);
-    if (!groups.has(key)) groups.set(key, { label: key, records: [] });
-    groups.get(key).records.push(record);
-  }
-
-  const sortedGroups = Array.from(groups.values()).sort((a, b) => {
-    if (a.label === DATASET_TABLE_BLANK_LABEL) return 1;
-    if (b.label === DATASET_TABLE_BLANK_LABEL) return -1;
-    return compareTextValues(a.label, b.label);
-  });
+  const groupKeys = getDatasetGroupByKeys();
   const fragment = document.createDocumentFragment();
-  for (const group of sortedGroups) {
-    fragment.appendChild(
-      createDatasetTable(
-        sortDatasetRecords(group.records),
-        `${groupCol.label}: ${group.label} (${group.records.length} records)`,
-        context
-      )
-    );
-  }
+  fragment.appendChild(createDatasetTable(records, context));
   els.datasetTableSurface.replaceChildren(fragment);
   traceEvent("render_dataset_table_end", {
     datasetRows: datasetRows.length,
     visibleRows: records.length,
-    groups: sortedGroups.length,
-    groupBy: groupCol.key,
+    groups: groupKeys.length,
+    groupBy: groupKeys.join(","),
     sortKey: datasetTableView.sort?.key || "",
     duration_ms: Math.round((performance.now() - start) * 10) / 10,
   });
@@ -1258,13 +1400,86 @@ function closeDatasetTableContextMenu() {
   els.datasetTableContextMenu?.setAttribute("aria-hidden", "true");
 }
 
+function closeDatasetGroupContextMenu() {
+  els.datasetGroupContextMenu?.classList?.remove("open");
+  els.datasetGroupContextMenu?.setAttribute("aria-hidden", "true");
+  datasetGroupContextId = "";
+}
+
 function showDatasetTableContextMenu(x, y) {
   const menu = els.datasetTableContextMenu;
   if (!menu) return;
   closeDatasetTableFilterPopover();
+  closeDatasetGroupContextMenu();
+  const groupKeys = getDatasetGroupByKeys();
+  for (const item of menu.querySelectorAll("[data-group-key]")) {
+    item.classList.toggle("active", groupKeys.includes(toText(item.dataset.groupKey)));
+  }
   menu.classList.add("open");
   menu.setAttribute("aria-hidden", "false");
   positionFixedMenu(menu, x, y);
+}
+
+function showDatasetGroupContextMenu(groupId, x, y) {
+  const menu = els.datasetGroupContextMenu;
+  if (!menu || !groupId) return;
+  datasetGroupContextId = groupId;
+  closeDatasetTableContextMenu();
+  closeDatasetTableFilterPopover();
+  menu.classList.add("open");
+  menu.setAttribute("aria-hidden", "false");
+  positionFixedMenu(menu, x, y);
+}
+
+function parseDatasetGroupId(groupId) {
+  try {
+    const parsed = JSON.parse(groupId);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => ({
+        key: toText(Array.isArray(item) ? item[0] : item?.key),
+        valueKey: toText(Array.isArray(item) ? item[1] : item?.valueKey),
+      }))
+      .filter((item) => item.key && item.valueKey);
+  } catch {
+    return [];
+  }
+}
+
+function datasetRecordMatchesGroupPath(record, path) {
+  return path.every((part) => getDatasetFilterKey(getDatasetRecordValue(record, part.key)) === part.valueKey);
+}
+
+function collectDatasetDescendantGroupIds(records, groupKeys, depth, path, out) {
+  if (depth >= groupKeys.length) return;
+  for (const part of buildDatasetGroupParts(records, groupKeys, depth, path)) {
+    const id = getDatasetGroupId(part.path);
+    out.push(id);
+    collectDatasetDescendantGroupIds(part.records, groupKeys, depth + 1, part.path, out);
+  }
+}
+
+function getDatasetDescendantGroupIds(groupId) {
+  const path = parseDatasetGroupId(groupId);
+  if (!path.length) return [];
+  const groupKeys = getDatasetGroupByKeys();
+  if (path.length >= groupKeys.length) return [];
+  const context = buildDatasetTableRenderContext();
+  const records = getDatasetTableRecords(context).filter((record) => datasetRecordMatchesGroupPath(record, path));
+  const ids = [];
+  collectDatasetDescendantGroupIds(records, groupKeys, path.length, path, ids);
+  return ids;
+}
+
+function applyDatasetGroupContextAction(action) {
+  const ids = getDatasetDescendantGroupIds(datasetGroupContextId);
+  if (action === "collapse-all") {
+    for (const id of ids) datasetTableView.collapsedGroups.add(id);
+  } else if (action === "expand-all") {
+    for (const id of ids) datasetTableView.collapsedGroups.delete(id);
+  }
+  closeDatasetGroupContextMenu();
+  renderDatasetTable();
 }
 
 function closeDatasetTableFilterPopover() {
@@ -1353,136 +1568,47 @@ function findDatasetFilterButton(key) {
   return th?.querySelector?.(".pi-table-filter-btn") || null;
 }
 
-function raiseTableViewSettingsWindow() {
-  if (!tableViewSettingsWindow?.isConnected) return;
-  tableViewSettingsWindow.style.zIndex = String(++nextWindowZ);
-}
-
-function closeTableViewSettingsWindow() {
-  tableViewSettingsWindow?.remove();
-  tableViewSettingsWindow = null;
-}
-
-function startTableViewSettingsMove(frame, event) {
-  if (event.button !== 0) return;
-  const rootRect = els.root?.getBoundingClientRect?.();
-  const frameRect = frame?.getBoundingClientRect?.();
-  if (!rootRect || !frameRect) return;
-  raiseTableViewSettingsWindow();
-  const start = {
-    x: frameRect.left - rootRect.left,
-    y: frameRect.top - rootRect.top,
-    width: frameRect.width,
-    height: frameRect.height,
-    px: event.clientX,
-    py: event.clientY,
-  };
-  const onMove = (moveEvent) => {
-    const bounds = getWindowBounds();
-    const minY = getWindowTopLimit();
-    const x = Math.max(0, Math.min(bounds.width - start.width, start.x + moveEvent.clientX - start.px));
-    const y = Math.max(minY, Math.min(bounds.height - start.height, start.y + moveEvent.clientY - start.py));
-    frame.style.left = `${Math.round(x)}px`;
-    frame.style.top = `${Math.round(y)}px`;
-  };
-  const onUp = () => {
-    document.removeEventListener("mousemove", onMove, true);
-    document.removeEventListener("mouseup", onUp, true);
-  };
-  document.addEventListener("mousemove", onMove, true);
-  document.addEventListener("mouseup", onUp, true);
-  event.preventDefault();
-}
-
-function openTableViewSettingsWindow() {
-  if (tableViewSettingsWindow?.isConnected) {
-    raiseTableViewSettingsWindow();
-    return;
-  }
-  closeDatasetTableContextMenu();
-  closeDatasetTableFilterPopover();
-  const frame = document.createElement("section");
-  frame.className = "pi-view-settings-window";
-  frame.setAttribute("aria-label", "Table View Settings");
-  frame.innerHTML = `
-    <header class="pi-window-titlebar">
-      <span class="pi-window-title">Table View Settings</span>
-      <div class="pi-window-titlebar-controls">
-        <button class="pi-window-titlebar-btn pi-window-close" type="button" title="Close" aria-label="Close">
-          <svg class="pi-window-titlebar-icon" viewBox="0 0 10 10" aria-hidden="true">
-            <line x1="2" y1="2" x2="8" y2="8"></line>
-            <line x1="8" y1="2" x2="2" y2="8"></line>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="pi-view-settings-body">
-      <div class="pi-view-settings-field">
-        <label for="piGroupBySelect">Group by</label>
-        <select id="piGroupBySelect"></select>
-      </div>
-      <div class="pi-view-settings-note">Grouped views render one table per distinct selected column value. Drag table headers to reorder columns and drag header edges to resize widths.</div>
-    </div>
-  `;
-  const select = frame.querySelector("#piGroupBySelect");
-  const none = document.createElement("option");
-  none.value = "";
-  none.textContent = "None";
-  select.appendChild(none);
-  for (const col of DATASET_TABLE_COLUMNS) {
-    const option = document.createElement("option");
-    option.value = col.key;
-    option.textContent = col.label;
-    select.appendChild(option);
-  }
-  select.value = datasetTableView.groupBy || "";
-  select.addEventListener("change", () => {
-    datasetTableView.groupBy = select.value;
-    renderDatasetTable();
-  });
-  frame.querySelector(".pi-window-titlebar")?.addEventListener("mousedown", (event) => {
-    if (event.target.closest("button")) return;
-    startTableViewSettingsMove(frame, event);
-  });
-  frame.querySelector(".pi-window-close")?.addEventListener("click", closeTableViewSettingsWindow);
-  frame.addEventListener("mousedown", raiseTableViewSettingsWindow);
-  tableViewSettingsWindow = frame;
-  els.windowLayer?.appendChild(frame);
-  const bounds = getWindowBounds();
-  const top = getWindowTopLimit() + 24;
-  frame.style.left = `${Math.max(12, Math.round(bounds.width - 370))}px`;
-  frame.style.top = `${Math.round(top)}px`;
-  raiseTableViewSettingsWindow();
-}
-
 function initDatasetTableInteractions() {
   if (els.rightPanel?.dataset?.tableInteractionsWired === "1") return;
   if (els.rightPanel) els.rightPanel.dataset.tableInteractionsWired = "1";
-  els.rightPanel?.addEventListener("contextmenu", (event) => {
+  els.datasetTableSurface?.addEventListener("contextmenu", (event) => {
+    if (!event.target?.closest?.(".pi-table thead th")) return;
     event.preventDefault();
     event.stopPropagation();
     showDatasetTableContextMenu(event.clientX, event.clientY);
   });
-  els.tableViewSettingsBtn?.addEventListener("click", (event) => {
+  els.datasetTableContextMenu?.addEventListener("click", (event) => {
+    const item = event.target?.closest?.("[data-group-key]");
+    if (!item) return;
     event.preventDefault();
     event.stopPropagation();
-    openTableViewSettingsWindow();
+    setDatasetGroupByKey(item.dataset.groupKey);
+  });
+  els.datasetGroupContextMenu?.addEventListener("click", (event) => {
+    const item = event.target?.closest?.("[data-group-action]");
+    if (!item) return;
+    event.preventDefault();
+    event.stopPropagation();
+    applyDatasetGroupContextAction(item.dataset.groupAction);
   });
   document.addEventListener("mousedown", (event) => {
     if (els.datasetTableContextMenu?.contains(event.target)) return;
+    if (els.datasetGroupContextMenu?.contains(event.target)) return;
     if (els.datasetTableFilterPopover?.contains(event.target)) return;
     if (event.target?.closest?.(".pi-table-filter-btn")) return;
     closeDatasetTableContextMenu();
+    closeDatasetGroupContextMenu();
     closeDatasetTableFilterPopover();
   }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     closeDatasetTableContextMenu();
+    closeDatasetGroupContextMenu();
     closeDatasetTableFilterPopover();
-    closeTableViewSettingsWindow();
   }, true);
   window.addEventListener("resize", () => {
     closeDatasetTableContextMenu();
+    closeDatasetGroupContextMenu();
     positionDatasetTableFilterPopover();
   });
   els.datasetTableWrap?.addEventListener("scroll", positionDatasetTableFilterPopover, true);
@@ -1747,6 +1873,7 @@ async function loadDatasets() {
     datasetRows = Array.isArray(fetched?.data?.rows)
       ? fetched.data.rows.filter((row) => getDatasetName(row))
       : [];
+    autoFitInitialDatasetTableWidths(datasetRows);
     traceEvent("load_datasets_fetched", {
       rows: datasetRows.length,
       duration_ms: Math.round((performance.now() - start) * 10) / 10,

@@ -1,0 +1,6 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Expanded long scripting code cells to show all code without an internal editor scrollbar."
+}

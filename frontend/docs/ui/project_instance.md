@@ -7,7 +7,7 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517at`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517bd`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
@@ -50,7 +50,9 @@ Detected `fetch(...)` targets in key JS files:
 - Dataset viewer windows add a transparent parent-page drag shield during move/resize so embedded iframes do not interrupt fast mouse movement.
 - The project instance toolbar is compact, shows only the currently selected reserving-class path, omits the duplicate selected path above the tree, and sizes the path label to its content with a capped width so minimized toolbar tabs get the remaining space.
 - The left and right panel title bars are omitted so the reserving-class tree and dataset table start directly below the toolbar.
-- The dataset table area supports a right-click Table View Settings menu. Users can group the table by any dataset column, producing one labeled table per distinct value, and every table header supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges. Resizing a column changes only that column and updates the total table width instead of redistributing space across other columns.
+- Right-clicking dataset table header cells opens a context menu with `Group by ...` choices for `Data Format` and `Category` plus a placeholder `Reset Columns` option; choosing both grouping fields creates nested compact collapsible group headers inside the same table instead of rendering separate grouped tables. Top-level group headers show record counts as low-contrast circular badges, while subgroup headers omit counts. Every table header still supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges. Per-column filters match the Project Settings Dataset Types table: no checked values means the filter is not applied, checked values narrow results, and selecting all values is treated as unfiltered. Resizing a column changes only that column and updates the total table width instead of redistributing space across other columns.
+- Dataset table initial column widths are measured from the loaded header and cell contents, with each startup width capped at `460px` so a single long value cannot create an oversized column; manual resize can still expand a column beyond the startup cap.
+- Right-clicking a dataset table group header opens `Collapse all` and `Expand all` actions for nested subgroup headers within that group.
 - Dataset table renders precompute row cell values, filter option lists, and active filter selections once per render before grouping and sorting, keeping filter/group changes responsive on larger project dataset lists.
 - Dataset table headers remain opaque while scrolling, so row contents do not show through sticky header cells.
 - Dataset table body cells wrap long text and clamp display to two lines per cell.

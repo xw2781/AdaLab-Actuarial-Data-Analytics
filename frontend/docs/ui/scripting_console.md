@@ -42,6 +42,7 @@ Detected `arcrho:*` message types in key JS files:
 - Sends `arcrho:*` status and command messages to/from the shell.
 - Imports the shared 20px `ui/shared/scrollbars.css` WebKit scrollbar treatment so notebook, output, sidebar, and dialog scroll areas match the Dataset/DFM scrollbar style.
 - TOC header jumps scroll only the notebook cell pane, preserving the containing shell and tab host scroll position.
+- Code-cell editors expand to their full content height so long cells remain visible without an internal editor scrollbar.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
