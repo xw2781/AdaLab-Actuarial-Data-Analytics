@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "project-settings",
+  "audience": "user",
+  "summary": "Project Explorer folder expansion state now persists in the local user preference JSON.",
+  "details": [
+    "Project Settings saves Project Explorer expanded folder paths to `%APPDATA%\\ArcRho\\local_project_prefs.json` and restores them when the page opens."
+  ]
+}

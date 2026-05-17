@@ -12,6 +12,8 @@ const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
 const ZOOM_MODE_KEY = "arcrho_zoom_mode";
 const EXPANDED_FOLDERS_SESSION_KEY = "arcrho_project_settings_expanded_folders_v1";
 const SELECTED_PROJECT_SESSION_KEY = "arcrho_project_settings_selected_project_v1";
+const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
+const PROJECT_EXPLORER_PREF_SAVE_DEBOUNCE_MS = 400;
 
 function applyZoomValue(v) {
   try {
@@ -97,6 +99,8 @@ let draggedFolder = null;     // Currently dragged folder node
 let contextMenuProject = null; // Project for context menu actions
 let contextMenuFolder = null;  // Folder node for context menu (create subfolder)
 let activeProjectSettingsRibbon = "summary";
+let projectExplorerPreferenceSaveTimer = 0;
+let projectExplorerPreferencesLoaded = false;
 
 // ============ DOM Elements ============
 const treeContent = document.getElementById("treeContent");
@@ -639,10 +643,90 @@ function loadExpandedFoldersFromSession() {
   }
 }
 
+function getExpandedFoldersSnapshot() {
+  return Array.from(expandedFolders)
+    .map(normalizeTreePath)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+}
+
 function saveExpandedFoldersToSession() {
   try {
-    sessionStorage.setItem(EXPANDED_FOLDERS_SESSION_KEY, JSON.stringify(Array.from(expandedFolders)));
+    sessionStorage.setItem(EXPANDED_FOLDERS_SESSION_KEY, JSON.stringify(getExpandedFoldersSnapshot()));
   } catch {}
+}
+
+function normalizeExpandedFolderList(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const path = normalizeTreePath(item);
+    const key = path.toLowerCase();
+    if (!path || seen.has(key)) continue;
+    seen.add(key);
+    out.push(path);
+  }
+  return out;
+}
+
+async function loadExpandedFoldersFromLocalPreferences() {
+  try {
+    const res = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, { cache: "no-store" });
+    if (!res.ok) return false;
+    const payload = await res.json().catch(() => ({}));
+    const prefs = payload?.preferences || payload || {};
+    const explorerPrefs = prefs?.projectExplorer || prefs?.project_explorer || {};
+    const folders = normalizeExpandedFolderList(explorerPrefs?.expandedFolders || explorerPrefs?.expanded_folders || []);
+    if (!folders.length && !Array.isArray(explorerPrefs?.expandedFolders) && !Array.isArray(explorerPrefs?.expanded_folders)) {
+      return false;
+    }
+    expandedFolders = new Set(folders);
+    saveExpandedFoldersToSession();
+    return true;
+  } catch (err) {
+    console.warn("Failed to load project explorer preferences:", err);
+    return false;
+  }
+}
+
+async function saveExpandedFoldersToLocalPreferences() {
+  const folders = getExpandedFoldersSnapshot();
+  try {
+    const res = await fetch(LOCAL_PROJECT_PREFS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectExplorer: {
+          expandedFolders: folders,
+        },
+        updated_at: new Date().toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(detail || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn("Failed to save project explorer preferences:", err);
+  }
+}
+
+function persistExpandedFolders(options = {}) {
+  saveExpandedFoldersToSession();
+  if (!projectExplorerPreferencesLoaded) return;
+  if (projectExplorerPreferenceSaveTimer) {
+    window.clearTimeout(projectExplorerPreferenceSaveTimer);
+    projectExplorerPreferenceSaveTimer = 0;
+  }
+  if (options?.immediate) {
+    void saveExpandedFoldersToLocalPreferences();
+    return;
+  }
+  projectExplorerPreferenceSaveTimer = window.setTimeout(() => {
+    projectExplorerPreferenceSaveTimer = 0;
+    void saveExpandedFoldersToLocalPreferences();
+  }, PROJECT_EXPLORER_PREF_SAVE_DEBOUNCE_MS);
 }
 
 function syncExpandedFoldersWithTreeData() {
@@ -670,7 +754,7 @@ function syncExpandedFoldersWithTreeData() {
   }
 
   expandedFolders = nextExpanded;
-  saveExpandedFoldersToSession();
+  persistExpandedFolders();
 }
 
 function buildSelectedProjectSnapshot(project) {
@@ -1168,7 +1252,7 @@ function createFolderNode(node, depth) {
       iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>`;
       if (childrenEl) childrenEl.classList.add("expanded");
     }
-    saveExpandedFoldersToSession();
+    persistExpandedFolders({ immediate: true });
   });
 
   // Drag events for folder
@@ -3503,11 +3587,13 @@ async function saveProjectData(sourceKey = DEFAULT_SOURCE) {
 
 // ============ Initialize ============
 (async function init() {
-  const restoredFromSession = loadExpandedFoldersFromSession();
-  // Expand first level by default only when no prior in-session state exists.
+  const restoredFromLocalPreferences = await loadExpandedFoldersFromLocalPreferences();
+  projectExplorerPreferencesLoaded = true;
+  const restoredFromSession = restoredFromLocalPreferences ? true : loadExpandedFoldersFromSession();
+  // Expand first level by default only when no prior local or in-session state exists.
   if (!restoredFromSession) {
     expandedFolders.add("New Jersey");
-    saveExpandedFoldersToSession();
+    persistExpandedFolders({ immediate: true });
   }
 
   await loadProjectData(DEFAULT_SOURCE);

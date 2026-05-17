@@ -7,7 +7,7 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517al`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517at`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
@@ -32,8 +32,10 @@ Detected `fetch(...)` targets in key JS files:
 <!-- MANUAL:BEGIN -->
 - Opened by shell as a `project_instance` iframe tab after Project Settings posts `arcrho:open-project-instance`.
 - Calls shared dataset-types and reserving-class picker helpers.
+- Writes best-effort startup and interaction timing traces to `/debug_trace`, which appends local JSONL logs under `%APPDATA%\ArcRho\debug_logs`.
 - Embeds the same lazy reserving-class picker body used by Dataset/DFM/Workflow, so the project instance left panel loads the same hierarchy, filters, hidden-path preferences, Shortcut section, favorites, and user-defined favorite folders.
 - The embedded reserving-class path tree uses tight horizontal padding with a small left inset and does not reserve two-sided scrollbar gutters, so more path text fits in the left panel.
+- Project instance loading shows one centered page-level loading card with the same blue sweep spinner style used by Dataset loading while the reserving-class path tree and dataset table load.
 - Embeds the existing Dataset Viewer page in draggable in-tab windows.
 - Double-clicking a dataset that already has an open or hidden floating window activates or restores the existing window instead of creating a duplicate for the same selected path and dataset.
 - New floating dataset windows default to about 80% of the project-instance frame and reuse the most recent floating dataset window size for subsequent dataset windows in the same project instance page.
@@ -48,7 +50,11 @@ Detected `fetch(...)` targets in key JS files:
 - Dataset viewer windows add a transparent parent-page drag shield during move/resize so embedded iframes do not interrupt fast mouse movement.
 - The project instance toolbar is compact, shows only the currently selected reserving-class path, omits the duplicate selected path above the tree, and sizes the path label to its content with a capped width so minimized toolbar tabs get the remaining space.
 - The left and right panel title bars are omitted so the reserving-class tree and dataset table start directly below the toolbar.
-- The dataset table area supports a right-click Table View Settings menu. Users can group the table by any dataset column, producing one labeled table per distinct value, and every table header supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges.
+- The dataset table area supports a right-click Table View Settings menu. Users can group the table by any dataset column, producing one labeled table per distinct value, and every table header supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges. Resizing a column changes only that column and updates the total table width instead of redistributing space across other columns.
+- Dataset table renders precompute row cell values, filter option lists, and active filter selections once per render before grouping and sorting, keeping filter/group changes responsive on larger project dataset lists.
+- Dataset table headers remain opaque while scrolling, so row contents do not show through sticky header cells.
+- Dataset table body cells wrap long text and clamp display to two lines per cell.
+- Clicking a dataset table column label sorts rows by that column, toggles ascending/descending order, and shows an up/down SVG sort indicator on the active sorted column.
 - The left reserving-class panel defaults to 400px and has a draggable splitter constrained to 200px-600px; collapse/expand is animated, live drag updates are frame-throttled with transitions disabled for responsiveness, dragging the panel to 200px or smaller collapses it, and double-clicking the splitter toggles collapse/expand.
 <!-- MANUAL:END -->
 

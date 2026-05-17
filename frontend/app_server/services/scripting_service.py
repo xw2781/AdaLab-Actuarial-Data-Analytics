@@ -1259,6 +1259,35 @@ def _normalize_local_project_preferences(raw: Any) -> Dict[str, Any]:
             out["recentProjectNames"] = recent_projects
     if updated_at:
         out["updated_at"] = updated_at
+
+    explorer_source = None
+    for explorer_key in (
+        "projectExplorer",
+        "project_explorer",
+        "projectSettingsExplorer",
+        "project_settings_explorer",
+    ):
+        if explorer_key in source:
+            explorer_source = source.get(explorer_key)
+            break
+    if isinstance(explorer_source, dict):
+        expanded_raw = (
+            explorer_source.get("expandedFolders")
+            or explorer_source.get("expanded_folders")
+            or []
+        )
+        if isinstance(expanded_raw, (list, tuple)):
+            expanded_folders: List[str] = []
+            seen_folders: Set[str] = set()
+            for item in expanded_raw:
+                folder = str(item or "").strip().replace("/", "\\")
+                folder = "\\".join(part.strip() for part in folder.split("\\") if part.strip())
+                folder_key = folder.lower()
+                if not folder or folder_key in seen_folders:
+                    continue
+                seen_folders.add(folder_key)
+                expanded_folders.append(folder)
+            out["projectExplorer"] = {"expandedFolders": expanded_folders}
     return out
 
 

@@ -23,6 +23,10 @@ const els = {
   hiddenTabsLabel: document.getElementById("hiddenTabsLabel"),
   hiddenTabsMenu: document.getElementById("hiddenTabsMenu"),
   hiddenDropBanner: document.getElementById("hiddenDropBanner"),
+  pageLoadingOverlay: document.getElementById("pageLoadingOverlay"),
+  pageLoadingTitle: document.getElementById("pageLoadingTitle"),
+  pageLoadingMessage: document.getElementById("pageLoadingMessage"),
+  pageLoadingElapsed: document.getElementById("pageLoadingElapsed"),
   datasetTableWrap: document.getElementById("datasetTableWrap"),
   datasetTableSurface: document.getElementById("datasetTableSurface"),
   datasetTableContextMenu: document.getElementById("datasetTableContextMenu"),
@@ -73,17 +77,142 @@ let activeDatasetWindow = null;
 let lastDatasetWindowShortcutCloseAt = 0;
 const hiddenWindows = new Map();
 const datasetWindows = new Map();
+const pageLoadingTasks = new Set();
 let hiddenTabsHoverCloseTimer = 0;
 let hiddenTabsMenuPinned = false;
 let minimizedTabTooltip = null;
+let pageLoadingFrameTimer = 0;
+let pageLoadingStartedAt = 0;
+const debugTraceSessionId = `pi_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+const debugTraceStartMs = performance.now();
+const debugTraceQueue = [];
+let debugTraceFlushTimer = 0;
+let debugTraceFlushInFlight = false;
+let debugTracePath = "";
+let debugTraceFetchWired = false;
+let debugTraceRawFetch = null;
 const datasetTableView = {
   groupBy: "",
   columns: DATASET_TABLE_COLUMNS.map((col) => col.key),
   widths: { ...DATASET_TABLE_DEFAULT_WIDTHS },
   filters: new Map(),
+  sort: {
+    key: "",
+    dir: "asc",
+  },
 };
 let datasetTableFilterColumn = "";
 let datasetTableFilterAnchor = null;
+let datasetTableColumnDragStarted = false;
+
+function getDebugTraceElapsedMs() {
+  return Math.round((performance.now() - debugTraceStartMs) * 10) / 10;
+}
+
+function traceEvent(step, detail = {}) {
+  const safeStep = toText(step);
+  if (!safeStep) return;
+  debugTraceQueue.push({
+    step: safeStep,
+    elapsed_ms: getDebugTraceElapsedMs(),
+    page_url: window.location.href,
+    detail: detail && typeof detail === "object" ? detail : {},
+  });
+  scheduleDebugTraceFlush();
+}
+
+function scheduleDebugTraceFlush(delayMs = 200) {
+  if (debugTraceFlushTimer) return;
+  debugTraceFlushTimer = window.setTimeout(() => {
+    debugTraceFlushTimer = 0;
+    void flushDebugTrace("timer");
+  }, delayMs);
+}
+
+async function flushDebugTrace(reason = "manual") {
+  if (debugTraceFlushInFlight || !debugTraceQueue.length) return;
+  const fetchImpl = debugTraceRawFetch || window.fetch;
+  if (typeof fetchImpl !== "function") return;
+  const events = debugTraceQueue.splice(0, debugTraceQueue.length);
+  debugTraceFlushInFlight = true;
+  try {
+    const response = await fetchImpl("/debug_trace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "project_instance",
+        session_id: debugTraceSessionId,
+        project_name: projectName,
+        events: [
+          {
+            step: "flush",
+            elapsed_ms: getDebugTraceElapsedMs(),
+            detail: { reason, count: events.length },
+          },
+          ...events,
+        ],
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (payload?.path) debugTracePath = toText(payload.path);
+  } catch (err) {
+    console.warn("Failed to write project instance debug trace:", err);
+    debugTraceQueue.unshift(...events.slice(-100));
+  } finally {
+    debugTraceFlushInFlight = false;
+    if (debugTraceQueue.length) scheduleDebugTraceFlush(500);
+  }
+}
+
+function getFetchTraceUrl(input) {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return toText(input?.url);
+}
+
+function installDebugTraceFetchLogger() {
+  if (debugTraceFetchWired || typeof window.fetch !== "function") return;
+  debugTraceFetchWired = true;
+  debugTraceRawFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = undefined) => {
+    const url = getFetchTraceUrl(input);
+    const method = toText(init?.method || input?.method || "GET").toUpperCase();
+    const shouldTrace = !!url && !url.includes("/debug_trace");
+    const start = performance.now();
+    if (shouldTrace) {
+      traceEvent("fetch_start", { method, url });
+    }
+    try {
+      const response = await debugTraceRawFetch(input, init);
+      if (shouldTrace) {
+        traceEvent("fetch_end", {
+          method,
+          url,
+          status: response.status,
+          ok: response.ok,
+          duration_ms: Math.round((performance.now() - start) * 10) / 10,
+        });
+      }
+      return response;
+    } catch (err) {
+      if (shouldTrace) {
+        traceEvent("fetch_error", {
+          method,
+          url,
+          duration_ms: Math.round((performance.now() - start) * 10) / 10,
+          error: toText(err?.message || err),
+        });
+      }
+      throw err;
+    }
+  };
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") void flushDebugTrace("visibility_hidden");
+  });
+  window.addEventListener("beforeunload", () => {
+    void flushDebugTrace("beforeunload");
+  });
+}
 
 async function applyHostFrameCornerStyle() {
   let isWin11 = false;
@@ -131,11 +260,15 @@ function saveLastSelectedPath(path) {
 
 async function loadLastSelectedPath() {
   if (!projectName) return "";
+  traceEvent("load_last_selected_path_start");
   try {
     const prefs = await loadProjectUserPreferences(projectName);
-    return normalizePath(prefs?.lastReservingClassPath || prefs?.last_reserving_class_path || "");
+    const path = normalizePath(prefs?.lastReservingClassPath || prefs?.last_reserving_class_path || "");
+    traceEvent("load_last_selected_path_end", { hasPath: !!path, pathLength: path.length });
+    return path;
   } catch (err) {
     console.warn("Failed to load last project instance path:", err);
+    traceEvent("load_last_selected_path_error", { error: toText(err?.message || err) });
     return "";
   }
 }
@@ -541,6 +674,58 @@ async function activateDatasetWindow(frame) {
   return true;
 }
 
+function getPageLoadingMessage() {
+  const loadingPaths = pageLoadingTasks.has("paths");
+  const loadingDatasets = pageLoadingTasks.has("datasets");
+  if (loadingPaths && loadingDatasets) return "Loading reserving class paths and dataset types...";
+  if (loadingPaths) return "Loading reserving class paths...";
+  if (loadingDatasets) return "Loading dataset types...";
+  return "Loading project contents...";
+}
+
+function updatePageLoadingText() {
+  if (els.pageLoadingTitle) els.pageLoadingTitle.textContent = "Loading Project Instance";
+  if (els.pageLoadingMessage) els.pageLoadingMessage.textContent = getPageLoadingMessage();
+}
+
+function stopPageLoadingTimer() {
+  if (!pageLoadingFrameTimer) return;
+  cancelAnimationFrame(pageLoadingFrameTimer);
+  pageLoadingFrameTimer = 0;
+}
+
+function tickPageLoadingElapsed() {
+  if (!els.pageLoadingOverlay?.classList?.contains("open")) {
+    stopPageLoadingTimer();
+    return;
+  }
+  const sec = (performance.now() - pageLoadingStartedAt) / 1000;
+  if (els.pageLoadingElapsed) els.pageLoadingElapsed.textContent = `Elapsed: ${sec.toFixed(1)}s`;
+  pageLoadingFrameTimer = requestAnimationFrame(tickPageLoadingElapsed);
+}
+
+function beginPageLoading(task) {
+  if (!els.pageLoadingOverlay) return;
+  const wasEmpty = pageLoadingTasks.size === 0;
+  pageLoadingTasks.add(task);
+  updatePageLoadingText();
+  if (!wasEmpty) return;
+  pageLoadingStartedAt = performance.now();
+  if (els.pageLoadingElapsed) els.pageLoadingElapsed.textContent = "Elapsed: 0.0s";
+  els.pageLoadingOverlay.classList.add("open");
+  stopPageLoadingTimer();
+  pageLoadingFrameTimer = requestAnimationFrame(tickPageLoadingElapsed);
+}
+
+function finishPageLoading(task) {
+  if (!task) pageLoadingTasks.clear();
+  else pageLoadingTasks.delete(task);
+  updatePageLoadingText();
+  if (pageLoadingTasks.size > 0) return;
+  els.pageLoadingOverlay?.classList?.remove("open");
+  stopPageLoadingTimer();
+}
+
 function setEmptyTable(message) {
   if (!els.datasetTableSurface) return;
   els.datasetTableSurface.innerHTML = "";
@@ -618,7 +803,89 @@ function compareTextValues(a, b) {
   });
 }
 
-function getDatasetColumnOptions(key) {
+function buildDatasetRecord(row, rowIndex) {
+  const values = {};
+  for (const col of DATASET_TABLE_COLUMNS) {
+    values[col.key] = getDatasetCellValue(row, col.key);
+  }
+  const datasetName = values.name || getDatasetName(row);
+  return { row, rowIndex, datasetName, values };
+}
+
+function getDatasetRecordValue(record, key) {
+  return toText(record?.values?.[key] ?? getDatasetCellValue(record?.row, key));
+}
+
+function buildDatasetTableRenderContext() {
+  const records = datasetRows
+    .map((row, rowIndex) => buildDatasetRecord(row, rowIndex))
+    .filter((record) => record.datasetName);
+  const optionsByKey = new Map();
+  const selectionsByKey = new Map();
+
+  for (const col of DATASET_TABLE_COLUMNS) {
+    const seen = new Set();
+    const options = [];
+    for (const record of records) {
+      const optionKey = getDatasetFilterKey(getDatasetRecordValue(record, col.key));
+      if (seen.has(optionKey)) continue;
+      seen.add(optionKey);
+      options.push({
+        key: optionKey,
+        label: optionKey,
+      });
+    }
+    options.sort((a, b) => {
+      if (a.key === DATASET_TABLE_BLANK_LABEL) return 1;
+      if (b.key === DATASET_TABLE_BLANK_LABEL) return -1;
+      return compareTextValues(a.label, b.label);
+    });
+    optionsByKey.set(col.key, options);
+    selectionsByKey.set(col.key, getDatasetFilterSelection(col.key, options));
+  }
+
+  return { records, optionsByKey, selectionsByKey };
+}
+
+function compareDatasetRecords(a, b) {
+  const sortKey = toText(datasetTableView.sort?.key);
+  const dir = datasetTableView.sort?.dir === "desc" ? -1 : 1;
+  if (!getDatasetColumn(sortKey)) return (a?.rowIndex ?? 0) - (b?.rowIndex ?? 0);
+  const cmp = compareTextValues(
+    getDatasetRecordValue(a, sortKey),
+    getDatasetRecordValue(b, sortKey)
+  );
+  if (cmp !== 0) return cmp * dir;
+  return (a?.rowIndex ?? 0) - (b?.rowIndex ?? 0);
+}
+
+function sortDatasetRecords(records) {
+  const list = Array.isArray(records) ? records.slice() : [];
+  if (!getDatasetColumn(datasetTableView.sort?.key)) return list;
+  return list.sort(compareDatasetRecords);
+}
+
+function toggleDatasetTableSort(key) {
+  if (!getDatasetColumn(key)) return;
+  const currentKey = toText(datasetTableView.sort?.key);
+  const currentDir = datasetTableView.sort?.dir === "desc" ? "desc" : "asc";
+  datasetTableView.sort = {
+    key,
+    dir: currentKey === key && currentDir === "asc" ? "desc" : "asc",
+  };
+  renderDatasetTable();
+}
+
+function getSortIconSvg(dir) {
+  const isDesc = dir === "desc";
+  return isDesc
+    ? `<svg class="pi-table-sort-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M6 9.5L2.2 4h7.6L6 9.5z"></path></svg>`
+    : `<svg class="pi-table-sort-icon" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M6 2.5L9.8 8H2.2L6 2.5z"></path></svg>`;
+}
+
+function getDatasetColumnOptions(key, context = null) {
+  const cached = context?.optionsByKey?.get?.(key);
+  if (cached) return cached;
   const seen = new Set();
   const options = [];
   for (const row of datasetRows) {
@@ -653,20 +920,20 @@ function getDatasetFilterSelection(key, options = getDatasetColumnOptions(key)) 
   return selected;
 }
 
-function isDatasetColumnFilterActive(key) {
-  const options = getDatasetColumnOptions(key);
+function isDatasetColumnFilterActive(key, context = null) {
+  const options = getDatasetColumnOptions(key, context);
   if (!options.length) return false;
-  const selected = getDatasetFilterSelection(key, options);
+  const selected = context?.selectionsByKey?.get?.(key) || getDatasetFilterSelection(key, options);
   return selected.size !== options.length;
 }
 
-function rowMatchesDatasetTableFilters(row) {
+function rowMatchesDatasetTableFilters(record, context) {
   for (const col of DATASET_TABLE_COLUMNS) {
-    const options = getDatasetColumnOptions(col.key);
+    const options = getDatasetColumnOptions(col.key, context);
     if (!options.length) continue;
-    const selected = getDatasetFilterSelection(col.key, options);
+    const selected = context?.selectionsByKey?.get?.(col.key) || getDatasetFilterSelection(col.key, options);
     if (selected.size === options.length) continue;
-    if (!selected.has(getDatasetFilterKey(getDatasetCellValue(row, col.key)))) return false;
+    if (!selected.has(getDatasetFilterKey(getDatasetRecordValue(record, col.key)))) return false;
   }
   return true;
 }
@@ -677,6 +944,18 @@ function getDatasetTableWidth(key) {
   return Math.max(col?.minWidth || 80, Number.isFinite(width) ? width : col?.minWidth || 120);
 }
 
+function getDatasetTableTotalWidth() {
+  return getOrderedDatasetColumns().reduce((sum, col) => sum + getDatasetTableWidth(col.key), 0);
+}
+
+function syncDatasetTableTotalWidth() {
+  const width = Math.max(1, Math.round(getDatasetTableTotalWidth()));
+  for (const table of els.datasetTableSurface?.querySelectorAll?.(".pi-table") || []) {
+    table.style.width = `${width}px`;
+    table.style.minWidth = `${width}px`;
+  }
+}
+
 function setDatasetTableColumnWidth(key, width) {
   const col = getDatasetColumn(key);
   if (!col) return;
@@ -685,15 +964,15 @@ function setDatasetTableColumnWidth(key, width) {
   for (const colEl of els.datasetTableSurface?.querySelectorAll?.(`col[data-col-key="${CSS.escape(key)}"]`) || []) {
     colEl.style.width = `${next}px`;
   }
+  syncDatasetTableTotalWidth();
 }
 
-function getDatasetTableRecords() {
-  return datasetRows
-    .map((row, rowIndex) => ({ row, rowIndex, datasetName: getDatasetName(row) }))
-    .filter((item) => item.datasetName && rowMatchesDatasetTableFilters(item.row));
+function getDatasetTableRecords(context) {
+  const records = Array.isArray(context?.records) ? context.records : datasetRows.map((row, rowIndex) => buildDatasetRecord(row, rowIndex));
+  return records.filter((item) => item.datasetName && rowMatchesDatasetTableFilters(item, context));
 }
 
-function createDatasetTableHeaderCell(col, colIndex) {
+function createDatasetTableHeaderCell(col, colIndex, context = null) {
   const th = document.createElement("th");
   th.dataset.colKey = col.key;
   th.addEventListener("dragover", (event) => {
@@ -715,12 +994,31 @@ function createDatasetTableHeaderCell(col, colIndex) {
 
   const label = document.createElement("span");
   label.className = "pi-table-col-label";
-  label.textContent = col.label;
-  label.title = "Drag to reorder columns";
+  label.title = "Click to sort. Drag to reorder columns.";
   label.draggable = true;
+  const labelText = document.createElement("span");
+  labelText.className = "pi-table-col-label-text";
+  labelText.textContent = col.label;
+  label.appendChild(labelText);
+  const isSorted = datasetTableView.sort?.key === col.key;
+  if (isSorted) {
+    label.insertAdjacentHTML("beforeend", getSortIconSvg(datasetTableView.sort?.dir));
+  }
+  label.addEventListener("click", (event) => {
+    if (datasetTableColumnDragStarted) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleDatasetTableSort(col.key);
+  });
   label.addEventListener("dragstart", (event) => {
+    datasetTableColumnDragStarted = true;
     event.dataTransfer?.setData("text/x-pi-column", col.key);
     event.dataTransfer.effectAllowed = "move";
+  });
+  label.addEventListener("dragend", () => {
+    window.setTimeout(() => {
+      datasetTableColumnDragStarted = false;
+    }, 0);
   });
   cell.appendChild(label);
 
@@ -728,7 +1026,7 @@ function createDatasetTableHeaderCell(col, colIndex) {
   filterBtn.type = "button";
   filterBtn.className = "pi-table-filter-btn";
   filterBtn.title = `${col.label} Filter`;
-  filterBtn.classList.toggle("active", isDatasetColumnFilterActive(col.key));
+  filterBtn.classList.toggle("active", isDatasetColumnFilterActive(col.key, context));
   filterBtn.innerHTML = `
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path d="M2 3h12L9.5 8v4l-3 1V8z"></path>
@@ -755,7 +1053,7 @@ function createDatasetTableHeaderCell(col, colIndex) {
   return th;
 }
 
-function createDatasetTable(records, groupText = "") {
+function createDatasetTable(records, groupText = "", context = null) {
   const group = document.createElement("div");
   group.className = "pi-table-group";
   group.classList.toggle("has-label", !!groupText);
@@ -768,6 +1066,9 @@ function createDatasetTable(records, groupText = "") {
 
   const table = document.createElement("table");
   table.className = "pi-table";
+  const tableWidth = Math.max(1, Math.round(getDatasetTableTotalWidth()));
+  table.style.width = `${tableWidth}px`;
+  table.style.minWidth = `${tableWidth}px`;
   const colgroup = document.createElement("colgroup");
   const columns = getOrderedDatasetColumns();
   columns.forEach((col) => {
@@ -780,7 +1081,7 @@ function createDatasetTable(records, groupText = "") {
 
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  columns.forEach((col, colIndex) => headerRow.appendChild(createDatasetTableHeaderCell(col, colIndex)));
+  columns.forEach((col, colIndex) => headerRow.appendChild(createDatasetTableHeaderCell(col, colIndex, context)));
   thead.appendChild(headerRow);
   table.appendChild(thead);
 
@@ -800,10 +1101,13 @@ function createDatasetTable(records, groupText = "") {
         ? `Open ${item.datasetName} for ${selectedPath}`
         : "Select a reserving class path before opening a dataset.";
       for (const col of columns) {
-        const value = getDatasetCellValue(item.row, col.key);
+        const value = getDatasetRecordValue(item, col.key);
         const td = document.createElement("td");
-        td.textContent = value;
         td.title = value;
+        const text = document.createElement("span");
+        text.className = "pi-table-cell-text";
+        text.textContent = value;
+        td.appendChild(text);
         tr.appendChild(td);
       }
       tr.addEventListener("dblclick", () => {
@@ -865,27 +1169,47 @@ function autoFitDatasetTableColumn(key, colIndex) {
 
 function renderDatasetTable() {
   if (!els.datasetTableSurface) return;
-  els.datasetTableSurface.innerHTML = "";
+  const start = performance.now();
   if (!datasetRows.length) {
+    els.datasetTableSurface.innerHTML = "";
     setEmptyTable("No dataset types are defined for this project.");
+    traceEvent("render_dataset_table_empty", {
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
     return;
   }
 
-  const records = getDatasetTableRecords();
+  const context = buildDatasetTableRenderContext();
+  const records = getDatasetTableRecords(context);
   if (!records.length) {
-    els.datasetTableSurface.appendChild(createDatasetTable([], ""));
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(createDatasetTable([], "", context));
+    els.datasetTableSurface.replaceChildren(fragment);
+    traceEvent("render_dataset_table_no_visible_rows", {
+      datasetRows: datasetRows.length,
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
     return;
   }
 
   const groupCol = getDatasetColumn(datasetTableView.groupBy);
   if (!groupCol) {
-    els.datasetTableSurface.appendChild(createDatasetTable(records, ""));
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(createDatasetTable(sortDatasetRecords(records), "", context));
+    els.datasetTableSurface.replaceChildren(fragment);
+    traceEvent("render_dataset_table_end", {
+      datasetRows: datasetRows.length,
+      visibleRows: records.length,
+      groups: 0,
+      sortKey: datasetTableView.sort?.key || "",
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
     return;
   }
 
   const groups = new Map();
   for (const record of records) {
-    const value = getDatasetCellValue(record.row, groupCol.key);
+    const value = getDatasetRecordValue(record, groupCol.key);
     const key = getDatasetFilterKey(value);
     if (!groups.has(key)) groups.set(key, { label: key, records: [] });
     groups.get(key).records.push(record);
@@ -896,11 +1220,25 @@ function renderDatasetTable() {
     if (b.label === DATASET_TABLE_BLANK_LABEL) return -1;
     return compareTextValues(a.label, b.label);
   });
+  const fragment = document.createDocumentFragment();
   for (const group of sortedGroups) {
-    els.datasetTableSurface.appendChild(
-      createDatasetTable(group.records, `${groupCol.label}: ${group.label} (${group.records.length} records)`)
+    fragment.appendChild(
+      createDatasetTable(
+        sortDatasetRecords(group.records),
+        `${groupCol.label}: ${group.label} (${group.records.length} records)`,
+        context
+      )
     );
   }
+  els.datasetTableSurface.replaceChildren(fragment);
+  traceEvent("render_dataset_table_end", {
+    datasetRows: datasetRows.length,
+    visibleRows: records.length,
+    groups: sortedGroups.length,
+    groupBy: groupCol.key,
+    sortKey: datasetTableView.sort?.key || "",
+    duration_ms: Math.round((performance.now() - start) * 10) / 10,
+  });
 }
 
 function positionFixedMenu(el, x, y) {
@@ -1152,6 +1490,11 @@ function initDatasetTableInteractions() {
 
 function setSelectedPath(path, options = {}) {
   selectedPath = normalizePath(path);
+  traceEvent("set_selected_path", {
+    hasPath: !!selectedPath,
+    pathLength: selectedPath.length,
+    persist: options?.persist !== false,
+  });
   if (els.selectedPathText) {
     els.selectedPathText.textContent = selectedPath || "Select a reserving class path.";
     els.selectedPathText.title = selectedPath;
@@ -1189,15 +1532,21 @@ function getFirstShortcutPath() {
 }
 
 async function selectStartupFallbackPath() {
+  traceEvent("select_startup_fallback_start");
   await waitForPathTreeRender();
   if (selectedPath) {
     markPathTreeActive(selectedPath);
+    traceEvent("select_startup_fallback_skip", { reason: "selected_path_exists" });
     return;
   }
   const shortcutPath = getFirstShortcutPath();
-  if (!shortcutPath) return;
+  if (!shortcutPath) {
+    traceEvent("select_startup_fallback_skip", { reason: "no_shortcut_path" });
+    return;
+  }
   setSelectedPath(shortcutPath, { persist: false });
   markPathTreeActive(shortcutPath);
+  traceEvent("select_startup_fallback_end", { shortcutPathLength: shortcutPath.length });
 }
 
 function getLeftPanelMaxWidth() {
@@ -1327,9 +1676,12 @@ function initLeftPanelResizer() {
 
 async function loadPathTree() {
   if (!els.pathTree) return;
-  els.pathTree.innerHTML = '<div class="ptree-empty">Loading reserving class paths...</div>';
+  const start = performance.now();
+  traceEvent("load_path_tree_start");
+  beginPageLoading("paths");
   if (!projectName) {
     els.pathTree.innerHTML = '<div class="ptree-empty">Project name is missing.</div>';
+    finishPageLoading("paths");
     return;
   }
 
@@ -1338,6 +1690,7 @@ async function loadPathTree() {
     if (initialPath) {
       setSelectedPath(initialPath, { persist: false });
     }
+    traceEvent("open_lazy_reserving_class_picker_start", { hasInitialPath: !!initialPath });
     const result = await openLazyReservingClassPicker({
       projectName,
       inlineContainer: els.pathTree,
@@ -1358,18 +1711,35 @@ async function loadPathTree() {
     if (!result?.ok && !els.pathTree.querySelector(".ptree-window")) {
       els.pathTree.innerHTML = '<div class="ptree-empty">No reserving class paths found.</div>';
     }
+    traceEvent("open_lazy_reserving_class_picker_end", {
+      ok: !!result?.ok,
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
     await selectStartupFallbackPath();
+    traceEvent("load_path_tree_end", {
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+      treeRows: els.pathTree.querySelectorAll(".ptree-favorite-row, .ptree-folder, .ptree-leaf").length,
+    });
   } catch (err) {
     console.error("Failed to load reserving class paths:", err);
     els.pathTree.innerHTML = '<div class="ptree-empty">Failed to load reserving class paths.</div>';
     setStatus(toText(err?.message) || "Failed to load reserving class paths.", true);
+    traceEvent("load_path_tree_error", {
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+      error: toText(err?.message || err),
+    });
+  } finally {
+    finishPageLoading("paths");
   }
 }
 
 async function loadDatasets() {
-  setEmptyTable("Loading dataset types...");
+  const start = performance.now();
+  traceEvent("load_datasets_start");
+  beginPageLoading("datasets");
   if (!projectName) {
     setEmptyTable("Project name is missing.");
+    finishPageLoading("datasets");
     return;
   }
   try {
@@ -1377,11 +1747,25 @@ async function loadDatasets() {
     datasetRows = Array.isArray(fetched?.data?.rows)
       ? fetched.data.rows.filter((row) => getDatasetName(row))
       : [];
+    traceEvent("load_datasets_fetched", {
+      rows: datasetRows.length,
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
     renderDatasetTable();
+    traceEvent("load_datasets_end", {
+      rows: datasetRows.length,
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+    });
   } catch (err) {
     console.error("Failed to load dataset types:", err);
     setEmptyTable("Failed to load dataset types.");
     setStatus(toText(err?.message) || "Failed to load dataset types.", true);
+    traceEvent("load_datasets_error", {
+      duration_ms: Math.round((performance.now() - start) * 10) / 10,
+      error: toText(err?.message || err),
+    });
+  } finally {
+    finishPageLoading("datasets");
   }
 }
 
@@ -1964,19 +2348,31 @@ window.addEventListener("message", (event) => {
 });
 
 async function boot() {
+  installDebugTraceFetchLogger();
+  traceEvent("boot_start", { projectName });
+  const bootStart = performance.now();
   await applyHostFrameCornerStyle();
   initHiddenTabsArea();
   initLeftPanelResizer();
   initDatasetTableInteractions();
   initDatasetWindowShortcuts();
   window.addEventListener("resize", syncMaximizedDatasetWindows);
+  traceEvent("boot_init_complete");
   if (!projectName) {
     setStatus("Project name is missing.", true);
     setEmptyTable("Project name is missing.");
     if (els.pathTree) els.pathTree.innerHTML = '<div class="ptree-empty">Project name is missing.</div>';
+    finishPageLoading();
+    traceEvent("boot_error", { reason: "missing_project" });
+    await flushDebugTrace("missing_project");
     return;
   }
   await Promise.all([loadPathTree(), loadDatasets()]);
+  traceEvent("boot_end", {
+    duration_ms: Math.round((performance.now() - bootStart) * 10) / 10,
+    debugTracePath,
+  });
+  await flushDebugTrace("boot_end");
 }
 
 boot();

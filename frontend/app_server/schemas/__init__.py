@@ -26,6 +26,7 @@ from .scripting import ScriptRunRequest, ScriptDeleteVarRequest, ScriptNotebookS
 from .dfm_rpc_bridge import DfmRpcBridgeRequest, DfmRpcBridgeApplyRequest, DfmRpcBridgeUpdateRemoteRequest
 from .dfm_method_index import DfmMethodIndexRefreshRequest
 from .project_user_preferences import ProjectUserPreferencesUpdateRequest
+from .debug_trace import DebugTraceAppendRequest
 
 __all__ = [
     "WorkflowSaveRequest", "WorkflowSaveAsRequest", "WorkflowLoadRequest",
@@ -50,4 +51,5 @@ __all__ = [
     "DfmRpcBridgeRequest",
     "DfmRpcBridgeApplyRequest",
     "DfmRpcBridgeUpdateRemoteRequest",
+    "DebugTraceAppendRequest",
 ]

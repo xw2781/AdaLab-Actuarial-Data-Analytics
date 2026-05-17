@@ -15,6 +15,7 @@ App-server domain map for FastAPI routers, schemas, and services.
 | `book` | [`app_server/api/book_router.py`](../../app_server/api/book_router.py) | 3 | [`book.md`](domains/book.md) |
 | `dataset` | [`app_server/api/dataset_router.py`](../../app_server/api/dataset_router.py) | 6 | [`dataset.md`](domains/dataset.md) |
 | `dataset_types` | [`app_server/api/dataset_types_router.py`](../../app_server/api/dataset_types_router.py) | 3 | [`dataset_types.md`](domains/dataset_types.md) |
+| `debug_trace` | [`app_server/api/debug_trace_router.py`](../../app_server/api/debug_trace_router.py) | 1 | [`debug_trace.md`](domains/debug_trace.md) |
 | `excel` | [`app_server/api/excel_router.py`](../../app_server/api/excel_router.py) | 5 | [`excel.md`](domains/excel.md) |
 | `field_mapping` | [`app_server/api/field_mapping_router.py`](../../app_server/api/field_mapping_router.py) | 2 | [`field_mapping.md`](domains/field_mapping.md) |
 | `project_book` | [`app_server/api/project_book_router.py`](../../app_server/api/project_book_router.py) | 4 | [`project_book.md`](domains/project_book.md) |

@@ -8,7 +8,7 @@ Source Data tab derives origin/development date boundary inputs from table summa
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_settings.entry_points -->
-- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260517c`; inline imports _none_.
+- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260517d`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/headers/cache/clear`
@@ -62,6 +62,7 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Reads/writes settings payloads and folder structures. Project map rows use `Project Name` and `Table Path`; folder placement is stored in `folder_structure.json`; obsolete `Folder`, `Preload`, `Project Settings`, and `Settings Profile` columns are stripped from in-memory data and saved payloads.
 - Project tree rows reveal a red open-corner `View project contents in a new tab` icon button on row hover or keyboard focus, opening the selected project as a top-level project instance tab.
+- Project tree folder expand/collapse state is saved in `%APPDATA%\ArcRho\local_project_prefs.json` under `projectExplorer.expandedFolders` and restored when Project Settings opens.
 - `Project Settings` ribbon page includes an `Open Folder` action button with folder icon styling and disabled-state feedback while the request is in flight.
 - Coordinates feature modules for mapping/type editors.
 - Dataset Types row mutations (add/edit/delete) update in-memory state and schedule per-project debounced save.
