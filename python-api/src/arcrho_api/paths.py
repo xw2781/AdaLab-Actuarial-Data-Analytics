@@ -26,31 +26,33 @@ def sanitize_file_name_part(value: Any, fallback: str) -> str:
     return cleaned or fallback
 
 
-def sanitize_dfm_reserving_class_part(value: Any, fallback: str = "ReservingClass") -> str:
+def sanitize_reserving_class_folder(value: Any, fallback: str = "ReservingClass") -> str:
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", clean_text(value))
     cleaned = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned or fallback
 
 
-def dfm_filename(reserving_class: Any, method_name: Any) -> str:
-    rc_part = sanitize_dfm_reserving_class_part(reserving_class, "ReservingClass")
+def dataset_filename(dataset_name: Any) -> str:
+    return f"{sanitize_file_name_part(dataset_name, 'Dataset')}.csv"
+
+
+def dfm_filename(method_name: Any) -> str:
     name_part = sanitize_file_name_part(method_name, "Name")
-    return f"DFM@{rc_part}@{name_part}.json"
+    return f"DFM@{name_part}.json"
 
 
-def parse_dfm_filename(filename: str) -> tuple[str, str] | None:
+def parse_dfm_filename(filename: str) -> str | None:
     if not filename.startswith("DFM@") or not filename.endswith(".json"):
         return None
     stem = filename[:-5]
     parts = stem.split("@")
-    if len(parts) < 3:
+    if len(parts) < 2:
         return None
-    reserving_class = parts[1]
-    method_name = "@".join(parts[2:]).strip()
-    if not reserving_class or not method_name:
+    method_name = "@".join(parts[1:]).strip()
+    if not method_name:
         return None
-    return reserving_class, method_name
+    return method_name
 
 
 def project_dir_case_insensitive(projects_dir: Path, project_name: str) -> Path | None:
@@ -73,4 +75,3 @@ def project_dir_case_insensitive(projects_dir: Path, project_name: str) -> Path 
         if item.is_dir() and item.name.lower() == sanitized_lower:
             return item
     return None
-

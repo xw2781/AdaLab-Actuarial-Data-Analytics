@@ -40,23 +40,6 @@
       border-bottom: 1px solid #e0e0e0;
       flex-shrink: 0;
     }
-    .sc-toolbar-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #333;
-      margin-right: 6px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .sc-toolbar-title.dirty::after {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #555;
-      flex: 0 0 auto;
-    }
     .sc-btn {
       height: 26px;
       padding: 0 10px;
@@ -223,6 +206,14 @@
       display: flex;
       min-height: 0;
       overflow: hidden;
+    }
+    .sc-workspace {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--sc-cells-panel-bg);
     }
 
     /* ===== Cells area ===== */
@@ -1348,7 +1339,7 @@
       flex-shrink: 0;
     }
 
-    /* Introspection tooltip (Shift+Tab) */
+    /* Introspection tooltip (Ctrl+Shift+Space) */
     .sc-inspect-tooltip {
       position: fixed;
       min-width: 320px;
@@ -1451,57 +1442,58 @@
 </head>
 <body>
 
-  <div class="sc-toolbar">
-    <span class="sc-toolbar-title" id="toolbarNotebookTitle">Untitled Notebook</span>
-    <button class="sc-btn" id="addCellBtn" title="Add cell">+ Cell</button>
-    <div class="sc-type-select" id="newCellTypeWrap">
-      <button class="sc-select sc-select-btn" id="newCellTypeBtn" title="New cell type" aria-haspopup="listbox" aria-expanded="false" type="button">
-        <span class="sc-select-btn-label" id="newCellTypeLabel">Code</span>
-        <span class="sc-select-btn-caret" aria-hidden="true">
-          <svg width="8" height="6" viewBox="0 0 8 6" fill="currentColor"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-      </button>
-      <div class="sc-type-menu" id="newCellTypeMenu" role="listbox" aria-label="Cell type">
-        <button class="sc-type-menu-item" type="button" data-value="code" role="option">Code</button>
-        <button class="sc-type-menu-item" type="button" data-value="markdown" role="option">Markdown</button>
-        <button class="sc-type-menu-item" type="button" data-value="raw" role="option">Raw</button>
-      </div>
-      <select class="sc-select-native" id="newCellTypeSelect" title="New cell type" tabindex="-1" aria-hidden="true">
-        <option value="code">Code</option>
-        <option value="markdown">Markdown</option>
-        <option value="raw">Raw</option>
-      </select>
-    </div>
-    <button class="sc-btn primary" id="runAllBtn" title="Run all cells">
-      <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>
-      Run All
-    </button>
-    <button class="sc-btn danger" id="stopBtn" title="Interrupt running execution" style="display:none">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="0" y="0" width="10" height="10" rx="1"/></svg>
-      Stop
-    </button>
-    <div class="sc-sep"></div>
-    <button class="sc-btn danger" id="restartBtn" title="Reset session (clear all variables)">Restart</button>
-    <button class="sc-btn" id="clearOutputBtn" title="Clear all outputs">Clear Output</button>
-    <button class="sc-btn" id="shortcutsBtn" title="View and customize keyboard shortcuts">Keyboard Shortcuts</button>
-    <span class="sc-spacer"></span>
-    <button class="sc-btn" id="toggleVarsBtn" title="Toggle variables panel">Variables</button>
-    <span class="sc-status" id="statusText"></span>
-  </div>
-
-  <div class="sc-file-banner" id="notebookFileBanner" role="status" aria-live="polite">
-    <span class="sc-file-banner-message" id="notebookFileBannerMessage"></span>
-    <span class="sc-file-banner-actions">
-      <button class="sc-btn" id="reloadDiskNotebookBtn" type="button">Reload</button>
-      <button class="sc-btn" id="saveNotebookCopyBtn" type="button">Save Copy</button>
-      <button class="sc-btn primary" id="overwriteDiskNotebookBtn" type="button">Overwrite</button>
-    </span>
-  </div>
-
   <div class="sc-main">
-    <div class="sc-cells-area" id="cellsArea">
-      <!-- cells injected here -->
-      <div class="sc-add-cell" id="addCellBottom">+ Add Cell</div>
+    <div class="sc-workspace">
+      <div class="sc-toolbar">
+        <button class="sc-btn" id="addCellBtn" title="Add cell">+ Cell</button>
+        <div class="sc-type-select" id="newCellTypeWrap">
+          <button class="sc-select sc-select-btn" id="newCellTypeBtn" title="New cell type" aria-haspopup="listbox" aria-expanded="false" type="button">
+            <span class="sc-select-btn-label" id="newCellTypeLabel">Code</span>
+            <span class="sc-select-btn-caret" aria-hidden="true">
+              <svg width="8" height="6" viewBox="0 0 8 6" fill="currentColor"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+          <div class="sc-type-menu" id="newCellTypeMenu" role="listbox" aria-label="Cell type">
+            <button class="sc-type-menu-item" type="button" data-value="code" role="option">Code</button>
+            <button class="sc-type-menu-item" type="button" data-value="markdown" role="option">Markdown</button>
+            <button class="sc-type-menu-item" type="button" data-value="raw" role="option">Raw</button>
+          </div>
+          <select class="sc-select-native" id="newCellTypeSelect" title="New cell type" tabindex="-1" aria-hidden="true">
+            <option value="code">Code</option>
+            <option value="markdown">Markdown</option>
+            <option value="raw">Raw</option>
+          </select>
+        </div>
+        <button class="sc-btn primary" id="runAllBtn" title="Run all cells">
+          <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor"><polygon points="0,0 8,5 0,10"/></svg>
+          Run All
+        </button>
+        <button class="sc-btn danger" id="stopBtn" title="Interrupt running execution" style="display:none">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="0" y="0" width="10" height="10" rx="1"/></svg>
+          Stop
+        </button>
+        <div class="sc-sep"></div>
+        <button class="sc-btn danger" id="restartBtn" title="Reset session (clear all variables)">Restart</button>
+        <button class="sc-btn" id="clearOutputBtn" title="Clear all outputs">Clear Output</button>
+        <button class="sc-btn" id="shortcutsBtn" title="View and customize keyboard shortcuts">Keyboard Shortcuts</button>
+        <span class="sc-spacer"></span>
+        <button class="sc-btn" id="toggleVarsBtn" title="Toggle variables panel">Variables</button>
+        <span class="sc-status" id="statusText"></span>
+      </div>
+
+      <div class="sc-file-banner" id="notebookFileBanner" role="status" aria-live="polite">
+        <span class="sc-file-banner-message" id="notebookFileBannerMessage"></span>
+        <span class="sc-file-banner-actions">
+          <button class="sc-btn" id="reloadDiskNotebookBtn" type="button">Reload</button>
+          <button class="sc-btn" id="saveNotebookCopyBtn" type="button">Save Copy</button>
+          <button class="sc-btn primary" id="overwriteDiskNotebookBtn" type="button">Overwrite</button>
+        </span>
+      </div>
+
+      <div class="sc-cells-area" id="cellsArea">
+        <!-- cells injected here -->
+        <div class="sc-add-cell" id="addCellBottom">+ Add Cell</div>
+      </div>
     </div>
 
     <div class="sc-resize-handle" id="resizeHandle"></div>

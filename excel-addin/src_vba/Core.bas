@@ -35,6 +35,32 @@ Public Const VP_SETTINGS_SHEET As String = "Dataset Types"
 Public triangle_tool_row As Long
 Public triangle_tool_col As Long
 
+Public Function FirstExistingPath(ParamArray paths() As Variant) As String
+    Dim i As Long
+    For i = LBound(paths) To UBound(paths)
+        If Len(Dir$(CStr(paths(i)), vbNormal Or vbReadOnly Or vbHidden Or vbSystem Or vbDirectory)) > 0 Then
+            FirstExistingPath = CStr(paths(i))
+            Exit Function
+        End If
+    Next i
+    FirstExistingPath = CStr(paths(LBound(paths)))
+End Function
+
+Public Function ProductRootPath() As String
+    ProductRootPath = FirstExistingPath("E:\ArcRho Server", "E:\ArcRho", "E:\ADAS")
+End Function
+
+Public Function ProductPath(ByVal relativePath As String) As String
+    If Left$(relativePath, 1) = "\" Then relativePath = Mid$(relativePath, 2)
+    ProductPath = ProductRootPath() & "\" & relativePath
+End Function
+
+Public Function VPSettingsPath() As String
+    VPSettingsPath = FirstExistingPath( _
+        ProductPath("Virtual Projects\ResQ - Channel.xlsx"), _
+        "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx")
+End Function
+
 Private Sub InitConfigPaths()
     configDir = Environ$("LOCALAPPDATA") & "\ADAS"
     configPath = configDir & "\config.txt"
@@ -62,8 +88,7 @@ Public Function GetDataset(funcArgs As String)
     If InStrRev(dataPath, "\") > 0 Then
         projectDataDir = Left$(dataPath, InStrRev(dataPath, "\") - 1)
         If Dir(projectDataDir, vbDirectory) = "" Then
-            GetDataset = "(project not defined)"
-            GoTo CleanExit
+            EnsureFolderPath projectDataDir
         End If
     End If
     requestInfo = funcArgs & "#DataPath = " & dataPath
@@ -119,8 +144,37 @@ CleanExit:
 ErrHandler:
     Debug.Print "GetDataset error: "; Err.Number; Err.Description
     Resume CleanExit
-    
+
 End Function
+
+
+Private Sub EnsureFolderPath(ByVal folderPath As String)
+    Dim parts() As String
+    Dim currentPath As String
+    Dim i As Long
+
+    If Len(Trim$(folderPath)) = 0 Then Exit Sub
+    If Dir(folderPath, vbDirectory) <> "" Then Exit Sub
+
+    parts = Split(folderPath, "\")
+    If UBound(parts) < 0 Then Exit Sub
+
+    If Left$(folderPath, 2) = "\\" Then
+        If UBound(parts) < 3 Then Exit Sub
+        currentPath = "\\" & parts(2) & "\" & parts(3)
+        i = 4
+    Else
+        currentPath = parts(0)
+        i = 1
+    End If
+
+    For i = i To UBound(parts)
+        If Len(parts(i)) > 0 Then
+            currentPath = currentPath & "\" & parts(i)
+            If Dir(currentPath, vbDirectory) = "" Then MkDir currentPath
+        End If
+    Next i
+End Sub
 
 Public Sub LoadConfig()
     Dim line As String, parts As Variant
@@ -255,6 +309,12 @@ Public Function SetDataPath(inputString As String) As String
     Dim key As String, val As String
     Dim fullName As String
     Dim basePath As String
+    Dim functionName As String
+    Dim reservingClassPath As String
+    Dim datasetName As String
+    Dim projectDataPath As String
+    Dim rcFolder As String
+    Dim datasetFile As String
     
     ' Normalize delimiters: allow either "#" or newlines between pairs
     s = inputString
@@ -263,45 +323,96 @@ Public Function SetDataPath(inputString As String) As String
     s = Replace(s, vbLf, "#")
     lines = Split(s, "#")
     
-    ' Build the @-joined Value list, excluding ProjectName (captured separately)
+    ' Build the @-joined Value list for legacy flat caches while also capturing
+    ' the project, reserving class path, and dataset name for the new ArcRho
+    ' project data layout.
     For i = LBound(lines) To UBound(lines)
         If Len(Trim$(lines(i))) > 0 Then
             If InStr(1, lines(i), "=", vbTextCompare) > 0 Then
-                ' Get key and Value (trim everything; be tolerant of spaces around "=")
                 parts = Split(lines(i), "=")
                 key = Trim$(parts(0))
                 val = Trim$(Mid$(lines(i), InStr(1, lines(i), "=", vbTextCompare) + 1))
                 
-                If LCase$(key) = "projectname" Then
-                    proj = val
-                Else
-                    If Len(fullName) > 0 Then fullName = fullName & "@"
-                    fullName = fullName & val
-                End If
+                Select Case LCase$(key)
+                    Case "projectname"
+                        proj = val
+                    Case "function"
+                        functionName = val
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
+                    Case "path"
+                        reservingClassPath = val
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
+                    Case "datasetname", "trianglename"
+                        datasetName = val
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
+                    Case Else
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
+                End Select
             End If
         End If
     Next i
     
-    ' Sanitize only the concatenated name (slashes become carets, as before)
+    basePath = ProductPath("projects\")
+    
+    If Len(proj) > 0 Then
+        proj = SanitizeProjectFolderName(proj)
+        projectDataPath = basePath & proj & "\data"
+    Else
+        projectDataPath = basePath & "data"
+    End If
+
+    ' New storage contract: dataset CSV files live under one sanitized
+    ' reserving-class folder and no longer repeat the reserving class path in
+    ' the filename.
+    If Len(reservingClassPath) > 0 And Len(datasetName) > 0 Then
+        rcFolder = SanitizeReservingClassFolderName(reservingClassPath)
+        datasetFile = SanitizeDataFileName(datasetName)
+        SetDataPath = projectDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
+        Exit Function
+    End If
+
+    ' Legacy fallback for requests that are not scoped by reserving class and
+    ' dataset name, such as ArcRhoHeaders.
     fullName = Replace(fullName, "\", "^")
     fullName = Replace(fullName, "/", "^")
     fullName = Replace(fullName, "*", "$star$")
-    
-    basePath = "E:\ADAS\projects\"
-    
-    ' If ProjectName exists, use it as a subfolder and remove it from fullName (already excluded)
-    If Len(proj) > 0 Then
-        ' Replace Windows-invalid filename chars in folder name
-        Dim invalidChars As Variant, ch As Variant
-        invalidChars = Array(":", "*", "?", """", "<", ">", "|")
-        For Each ch In invalidChars
-            proj = Replace(proj, CStr(ch), "_")
-        Next ch
-        SetDataPath = basePath & proj & "\data\" & fullName & ".csv"
-    Else
-        SetDataPath = basePath & fullName & ".csv"
-    End If
+    SetDataPath = projectDataPath & "\" & fullName & ".csv"
+End Function
 
+Private Function SanitizeProjectFolderName(ByVal value As String) As String
+    Dim invalidChars As Variant, ch As Variant
+    SanitizeProjectFolderName = Trim$(value)
+    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    For Each ch In invalidChars
+        SanitizeProjectFolderName = Replace(SanitizeProjectFolderName, CStr(ch), "_")
+    Next ch
+End Function
+
+Private Function SanitizeReservingClassFolderName(ByVal value As String) As String
+    Dim invalidChars As Variant, ch As Variant
+    SanitizeReservingClassFolderName = Trim$(value)
+    invalidChars = Array("<", ">", ":", """", "/", "\", "|", "?", "*")
+    For Each ch In invalidChars
+        SanitizeReservingClassFolderName = Replace(SanitizeReservingClassFolderName, CStr(ch), "^")
+    Next ch
+    Do While Right$(SanitizeReservingClassFolderName, 1) = " " Or Right$(SanitizeReservingClassFolderName, 1) = "."
+        SanitizeReservingClassFolderName = Left$(SanitizeReservingClassFolderName, Len(SanitizeReservingClassFolderName) - 1) & "^"
+    Loop
+    If Len(SanitizeReservingClassFolderName) = 0 Then SanitizeReservingClassFolderName = "ReservingClass"
+End Function
+
+Private Function SanitizeDataFileName(ByVal value As String) As String
+    Dim invalidChars As Variant, ch As Variant
+    SanitizeDataFileName = Trim$(value)
+    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    For Each ch In invalidChars
+        SanitizeDataFileName = Replace(SanitizeDataFileName, CStr(ch), "_")
+    Next ch
+    If Len(SanitizeDataFileName) = 0 Then SanitizeDataFileName = "Dataset"
 End Function
 
 Public Function SetDefaultProject(ByVal ProjectName As String)
@@ -327,8 +438,10 @@ Public Sub SendRequest(requestInfo As String)
     lines = Split(requestInfo, "#")
 
     currentTime = Format(Now, "yyyy-mm-dd_hh-mm-ss") & Format(Timer - Int(Timer), ".000")
-    tempPath = "E:\ADAS\requests\request-" & currentTime & ".tmp"
-    finalPath = "E:\ADAS\requests\request-" & currentTime & ".txt"
+    If Dir(ProductPath("requests"), vbDirectory) = "" Then MkDir ProductPath("requests")
+
+    tempPath = ProductPath("requests\request-" & currentTime & ".tmp")
+    finalPath = ProductPath("requests\request-" & currentTime & ".txt")
 
     aFile = FreeFile
     Open tempPath For Output As #aFile

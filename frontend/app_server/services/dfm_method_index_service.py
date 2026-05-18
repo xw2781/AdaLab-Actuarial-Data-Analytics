@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from fastapi import HTTPException
 
 from app_server import config
+from app_server.helpers import sanitize_dataset_file_name, sanitize_reserving_class_folder
 
 INDEX_FILE_NAME = "dfm_method_index.json"
 
@@ -27,12 +28,12 @@ def _require_project_dir(project_name: str) -> str:
     return project_dir
 
 
-def _methods_dir(project_name: str) -> str:
-    return os.path.join(_require_project_dir(project_name), "methods")
+def _data_dir(project_name: str) -> str:
+    return os.path.join(_require_project_dir(project_name), "data")
 
 
 def _index_path(project_name: str) -> str:
-    return os.path.join(_methods_dir(project_name), INDEX_FILE_NAME)
+    return os.path.join(_data_dir(project_name), INDEX_FILE_NAME)
 
 
 def _safe_read_json(path: str) -> Dict[str, Any]:
@@ -57,24 +58,11 @@ def _safe_load_required_json(path: str) -> Dict[str, Any]:
     return data
 
 
-def _sanitize_file_name_part(value: Any, fallback: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|]+', "_", _clean_text(value))
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    return cleaned or fallback
-
-
-def _sanitize_dfm_method_file_part_with_caret(value: Any, fallback: str) -> str:
-    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", _clean_text(value))
-    cleaned = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    return cleaned or fallback
-
-
 def _method_json_path(project_name: str, reserving_class: str, method_name: str) -> str:
-    methods_dir = _methods_dir(project_name)
-    rc_part = _sanitize_dfm_method_file_part_with_caret(reserving_class, "ReservingClass")
-    name_part = _sanitize_file_name_part(method_name, "Name")
-    return os.path.join(methods_dir, f"DFM@{rc_part}@{name_part}.json")
+    data_dir = _data_dir(project_name)
+    rc_part = sanitize_reserving_class_folder(reserving_class, "ReservingClass")
+    name_part = sanitize_dataset_file_name(method_name, "Name")
+    return os.path.join(data_dir, rc_part, f"DFM@{name_part}.json")
 
 
 def _json_tab(source: Dict[str, Any], key: str) -> Dict[str, Any]:
@@ -127,22 +115,21 @@ def _method_parts_from_filename(filename: str) -> tuple[str, str] | None:
         return None
     stem = filename[:-5]
     parts = stem.split("@")
-    if len(parts) < 3:
+    if len(parts) < 2:
         return None
-    reserving_class = parts[1]
-    method_name = "@".join(parts[2:]).strip()
-    if not reserving_class or not method_name:
+    method_name = "@".join(parts[1:]).strip()
+    if not method_name:
         return None
-    return reserving_class, method_name
+    return "", method_name
 
 
-def _method_entry(filename: str) -> Dict[str, Any] | None:
+def _method_entry(folder_name: str, filename: str) -> Dict[str, Any] | None:
     parsed = _method_parts_from_filename(filename)
     if not parsed:
         return None
-    reserving_class, method_name = parsed
+    _unused, method_name = parsed
     return {
-        "path": reserving_class,
+        "path": folder_name,
         "name": method_name,
     }
 
@@ -162,18 +149,24 @@ def _is_current_index(data: Dict[str, Any]) -> bool:
 
 def rebuild_index(project_name: str) -> Dict[str, Any]:
     project = _clean_text(project_name)
-    methods_dir = _methods_dir(project)
-    os.makedirs(methods_dir, exist_ok=True)
+    data_dir = _data_dir(project)
+    os.makedirs(data_dir, exist_ok=True)
     methods: List[Dict[str, Any]] = []
     try:
-        for filename in os.listdir(methods_dir):
-            path = os.path.join(methods_dir, filename)
-            if not os.path.isfile(path):
+        for folder_name in os.listdir(data_dir):
+            if folder_name.lower() == "tmp":
                 continue
-            entry = _method_entry(filename)
-            if not entry:
+            folder_path = os.path.join(data_dir, folder_name)
+            if not os.path.isdir(folder_path):
                 continue
-            methods.append(entry)
+            for filename in os.listdir(folder_path):
+                path = os.path.join(folder_path, filename)
+                if not os.path.isfile(path):
+                    continue
+                entry = _method_entry(folder_name, filename)
+                if not entry:
+                    continue
+                methods.append(entry)
     except OSError as err:
         raise HTTPException(500, f"Failed to scan DFM methods: {str(err)}")
 

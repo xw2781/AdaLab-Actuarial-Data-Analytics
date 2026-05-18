@@ -2183,6 +2183,35 @@ ipcMain.handle("get-file-revision", async (_event, payload) => {
   }
 });
 
+ipcMain.handle("rename-file", async (_event, payload) => {
+  const filePath = String(payload?.path || "").trim();
+  const newName = String(payload?.newName || "").trim();
+  if (!filePath) return { ok: false, error: "Empty path." };
+  if (!newName) return { ok: false, error: "Empty filename." };
+  if (/[\\/:*?"<>|]/.test(newName) || path.basename(newName) !== newName) {
+    return { ok: false, error: "Filename cannot include path separators or Windows filename characters." };
+  }
+  try {
+    if (!fs.existsSync(filePath)) return { ok: false, error: `File not found: ${filePath}` };
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return { ok: false, error: "Path is not a file." };
+    const targetPath = path.join(path.dirname(filePath), newName);
+    if (path.resolve(targetPath) === path.resolve(filePath)) {
+      const raw = fs.readFileSync(filePath);
+      const hash = crypto.createHash("sha256").update(raw).digest("hex");
+      return { ok: true, path: filePath, revision: { path: filePath, size: stat.size, mtimeMs: stat.mtimeMs, hash } };
+    }
+    if (fs.existsSync(targetPath)) return { ok: false, error: `File already exists: ${targetPath}` };
+    fs.renameSync(filePath, targetPath);
+    const nextStat = fs.statSync(targetPath);
+    const raw = fs.readFileSync(targetPath);
+    const hash = crypto.createHash("sha256").update(raw).digest("hex");
+    return { ok: true, path: targetPath, revision: { path: targetPath, size: nextStat.size, mtimeMs: nextStat.mtimeMs, hash } };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
+
 ipcMain.handle("scripting-shortcuts-load", async () => {
   const filePath = getScriptingShortcutsPath();
   try {

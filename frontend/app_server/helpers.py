@@ -46,26 +46,63 @@ def _sanitize_filename(name: str) -> str:
     return out.strip() or "workflow"
 
 
+def sanitize_reserving_class_folder(value: Any, fallback: str = "ReservingClass") -> str:
+    text = str(value if value is not None else "").strip()
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", text)
+    text = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or fallback
+
+
+def sanitize_dataset_file_name(value: Any, fallback: str = "Dataset") -> str:
+    text = str(value if value is not None else "").strip()
+    text = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or fallback
+
+
 # ---------------------------------------------------------------------------
 # VBA-compat helpers
 # ---------------------------------------------------------------------------
 
 def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
     proj = ""
+    function_name = ""
+    reserving_class = ""
+    dataset_name = ""
     values = []
     for k, v in pairs:
-        if (k or "").strip().lower() == "projectname":
-            proj = (v or "").strip()
+        key = (k or "").strip().lower()
+        value = (v or "").strip()
+        if key == "projectname":
+            proj = value
+        elif key == "function":
+            function_name = value
+            values.append(value)
+        elif key == "path":
+            reserving_class = value
+            values.append(value)
+        elif key in {"datasetname", "trianglename"}:
+            dataset_name = value
+            values.append(value)
         else:
-            values.append((v or "").strip())
-
-    full_name = "@".join(values)
-    full_name = full_name.replace("\\", "^").replace("/", "^").replace("*", "$star$")
+            values.append(value)
 
     projects_root = config.PROJECT_SETTINGS_DIR.rstrip("\\/")
     if proj:
         proj = _sanitize_folder_name(proj)
-        return os.path.join(projects_root, proj, "data", f"{full_name}.csv")
+    project_data_dir = os.path.join(projects_root, proj, "data") if proj else os.path.join(projects_root, "data")
+
+    if function_name.strip().lower() == "arcrhotri" and reserving_class and dataset_name:
+        rc_folder = sanitize_reserving_class_folder(reserving_class)
+        dataset_file = sanitize_dataset_file_name(dataset_name)
+        return os.path.join(project_data_dir, rc_folder, f"{dataset_file}.csv")
+
+    full_name = "@".join(values)
+    full_name = full_name.replace("\\", "^").replace("/", "^").replace("*", "$star$")
+
+    if proj:
+        return os.path.join(project_data_dir, f"{full_name}.csv")
     return os.path.join(projects_root, "data", f"{full_name}.csv")
 
 
@@ -156,6 +193,7 @@ def wait_for_file(path: str, timeout_sec: float, settle_ms: float = 50.0) -> boo
 # ---------------------------------------------------------------------------
 
 def atomic_write_csv(df: pd.DataFrame, path: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     df.to_csv(tmp, index=False, header=False)
     os.replace(tmp, path)

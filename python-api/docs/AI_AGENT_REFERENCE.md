@@ -55,7 +55,7 @@ Save behavior:
 - Preserve unknown JSON fields.
 - Update `method metadata.last modified`.
 - Write with a temporary file and atomic replace.
-- Rebuild `dfm_method_index.json`.
+- Rebuild `data/dfm_method_index.json`.
 - Refuse writes when the client is `read_only=True`.
 
 ## Filename Rules
@@ -63,7 +63,13 @@ Save behavior:
 DFM methods are stored as:
 
 ```text
-projects/<project>/methods/DFM@<ReservingClass>@<Name>.json
+projects/<project>/data/<ReservingClassFolder>/DFM@<Name>.json
+```
+
+ArcRhoTri dataset CSV files live beside DFM methods in the same reserving-class folder:
+
+```text
+projects/<project>/data/<ReservingClassFolder>/<DatasetName>.csv
 ```
 
 The reserving-class filename component uses `^` for Windows-invalid filename characters. The method-name component uses `_` for invalid filename characters.
@@ -75,4 +81,3 @@ From repo root:
 ```powershell
 python -m unittest discover -s python-api\tests
 ```
-

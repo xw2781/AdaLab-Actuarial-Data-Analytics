@@ -4,7 +4,6 @@ from __future__ import annotations
 import getpass
 import json
 import os
-import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, Iterable
@@ -12,7 +11,7 @@ from typing import Any, Dict, Iterable
 from fastapi import HTTPException
 
 from app_server import config
-from app_server.helpers import wait_for_file
+from app_server.helpers import sanitize_dataset_file_name, sanitize_reserving_class_folder, wait_for_file
 from app_server.schemas.dfm_rpc_bridge import DfmRpcBridgeRequest
 
 RPC_BRIDGE_DIR_NAME = "RPC bridge"
@@ -61,21 +60,6 @@ def _sanitize_project_dir_name(value: str) -> str:
     return config._sanitize_project_dir_name(_clean_text(value))
 
 
-def _sanitize_method_name_part(value: str, fallback: str) -> str:
-    cleaned = _clean_text(value)
-    cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned or fallback
-
-
-def _sanitize_reserving_class_part(value: str, fallback: str) -> str:
-    cleaned = _clean_text(value)
-    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", cleaned)
-    cleaned = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned or fallback
-
-
 def _require_project_dir(project_name: str) -> str:
     project = _clean_text(project_name)
     if not project:
@@ -95,26 +79,25 @@ def _build_method_filename(
     *,
     include_lengths: bool = True,
 ) -> str:
-    reserving_class = _sanitize_reserving_class_part(req.reserving_class, "ReservingClass")
-    method_name = _sanitize_method_name_part(req.method_name, "Name")
-    if not include_lengths:
-        return f"{prefix}@{reserving_class}@{method_name}.json"
-    origin = _sanitize_method_name_part(str(req.origin_length), "Origin")
-    development = _sanitize_method_name_part(str(req.development_length), "Dev")
-    return f"{prefix}@{reserving_class}@{method_name}@{origin}@{development}.json"
+    _ = include_lengths
+    method_name = sanitize_dataset_file_name(req.method_name, "Name")
+    return f"{prefix}@{method_name}.json"
 
 
 def build_paths(req: DfmRpcBridgeRequest) -> Dict[str, str]:
     project_dir = _require_project_dir(req.project_name)
-    methods_dir = os.path.join(project_dir, "methods")
-    rpc_methods_dir = os.path.join(methods_dir, RPC_BRIDGE_DIR_NAME)
+    data_dir = os.path.join(project_dir, "data")
+    rc_folder = sanitize_reserving_class_folder(req.reserving_class, "ReservingClass")
+    method_dir = os.path.join(data_dir, rc_folder)
+    rpc_methods_dir = os.path.join(data_dir, "tmp", rc_folder)
     request_dir = os.path.join(config.REQUEST_DIR, RPC_BRIDGE_DIR_NAME)
-    local_path = os.path.join(methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME, include_lengths=False))
+    local_path = os.path.join(method_dir, _build_method_filename(req, DFM_FUNCTION_NAME, include_lengths=False))
     remote_path = os.path.join(rpc_methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME))
     sync_status_path = os.path.join(rpc_methods_dir, _build_method_filename(req, SYNC_DFM_FUNCTION_NAME))
     return {
         "project_dir": project_dir,
-        "methods_dir": methods_dir,
+        "data_dir": data_dir,
+        "method_dir": method_dir,
         "rpc_methods_dir": rpc_methods_dir,
         "request_dir": request_dir,
         "local_path": local_path,

@@ -42,6 +42,17 @@ def _coerce_matrix(value: Any) -> list[list[Any]]:
     return [row if isinstance(row, list) else [] for row in value]
 
 
+def _trim_trailing(row: list[Any], trim_values: tuple[Any, ...]) -> list[Any]:
+    out = list(row)
+    while out and out[-1] in trim_values:
+        out.pop()
+    return out
+
+
+def _trim_trailing_nulls_in_matrix(value: Any) -> list[list[Any]]:
+    return [_trim_trailing(row, (None,)) for row in _coerce_matrix(value)]
+
+
 def _parse_csv_cell(value: str) -> Any:
     text = str(value if value is not None else "").strip()
     if text == "":
@@ -134,6 +145,25 @@ def _number(value: Any) -> float | None:
     return number
 
 
+def _adjustment_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            if text.endswith("%"):
+                return round(float(text[:-1].strip()) / 100, 4)
+            return float(text)
+        except ValueError as err:
+            raise DfmDataError(f"Invalid adjustment value: {value!r}") from err
+    number = _number(value)
+    if number is None:
+        return None
+    return round(number, 4)
+
+
 def _as_legacy_index(index: int) -> int:
     """Resolve the public 1-based DFM index while tolerating 0 for first item."""
     idx = int(index)
@@ -142,6 +172,18 @@ def _as_legacy_index(index: int) -> int:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat()
+
+
+# Values loaded by the 2026Q1 COL production notebook from:
+# E:\ResQ\Automations\Reserve Review\2026Q1\Growth Adjustment 2026Q1.xlsx,
+# Summary!F7:F15 and Summary!C20, with blank Excel cells omitted.
+DEFAULT_COL_2026Q1_ADJUSTMENTS: dict[str, list[float]] = {
+    "incurred loss": [0.04993468961654057, 0],
+    "paid loss": [0.04868549426323088, 0],
+    "counts": [0.05075942976471237, 0],
+    "accounting cutoff": [0.02],
+    "other": [0],
+}
 
 
 class DfmMethod:
@@ -185,13 +227,19 @@ class DfmMethod:
         class _StandaloneProject:
             def __init__(self, method_path: Path, read_only_value: bool) -> None:
                 self.name = clean_text(_get_tab(payload, "method metadata").get("project")) or ""
-                self.path = method_path.parent.parent if method_path.parent.name.lower() == "methods" else method_path.parent
-                self.methods_dir = method_path.parent
-                self.data_dir = self.path / "data"
+                if method_path.parent.parent.name.lower() == "data":
+                    self.path = method_path.parent.parent.parent
+                    self.data_dir = method_path.parent.parent
+                else:
+                    self.path = method_path.parent
+                    self.data_dir = method_path.parent
                 self.read_only = bool(read_only_value)
 
             def dfm_path(self, _reserving_class: str, _name: str) -> Path:
                 return path
+
+            def reserving_class_data_dir(self, _reserving_class: str) -> Path:
+                return path.parent
 
             def rebuild_dfm_index(self) -> list[Any]:
                 return []
@@ -283,6 +331,7 @@ class DfmMethod:
 
     def save(self) -> Path:
         self._sync_details_identity()
+        self._trim_saved_triangle_arrays()
         _tab(self.payload, "method metadata")["last modified"] = _now_iso()
         path = write_json_atomic(self.file_path, self.payload, read_only=self.project.read_only)
         self.project.rebuild_dfm_index()
@@ -555,7 +604,11 @@ class DfmMethod:
         return self
 
     def exclude_origin_year(self, origin_year: int | str, reason: str = "") -> "DfmMethod":
-        return self.exclude_row(origin_year).add_notes(reason) if reason else self.exclude_row(origin_year)
+        row_index = self._resolve_origin_year(origin_year)
+        self.exclude_row(row_index + 1)
+        if reason:
+            self.add_notes(reason)
+        return self
 
     def exclude_covid_years(self, years: Iterable[int] | None = None, add_notes: bool = True) -> "DfmMethod":
         target_years = list(years if years is not None else (2020, 2021))
@@ -712,8 +765,93 @@ class DfmMethod:
         return self
 
     def apply_adjustments(self, selection: str | None = None, *args: Any, **kwargs: Any) -> "DfmMethod":
+        adjustments = kwargs.pop("adjustments", None)
+        if adjustments is None:
+            adjustments = kwargs.pop("adjustment", None)
+        other_adjustment = kwargs.pop("other_adjustment", None)
+        if other_adjustment is None:
+            other_adjustment = kwargs.pop("other_adjustments", None)
+        if other_adjustment is None and args:
+            other_adjustment = args[0]
+        add_notes = bool(kwargs.pop("add_notes", True))
+        clear_prior_notes = bool(kwargs.pop("clear_prior_notes", True))
+        if kwargs:
+            unknown = ", ".join(sorted(kwargs.keys()))
+            raise DfmDataError(f"Unsupported apply_adjustments keyword argument(s): {unknown}")
+
         if selection:
             self.set_selected_average(selection)
+
+        normalized = self._normalize_adjustments(adjustments)
+        other_values = self._normalize_adjustment_list(
+            other_adjustment if other_adjustment is not None else normalized.get("other", [0])
+        )
+        dev_count = max(
+            [len(values) for values in normalized.values()]
+            + [len(other_values), self._average_col_count()],
+            default=0,
+        )
+        if dev_count <= 0:
+            return self
+        for key in ("counts", "paid loss", "incurred loss", "accounting cutoff", "other"):
+            values = normalized.setdefault(key, [])
+            if len(values) < dev_count:
+                values.extend([0.0] * (dev_count - len(values)))
+        if len(other_values) < dev_count:
+            other_values.extend([0.0] * (dev_count - len(other_values)))
+
+        method_kind = self._adjustment_method_kind()
+        if method_kind == "skip":
+            return self
+
+        labels = self._average_labels()
+        selected = _ensure_matrix(self.average_formulas, "selected", len(labels), self._average_col_count(), 0)
+        values = _ensure_matrix(self.average_formulas, "values", len(labels), self._average_col_count(), None)
+        if clear_prior_notes:
+            self._clear_adjustment_notes()
+
+        changed = False
+        note_blocks: list[str] = []
+        for col in range(min(dev_count, self._average_col_count())):
+            selected_row = self._selected_average_row(col, selected)
+            if selected_row is None:
+                if selection:
+                    selected_row = self._ensure_average_label(selection)
+                    labels = self._average_labels()
+                    selected = _ensure_matrix(self.average_formulas, "selected", len(labels), self._average_col_count(), 0)
+                    values = _ensure_matrix(self.average_formulas, "values", len(labels), self._average_col_count(), None)
+                else:
+                    continue
+            if selected_row >= len(labels):
+                continue
+            average_value = _number(values[selected_row][col] if col < len(values[selected_row]) else None)
+            if average_value is None:
+                continue
+            adjustment = self._adjustment_for_kind(method_kind, normalized, col)
+            accounting_cutoff = 1.0 if method_kind == "severity" else 1.0 + normalized["accounting cutoff"][col]
+            other_factor = 1.0 + other_values[col]
+            final_value = average_value * adjustment["factor"] * accounting_cutoff * other_factor
+            if not self._has_meaningful_adjustment(adjustment["factor"], accounting_cutoff, other_factor):
+                continue
+            self.set_user_ratio(round(final_value, 4), col + 1)
+            changed = True
+            if add_notes:
+                note_blocks.append(self._format_adjustment_note(
+                    col,
+                    labels[selected_row],
+                    average_value,
+                    final_value,
+                    adjustment,
+                    accounting_cutoff,
+                    other_factor,
+                ))
+
+        if add_notes and note_blocks:
+            existing = self.notes
+            suffix = "\n\n".join(note_blocks)
+            self.update_notes(f"{existing}\n\n{suffix}" if existing else suffix)
+        if not changed and add_notes:
+            self.add_notes("No growth/accounting cutoff adjustments were needed for this method.")
         return self
 
     def set_custom_averages(
@@ -957,6 +1095,32 @@ class DfmMethod:
         self.results_tab.pop("ultimate vector", None)
         self._sync_details_identity()
 
+    def _trim_saved_triangle_arrays(self) -> None:
+        input_values = self.data_tab.get("input data triangle values")
+        if isinstance(input_values, list):
+            self.data_tab["input data triangle values"] = _trim_trailing_nulls_in_matrix(input_values)
+
+        ratio_values_source = self.ratio_triangle.get("ratio values")
+        ratio_values: list[list[Any]] = []
+        if isinstance(ratio_values_source, list):
+            ratio_values = _trim_trailing_nulls_in_matrix(ratio_values_source)
+            self.ratio_triangle["ratio values"] = ratio_values
+
+        excluded_source = self.ratio_triangle.get("excluded")
+        if isinstance(excluded_source, list):
+            excluded = _coerce_matrix(excluded_source)
+            trimmed_excluded: list[list[Any]] = []
+            for index, row in enumerate(excluded):
+                if ratio_values and index < len(ratio_values):
+                    trimmed_excluded.append(list(row[: len(ratio_values[index])]))
+                else:
+                    trimmed_excluded.append(_trim_trailing(row, (2, None)))
+            self.ratio_triangle["excluded"] = trimmed_excluded
+
+        average_values = self.average_formulas.get("values")
+        if isinstance(average_values, list):
+            self.average_formulas["values"] = _trim_trailing_nulls_in_matrix(average_values)
+
     def _sync_details_identity(self) -> None:
         self.details.setdefault("name", self.name)
         self.details["name"] = clean_text(self.details.get("name")) or self.name
@@ -1174,6 +1338,14 @@ class DfmMethod:
             return int(text) - 1
         raise DfmDataError(f"Could not resolve origin row: {row!r}")
 
+    def _resolve_origin_year(self, origin_year: int | str) -> int:
+        text = clean_text(origin_year)
+        labels = self._origin_labels()
+        for index, label in enumerate(labels):
+            if text and text in clean_text(label):
+                return index
+        raise DfmDataError(f"Could not resolve origin year: {origin_year!r}")
+
     def _resolve_development_col(self, development: int | str) -> int:
         if isinstance(development, int):
             return _as_col_index(development)
@@ -1196,6 +1368,16 @@ class DfmMethod:
         if candidate.is_absolute():
             return candidate
         project_data = getattr(self.project, "data_dir", None)
+        rc_data_dir = None
+        if hasattr(self.project, "reserving_class_data_dir"):
+            try:
+                rc_data_dir = self.project.reserving_class_data_dir(self.reserving_class)
+            except Exception:
+                rc_data_dir = None
+        if rc_data_dir:
+            rc_candidate = Path(rc_data_dir) / text
+            if rc_candidate.exists():
+                return rc_candidate
         if project_data:
             data_candidate = Path(project_data) / text
             if data_candidate.exists():
@@ -1293,6 +1475,176 @@ class DfmMethod:
                 out[col] = _number(values[row_index][col])
         _ = labels
         return out
+
+    def _normalize_adjustment_list(self, values: Any) -> list[float]:
+        if values is None:
+            return []
+        if isinstance(values, (str, bytes)):
+            source = [values]
+        else:
+            try:
+                source = list(values)
+            except TypeError:
+                source = [values]
+        out: list[float] = []
+        for value in source:
+            number = _adjustment_number(value)
+            if number is None:
+                continue
+            out.append(number)
+        return out
+
+    def _normalize_adjustments(self, adjustments: Any = None) -> dict[str, list[float]]:
+        source = deepcopy(DEFAULT_COL_2026Q1_ADJUSTMENTS if adjustments is None else adjustments)
+        if not isinstance(source, dict):
+            raise DfmDataError("apply_adjustments requires adjustments to be a dictionary when supplied.")
+        aliases = {
+            "count": "counts",
+            "claim count": "counts",
+            "claim counts": "counts",
+            "paid": "paid loss",
+            "paid losses": "paid loss",
+            "incurred": "incurred loss",
+            "incurred losses": "incurred loss",
+            "accounting": "accounting cutoff",
+            "cutoff": "accounting cutoff",
+        }
+        out: dict[str, list[float]] = {
+            "counts": [],
+            "paid loss": [],
+            "incurred loss": [],
+            "accounting cutoff": [],
+            "other": [],
+        }
+        for key, values in source.items():
+            normalized_key = aliases.get(clean_text(key).lower(), clean_text(key).lower())
+            if normalized_key not in out:
+                continue
+            out[normalized_key] = self._normalize_adjustment_list(values)
+        return out
+
+    def _adjustment_method_kind(self) -> str:
+        text = f"{self.output_vector} {self.name}".lower()
+        if re.search(r"(^|\D)52(\D|$)", text):
+            return "skip"
+        if re.search(r"(^|\W)h\s*\d+", text) or "severity" in text:
+            return "severity"
+        if "paid" in text or "salv" in text or "subr" in text:
+            return "paid"
+        if "incurred" in text:
+            return "incurred"
+        if re.search(r"(^|\W)c\s*\d+", text) or "claim count" in text or "counts" in text:
+            return "counts"
+        if "reported" in text or "cwp" in text or "cwop" in text:
+            return "counts"
+        return "incurred"
+
+    def _selected_average_row(self, col: int, selected: list[list[Any]] | None = None) -> int | None:
+        matrix = selected if selected is not None else _coerce_matrix(self.average_formulas.get("selected"))
+        for row, row_values in enumerate(matrix):
+            if col < len(row_values) and bool(row_values[col]):
+                return row
+        return None
+
+    def _format_adjustment_percent(self, value: float) -> str:
+        return f"{round(abs(value) * 100, 2):g}%"
+
+    def _factor_note_part(self, value: float) -> str:
+        if value > 0:
+            return f"1+{self._format_adjustment_percent(value)}"
+        if value < 0:
+            return f"1-{self._format_adjustment_percent(value)}"
+        return "1"
+
+    def _compound_adjustment_part(self, values: list[float], col: int, *, formula_style: str) -> dict[str, Any]:
+        current = values[col] if col < len(values) else 0.0
+        next_value = values[col + 1] if col + 1 < len(values) else 0.0
+        current_factor = 1.0 + current
+        next_factor = 1.0 + next_value
+        if col + 1 < len(values):
+            value = current_factor / next_factor if next_factor else current_factor
+        else:
+            value = current_factor
+        if formula_style == "left":
+            formula = self._factor_note_part(current)
+            if col + 1 < len(values) and next_value != 0:
+                formula = f"{formula}/({self._factor_note_part(next_value)})"
+            if formula.count("(") == 1 and "/" not in formula:
+                formula = formula.replace("(", "").replace(")", "")
+        else:
+            if col + 1 < len(values) and next_factor != 1:
+                formula = f"{round(current_factor, 4):g}/{round(next_factor, 4):g}"
+            else:
+                formula = f"{round(current_factor, 4):g}"
+        return {"value": value, "formula": formula}
+
+    def _adjustment_for_kind(self, kind: str, adjustments: dict[str, list[float]], col: int) -> dict[str, Any]:
+        counts_left = self._compound_adjustment_part(adjustments["counts"], col, formula_style="left")
+        counts_right = self._compound_adjustment_part(adjustments["counts"], col, formula_style="right")
+        incurred_left = self._compound_adjustment_part(adjustments["incurred loss"], col, formula_style="left")
+        incurred_right = self._compound_adjustment_part(adjustments["incurred loss"], col, formula_style="right")
+        paid_left = self._compound_adjustment_part(adjustments["paid loss"], col, formula_style="left")
+        paid_right = self._compound_adjustment_part(adjustments["paid loss"], col, formula_style="right")
+        if kind == "counts":
+            return {"factor": counts_right["value"], "left": counts_left["formula"], "right": counts_right["formula"]}
+        if kind == "paid":
+            return {"factor": paid_right["value"], "left": paid_left["formula"], "right": paid_right["formula"]}
+        if kind == "severity":
+            factor = incurred_right["value"] / counts_right["value"] if counts_right["value"] else 1.0
+            left = f"{incurred_left['formula']}/{counts_left['formula']}"
+            right = f"({incurred_right['formula']})/({counts_right['formula']})"
+            return {"factor": factor, "left": left, "right": right}
+        return {"factor": incurred_right["value"], "left": incurred_left["formula"], "right": incurred_right["formula"]}
+
+    def _has_meaningful_adjustment(self, growth: float, accounting_cutoff: float, other_factor: float) -> bool:
+        return any(abs(value - 1.0) > 0.0000001 for value in (growth, accounting_cutoff, other_factor))
+
+    def _display_average_label(self, label: str) -> str:
+        text = _normalize_label(label)
+        if ":" in text:
+            _prefix, rest = text.split(":", 1)
+            if rest.strip():
+                return rest.strip()
+        return text
+
+    def _format_adjustment_note(
+        self,
+        col: int,
+        label: str,
+        average_value: float,
+        final_value: float,
+        adjustment: dict[str, Any],
+        accounting_cutoff: float,
+        other_factor: float,
+    ) -> str:
+        lines = [f"For development period {self.dev_period(col + 1)}:"]
+        formula_parts = [f"{average_value:.4f}"]
+        if abs(float(adjustment["factor"]) - 1.0) > 0.0000001:
+            lines.append(f"  - Apply growth adjustments of {adjustment['left']} = {adjustment['right']};")
+            formula_parts.append(str(adjustment["right"]))
+        if abs(accounting_cutoff - 1.0) > 0.0000001:
+            lines.append(f"  - Apply accounting cutoff 1+{accounting_cutoff - 1.0:.2%} = {accounting_cutoff:.4f};")
+            formula_parts.append(f"{accounting_cutoff:.4f}")
+        if abs(other_factor - 1.0) > 0.0000001:
+            formula_parts.append(f"{other_factor:.4f}")
+        display_label = self._display_average_label(label)
+        lines.append(f"  - Selected average factor: \"{display_label}\" ({average_value:.4f})")
+        lines.append(f"  - Selected LDF after adjustments: {' * '.join(formula_parts)} = {final_value:.4f}")
+        return "\n".join(lines)
+
+    def _clear_adjustment_notes(self) -> None:
+        keywords = (
+            "For development period ",
+            "Apply growth adjustments of ",
+            "Apply accounting cutoff ",
+            "Selected average factor: ",
+            "Selected LDF after adjustments: ",
+        )
+        lines = [
+            line for line in self.notes.splitlines()
+            if not any(keyword in line for keyword in keywords)
+        ]
+        self.update_notes("\n".join(lines).strip())
 
 
 def _default_average_formulas() -> dict[str, Any]:

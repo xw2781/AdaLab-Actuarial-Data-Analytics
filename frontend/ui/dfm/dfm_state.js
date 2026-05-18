@@ -255,21 +255,21 @@ export function getRatioSaveProjectName() {
 }
 
 export function getRatioSaveSuggestedName() {
-  const reservingClass = sanitizeDfmMethodFilePartWithCaret(
-    getResolvedReservingClass() || String(document.getElementById("pathInput")?.value || "").trim(),
-    "ReservingClass",
-  );
   const methodName = sanitizeFileNamePart(
     document.getElementById("dfmMethodName")?.value?.trim(),
     "Name",
   );
-  return `DFM@${reservingClass}@${methodName}.json`;
+  return `DFM@${methodName}.json`;
 }
 
 export async function getRatioSaveBaseDir() {
   const rootPath = await getRootPath();
   const project = sanitizeFileNamePart(getRatioSaveProjectName(), "UnknownProject");
-  return `${rootPath}\\projects\\${project || "UnknownProject"}\\methods`;
+  const reservingClass = sanitizeDfmMethodFilePartWithCaret(
+    getResolvedReservingClass() || String(document.getElementById("pathInput")?.value || "").trim(),
+    "ReservingClass",
+  );
+  return `${rootPath}\\projects\\${project || "UnknownProject"}\\data\\${reservingClass}`;
 }
 
 export async function buildRatioSavePath() {
@@ -279,52 +279,14 @@ export async function buildRatioSavePath() {
 }
 
 export async function getRatioDataDir() {
-  const rootPath = await getRootPath();
-  const project = sanitizeFileNamePart(getRatioSaveProjectName(), "UnknownProject");
-  return `${rootPath}\\projects\\${project || "UnknownProject"}\\data`;
+  return getRatioSaveBaseDir();
 }
 
 export function getResultsCsvSuggestedName(options = {}) {
-  // Keep CSV naming aligned with app-server set_data_path_like_vba for ArcRhoTri so
-  // Dataset Viewer can find DFM-produced files via standard /arcrho/tri refresh.
-  const pathRaw = typeof options.path === "string"
-    ? options.path
-    : (getResolvedReservingClass() || String(document.getElementById("pathInput")?.value || "").trim());
   const datasetNameRaw = typeof options.datasetName === "string"
     ? options.datasetName
     : (String(document.getElementById("dfmMethodName")?.value || "").trim() || getDefaultMethodName());
-  const cumulativeEl = document.getElementById("cumulativeChk");
-  const cumulative = options.cumulative == null
-    ? (cumulativeEl ? !!cumulativeEl.checked : true)
-    : !!options.cumulative;
-  const originSource = options.originLen == null
-    ? String(document.getElementById("originLenSelect")?.value || "").trim()
-    : String(options.originLen);
-  const devSource = options.devLen == null
-    ? String(document.getElementById("devLenSelect")?.value || "").trim()
-    : String(options.devLen);
-  const originRaw = Number.parseInt(originSource, 10);
-  const devRaw = Number.parseInt(devSource, 10);
-  const originLen = Number.isFinite(originRaw) ? originRaw : 12;
-  const devLen = Number.isFinite(devRaw) ? devRaw : 12;
-
-  const values = [
-    "ArcRhoTri",
-    String(pathRaw || "").trim(),
-    String(datasetNameRaw || "").trim(),
-    String(cumulative),
-    String(false), // Transposed default
-    String(false), // Calendar default
-    String(originLen),
-    String(devLen),
-  ];
-
-  const fullName = values
-    .join("@")
-    .replace(/\\/g, "^")
-    .replace(/\//g, "^")
-    .replace(/\*/g, "$star$");
-  return `${fullName}.csv`;
+  return `${sanitizeFileNamePart(datasetNameRaw, "Dataset")}.csv`;
 }
 
 export function getInputTriangleCsvSuggestedName(options = {}) {

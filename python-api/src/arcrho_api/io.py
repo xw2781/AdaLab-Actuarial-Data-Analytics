@@ -23,6 +23,49 @@ def read_json(path: Path, *, required_object: bool = True) -> dict[str, Any]:
     return data
 
 
+def _is_row_array(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(row, list) for row in value)
+
+
+def _format_row_array_lines(rows: list[list[Any]], indent: str) -> str:
+    return ",\n".join(
+        f"{indent}[{', '.join(json.dumps(value, ensure_ascii=False) for value in row)}]"
+        for row in rows
+    )
+
+
+def format_json_for_save(data: Any, indent: str = "") -> str:
+    """Format JSON like the ArcRho host, with compact child rows for 2D arrays."""
+    if _is_row_array(data):
+        if not data:
+            return "[]"
+        child_indent = f"{indent}  "
+        return f"[\n{_format_row_array_lines(data, child_indent)}\n{indent}]"
+    if isinstance(data, list):
+        if not data:
+            return "[]"
+        child_indent = f"{indent}  "
+        lines = []
+        for index, item in enumerate(data):
+            rendered = f"{child_indent}{format_json_for_save(item, child_indent)}"
+            lines.append(f"{rendered}," if index < len(data) - 1 else rendered)
+        return f"[\n{chr(10).join(lines)}\n{indent}]"
+    if isinstance(data, dict):
+        if not data:
+            return "{}"
+        child_indent = f"{indent}  "
+        lines = []
+        keys = list(data.keys())
+        for index, key in enumerate(keys):
+            rendered = (
+                f"{child_indent}{json.dumps(str(key), ensure_ascii=False)}: "
+                f"{format_json_for_save(data[key], child_indent)}"
+            )
+            lines.append(f"{rendered}," if index < len(keys) - 1 else rendered)
+        return f"{{\n{chr(10).join(lines)}\n{indent}}}"
+    return json.dumps(data, ensure_ascii=False)
+
+
 def write_json_atomic(path: Path, data: dict[str, Any], *, read_only: bool = False) -> Path:
     if read_only:
         raise ReadOnlyError(f"Cannot write {path}; client is read-only.")
@@ -30,7 +73,7 @@ def write_json_atomic(path: Path, data: dict[str, Any], *, read_only: bool = Fal
     temp_path = path.with_name(f"{path.name}.tmp")
     try:
         with temp_path.open("w", encoding="utf-8", newline="\n") as fh:
-            json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write(format_json_for_save(data))
             fh.write("\n")
         os.replace(temp_path, path)
     except OSError as err:
@@ -40,4 +83,3 @@ def write_json_atomic(path: Path, data: dict[str, Any], *, read_only: bool = Fal
             pass
         raise ArcRhoApiError(f"Failed to write JSON file {path}: {err}") from err
     return path
-

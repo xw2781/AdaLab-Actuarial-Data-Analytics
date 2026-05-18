@@ -137,6 +137,10 @@ def run_arcrho_tri(pairs: list, data_path: str, timeout_sec: float, force_refres
 
     need_request = force_refresh or (not os.path.exists(data_path))
     if need_request:
+        try:
+            os.makedirs(os.path.dirname(data_path), exist_ok=True)
+        except OSError as err:
+            raise HTTPException(500, f"Failed to create ArcRho tri data folder: {str(err)}")
         request_info = "#".join([f"{k} = {v}" for k, v in pairs] + [f"DataPath = {data_path}"])
         request_file = send_request_like_vba(request_info)
 

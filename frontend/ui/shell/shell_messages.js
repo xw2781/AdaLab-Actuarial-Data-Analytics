@@ -183,7 +183,11 @@ export function initShellMessages() {
     if (msg.type !== "arcrho:update-active-tab-title") return;
     const title = String(msg.title || "").trim();
     if (!title) return;
-    const tab = shell.state.tabs.find(t => t.id === shell.state.activeId);
+    const inst = String(msg.inst || "").trim();
+    const tab = shell.state.tabs.find(t => (
+      (inst && t.type === "scripting" && t.scInst === inst) ||
+      t.iframe?.contentWindow === e.source
+    )) || shell.state.tabs.find(t => t.id === shell.state.activeId);
     if (!tab || tab.type === "home" || tab.type === "workflow" || tab.type === "project_settings" || tab.type === "project_instance" || tab.type === "browsing_history") return;
     tab.title = title;
     shell.render?.();

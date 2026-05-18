@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .models import DfmMethodRef
-from .paths import clean_text
+from .paths import clean_text, sanitize_reserving_class_folder
 
 if TYPE_CHECKING:
     from .dfm import DfmMethod
@@ -42,6 +42,5 @@ class ReservingClass:
 
     def list_dfm_methods(self, refresh: bool = False) -> list[DfmMethodRef]:
         refs = self.project.list_dfm_methods(refresh=refresh)
-        expected = self.path.lower()
+        expected = sanitize_reserving_class_folder(self.path).lower()
         return [item for item in refs if item.path.lower() == expected]
-

@@ -374,6 +374,10 @@ window.addEventListener("message", (event) => {
     void openOpenNbDialog();
     return;
   }
+  if (type === "arcrho:scripting-rename-notebook") {
+    void renameCurrentNotebook();
+    return;
+  }
   if (type === "arcrho:scripting-toggle-line-numbers") {
     toggleCodeCellLineNumbers();
     return;

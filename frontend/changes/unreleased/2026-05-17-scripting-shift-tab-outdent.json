@@ -1,0 +1,6 @@
+{
+  "summary": "Let Shift+Tab outdent scripting code cells.",
+  "details": [
+    "Code-cell editors now leave plain Shift+Tab to Monaco so selected code can be outdented, while the scripting introspection tooltip moves to Ctrl+Shift+Space."
+  ]
+}

@@ -56,7 +56,6 @@ const restartBtn = document.getElementById("restartBtn");
 const clearOutputBtn = document.getElementById("clearOutputBtn");
 const shortcutsBtn = document.getElementById("shortcutsBtn");
 const toggleVarsBtn = document.getElementById("toggleVarsBtn");
-const toolbarNotebookTitleEl = document.getElementById("toolbarNotebookTitle");
 const notebookFileBanner = document.getElementById("notebookFileBanner");
 const notebookFileBannerMessage = document.getElementById("notebookFileBannerMessage");
 const reloadDiskNotebookBtn = document.getElementById("reloadDiskNotebookBtn");

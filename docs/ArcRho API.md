@@ -257,7 +257,7 @@ reserving_class.list_dfm_methods(refresh: bool = False) -> list[DfmMethodRef]
 Represents one DFM method JSON file:
 
 ```text
-<server_root>\projects\<project>\methods\DFM@<ReservingClass>@<Name>.json
+<server_root>\projects\<project>\data\<ReservingClassFolder>\DFM@<Name>.json
 ```
 
 Responsibilities:
@@ -395,15 +395,16 @@ ArcRhoClient.discover()
 Use the current local DFM method identity:
 
 ```text
-DFM@<ReservingClass>@<Name>.json
+data\<ReservingClassFolder>\DFM@<Name>.json
 ```
 
 Where:
 
 - `Project` is represented by the containing project folder.
-- `ReservingClass` is path-scoped and Windows-invalid filename characters are replaced with `^`.
+- `ReservingClassFolder` is a single sanitized folder name under `data`; Windows-invalid filename characters and path separators are replaced with `^`.
 - `Name` is the method identity within a project/reserving-class pair.
 - `Origin Length`, `Development Length`, and `Input Triangle` are saved method details, not filename identity fields.
+- ArcRhoTri dataset CSV files use the same reserving-class folder and are saved as `data\<ReservingClassFolder>\<DatasetName>.csv`.
 
 ### DFM JSON Rules
 

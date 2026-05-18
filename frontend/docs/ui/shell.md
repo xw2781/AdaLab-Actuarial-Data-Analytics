@@ -31,6 +31,7 @@ Detected `arcrho:*` message types in key JS files:
 - `arcrho:force-rebuild-toggle`
 - `arcrho:hotkey`
 - `arcrho:open-path-result`
+- `arcrho:scripting-rename-notebook`
 - `arcrho:server-connection-updated`
 - `arcrho:set-app-font`
 - `arcrho:set-zoom`
@@ -84,6 +85,7 @@ Detected `arcrho:*` message types in key JS files:
 - Consumes dataset-page browsing updates (`arcrho:dataset-settings-changed`, `arcrho:browsing-history-updated`) and forwards updates to any open Browsing History tab.
 - Receives `arcrho:open-dataset-from-history` from Browsing History tab to open dataset tabs with selected inputs.
 - Receives `arcrho:open-project-instance` from Project Settings to open or focus a top-level `project_instance` tab for the selected project.
+- The docked tab context menu includes a scripting-only `Rename Notebook` action that activates the target scripting tab and asks its iframe to rename the current notebook; scripting title updates include the tab instance id so background scripting tabs update their own tab title rather than the active tab.
 - Before closing the active top-level tab for `Ctrl+W`/close-tab shortcuts, the shell lets the active iframe consume the shortcut through `window.__arcrho_consume_close_shortcut`; project instance tabs use this to close their top floating dataset window first.
 - OS-level detached tab pop-out windows are not supported; floating tabs stay inside the main shell and reuse the same iframe/message contracts as docked tabs.
 <!-- MANUAL:END -->

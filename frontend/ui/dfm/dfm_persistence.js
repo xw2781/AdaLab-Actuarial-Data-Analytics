@@ -47,6 +47,7 @@ import {
   buildAverageSelectionPayload,
   applyAverageSelectionFromSaved,
   renderRatioTable,
+  queueDfmExternalChangeHighlights,
 } from "/ui/dfm/dfm_ratios_tab.js";
 import {
   renderResultsTable,
@@ -77,10 +78,16 @@ import {
 
 let ratioLoadTimer = null;
 let ratioLoadPendingReason = "";
+let ratioFileWatchTimer = null;
+let ratioFileWatchInFlight = false;
+let ratioFileWatchPath = "";
+let ratioFileWatchRevisionToken = "";
+let ratioFileWatchDirtyWarnToken = "";
 const DFM_INSTANCE_PRESENCE_EVENT = "arcrho:dfm-instance-presence";
 const DFM_LOCAL_LOOKUP_DEBUG_STATUS = true; // Temporary debug aid.
 const DFM_ANALYSIS_DECIMALS = 4;
 const DFM_METHOD_JSON_FORMAT = "arcrho-dfm-method-by-tab-v1";
+const DFM_METHOD_FILE_WATCH_INTERVAL_MS = 2000;
 
 function getRatioLoadReasonPriority(reason) {
   const key = String(reason || "").trim().toLowerCase();
@@ -135,6 +142,52 @@ function postDfmLookupDebugStatus(text, options = {}) {
   const reason = String(options?.reason || "").trim();
   const suffix = reason ? ` [${reason}]` : "";
   postDfmStatus(`Debug: DFM local method lookup ${text}${suffix}`);
+}
+
+function getRevisionToken(revision) {
+  if (!revision || typeof revision !== "object") return "";
+  const path = String(revision.path || "");
+  const size = Number.isFinite(Number(revision.size)) ? String(Number(revision.size)) : "";
+  const mtimeMs = Number.isFinite(Number(revision.mtimeMs)) ? String(Number(revision.mtimeMs)) : "";
+  const hash = String(revision.hash || "");
+  return `${path}|${size}|${mtimeMs}|${hash}`;
+}
+
+function rememberDfmMethodFileRevision(path, revision) {
+  ratioFileWatchPath = String(path || revision?.path || "");
+  ratioFileWatchRevisionToken = getRevisionToken(revision);
+  ratioFileWatchDirtyWarnToken = "";
+}
+
+function clearDfmMethodFileRevision(path = "") {
+  ratioFileWatchPath = String(path || "");
+  ratioFileWatchRevisionToken = "";
+  ratioFileWatchDirtyWarnToken = "";
+}
+
+async function readDfmMethodFileRevision(hostApi, path) {
+  if (typeof hostApi?.getFileRevision === "function") {
+    return hostApi.getFileRevision({ path });
+  }
+  if (typeof hostApi?.readJsonFile === "function") {
+    return hostApi.readJsonFile({ path });
+  }
+  return { exists: false };
+}
+
+async function refreshDfmMethodFileRevision(path) {
+  const hostApi = getHostApi();
+  if (!hostApi) return;
+  try {
+    const result = await readDfmMethodFileRevision(hostApi, path);
+    if (result?.exists) {
+      rememberDfmMethodFileRevision(path, result.revision);
+    } else {
+      clearDfmMethodFileRevision(path);
+    }
+  } catch {
+    clearDfmMethodFileRevision(path);
+  }
 }
 
 function hasRequiredDfmInputs() {
@@ -799,6 +852,7 @@ export async function loadRatioSelectionIfExists(reason) {
   postDfmLookupDebugStatus(`checking ${path}`, { reason });
   const result = await hostApi.readJsonFile({ path });
   if (!result || !result.exists) {
+    clearDfmMethodFileRevision(path);
     emitDfmInstancePresence("missing");
     postDfmStatus("This method object has not been created yet, changes will be saved to a new container.", { tone: "warn" });
     if (getDfmIsDirty()) {
@@ -816,6 +870,7 @@ export async function loadRatioSelectionIfExists(reason) {
   emitDfmInstancePresence("found");
   const applied = await applyDfmMethodPayload(result.data);
   if (applied.ok) {
+    rememberDfmMethodFileRevision(path, result.revision);
     postDfmStatus(`Ready: Loaded method settings from ${path}`);
   } else if (reason) {
     postDfmStatus("Error: Ratio file found but could not be applied.");
@@ -878,6 +933,159 @@ export function buildDfmMethodPayload(options = {}) {
     "last modified": new Date().toISOString(),
   };
   return buildDfmGroupedMethodPayload(data);
+}
+
+function normalizeRatioMatrixCellValue(matrix, row, col) {
+  const sourceRow = Array.isArray(matrix?.[row]) ? matrix[row] : [];
+  if (col >= sourceRow.length) return 2;
+  const raw = sourceRow[col];
+  if (raw === true) return 1;
+  if (raw === false) return 0;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : 2;
+}
+
+function matrixMaxColumnCount(...matrices) {
+  let count = 0;
+  matrices.forEach((matrix) => {
+    if (!Array.isArray(matrix)) return;
+    matrix.forEach((row) => {
+      if (Array.isArray(row)) count = Math.max(count, row.length);
+    });
+  });
+  return count;
+}
+
+function buildChangedRatioCells(prevPattern, nextPattern) {
+  const rows = Math.max(
+    Array.isArray(prevPattern) ? prevPattern.length : 0,
+    Array.isArray(nextPattern) ? nextPattern.length : 0,
+  );
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    const cols = matrixMaxColumnCount([prevPattern?.[r]], [nextPattern?.[r]]);
+    for (let c = 0; c < cols; c++) {
+      if (normalizeRatioMatrixCellValue(prevPattern, r, c) !== normalizeRatioMatrixCellValue(nextPattern, r, c)) {
+        cells.push({ r, c });
+      }
+    }
+  }
+  return cells;
+}
+
+function buildAverageMatrixByLabel(formulas, matrix) {
+  const out = new Map();
+  const formulaList = Array.isArray(formulas) ? formulas : [];
+  formulaList.forEach((formula, row) => {
+    const label = String(formula || "").trim();
+    if (!label) return;
+    const sourceRow = Array.isArray(matrix?.[row]) ? matrix[row] : [];
+    out.set(label, sourceRow.map((value) => (Number(value) === 1 ? 1 : 0)));
+  });
+  return out;
+}
+
+function buildChangedAverageCells(prevFormulas, prevMatrix, nextFormulas, nextMatrix) {
+  const prevByLabel = buildAverageMatrixByLabel(prevFormulas, prevMatrix);
+  const nextByLabel = buildAverageMatrixByLabel(nextFormulas, nextMatrix);
+  const labels = new Set([...prevByLabel.keys(), ...nextByLabel.keys()]);
+  const cells = [];
+  labels.forEach((label) => {
+    const prevRow = prevByLabel.get(label) || [];
+    const nextRow = nextByLabel.get(label) || [];
+    const cols = Math.max(prevRow.length, nextRow.length);
+    for (let c = 0; c < cols; c++) {
+      if (Number(prevRow[c] || 0) !== Number(nextRow[c] || 0)) cells.push({ label, c });
+    }
+  });
+  return cells;
+}
+
+function buildDfmExternalChangedCells(nextPayload) {
+  const prevPattern = buildRatioSelectionPattern();
+  const nextPattern = getDfmRatioTriangleTab(nextPayload).excluded;
+  const prevAverage = buildAverageSelectionPayload();
+  const nextAverage = getDfmAverageFormulaSelectedIndex(getDfmRatiosTab(nextPayload)["average formulas"]);
+  return {
+    ratioCells: buildChangedRatioCells(prevPattern, nextPattern),
+    averageCells: buildChangedAverageCells(
+      prevAverage.formulas,
+      prevAverage.matrix,
+      getDfmAverageFormulaLabels(getDfmRatiosTab(nextPayload)["average formulas"]),
+      nextAverage,
+    ),
+  };
+}
+
+async function checkDfmMethodFileWatch() {
+  if (ratioFileWatchInFlight) return;
+  if (!hasRequiredDfmLookupInputs()) {
+    clearDfmMethodFileRevision();
+    return;
+  }
+  const hostApi = getHostApi();
+  if (!hostApi || typeof hostApi.readJsonFile !== "function") return;
+  ratioFileWatchInFlight = true;
+  try {
+    const path = await buildRatioSavePath();
+    if (path !== ratioFileWatchPath) {
+      clearDfmMethodFileRevision(path);
+    }
+    const revisionResult = await readDfmMethodFileRevision(hostApi, path);
+    if (!revisionResult?.exists) {
+      if (ratioFileWatchRevisionToken) clearDfmMethodFileRevision(path);
+      return;
+    }
+    const token = getRevisionToken(revisionResult.revision);
+    if (!token) return;
+    if (!ratioFileWatchRevisionToken) {
+      rememberDfmMethodFileRevision(path, revisionResult.revision);
+      return;
+    }
+    if (token === ratioFileWatchRevisionToken) return;
+
+    if (getDfmIsDirty()) {
+      if (ratioFileWatchDirtyWarnToken !== token) {
+        ratioFileWatchDirtyWarnToken = token;
+        postDfmStatus("DFM method JSON changed on disk. Save or reload before closing to avoid overwriting external changes.", { tone: "warn" });
+      }
+      return;
+    }
+
+    const result = await hostApi.readJsonFile({ path });
+    if (!result?.exists) {
+      clearDfmMethodFileRevision(path);
+      return;
+    }
+    const changedCells = buildDfmExternalChangedCells(result.data);
+    const applied = await applyDfmMethodPayload(result.data, { reason: "external-file-change" });
+    if (applied.ok) {
+      queueDfmExternalChangeHighlights(changedCells);
+      if ((changedCells.ratioCells.length || changedCells.averageCells.length) && isRatiosTabVisible()) {
+        renderRatioTable();
+      }
+      rememberDfmMethodFileRevision(path, result.revision || revisionResult.revision);
+      postDfmStatus(`Ready: Reloaded external DFM JSON changes from ${path}`);
+    }
+  } catch (err) {
+    console.warn("DFM method file watch failed:", err);
+  } finally {
+    ratioFileWatchInFlight = false;
+  }
+}
+
+export function startDfmMethodFileWatcher() {
+  if (ratioFileWatchTimer) return;
+  ratioFileWatchTimer = setInterval(() => {
+    checkDfmMethodFileWatch();
+  }, DFM_METHOD_FILE_WATCH_INTERVAL_MS);
+  checkDfmMethodFileWatch();
+}
+
+export function stopDfmMethodFileWatcher() {
+  if (!ratioFileWatchTimer) return;
+  clearInterval(ratioFileWatchTimer);
+  ratioFileWatchTimer = null;
 }
 
 export async function saveRatioSelectionPattern(forceSaveAs) {
@@ -947,6 +1155,7 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
     markMethodSaved();
     markDfmClean();
     emitDfmInstancePresence("found");
+    await refreshDfmMethodFileRevision(result.path);
     const objectSnapshot = recordCurrentDfmObjectSnapshot();
     refreshDfmMethodIndex(objectSnapshot.project).catch((err) => {
       console.warn("Failed to refresh DFM method index:", err);

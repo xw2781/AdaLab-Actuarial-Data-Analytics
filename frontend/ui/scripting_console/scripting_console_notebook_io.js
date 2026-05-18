@@ -15,13 +15,8 @@ function getNotebookDisplayTitle() {
 
 function updateNotebookTitleUI() {
   const title = getNotebookDisplayTitle();
-  if (toolbarNotebookTitleEl) {
-    toolbarNotebookTitleEl.textContent = title;
-    toolbarNotebookTitleEl.classList.toggle("dirty", notebookDirty);
-    toolbarNotebookTitleEl.title = notebookDirty ? `${title} has unsaved changes` : title;
-  }
   try {
-    window.parent?.postMessage({ type: "arcrho:update-active-tab-title", title }, "*");
+    window.parent?.postMessage({ type: "arcrho:update-active-tab-title", title, inst: scriptingTabInstanceId }, "*");
   } catch {}
 }
 
@@ -53,6 +48,22 @@ function getNotebookCopyFilename(pathLike) {
   const dot = name.lastIndexOf(".");
   if (dot <= 0) return `${name}.copy.ipynb`;
   return `${name.slice(0, dot)}.copy${name.slice(dot)}`;
+}
+
+function normalizeNotebookRenameInput(rawName) {
+  const raw = String(rawName || "").trim();
+  if (!raw) return { ok: false, error: "Enter a notebook name." };
+  if (/[\\/:*?"<>|]/.test(raw)) {
+    return { ok: false, error: "Notebook name cannot include path separators or Windows filename characters." };
+  }
+  const currentExt = getNotebookExtension(currentNotebookPath || currentNotebookFilename) || ".ipynb";
+  const dot = raw.lastIndexOf(".");
+  const nextName = dot > 0 ? raw : `${raw}${currentExt}`;
+  const nextExt = getNotebookExtension(nextName).toLowerCase();
+  if (nextExt !== ".ipynb" && nextExt !== ".arcnb") {
+    return { ok: false, error: "Notebook name must end with .ipynb or .arcnb." };
+  }
+  return { ok: true, name: nextName };
 }
 
 function revisionToken(revision) {
@@ -413,6 +424,75 @@ async function requestNotebookSave(forcePrompt = false) {
     return;
   }
   await saveNotebookByFilename(currentNotebookFilename, { closeDialog: false });
+}
+
+async function renameCurrentNotebook() {
+  const currentName = currentNotebookFilename || DEFAULT_NOTEBOOK_FILENAME;
+  const proposed = window.prompt("Rename notebook", currentName);
+  if (proposed == null) return false;
+
+  const normalized = normalizeNotebookRenameInput(proposed);
+  if (!normalized.ok) {
+    setStatus(normalized.error);
+    postShellStatus(normalized.error);
+    return false;
+  }
+  const nextName = normalized.name;
+  if (nextName === currentName) return true;
+
+  if (!currentNotebookPath) {
+    currentNotebookFilename = nextName;
+    updateNotebookTitleUI();
+    setStatus(`Renamed ${nextName}`);
+    postShellStatus(`Renamed ${nextName}`);
+    return true;
+  }
+
+  if (notebookDiskConflict) {
+    const msg = "Resolve the disk conflict before renaming this notebook.";
+    setStatus(msg);
+    postShellStatus(msg);
+    return false;
+  }
+
+  const hostApi = getNotebookHostApi();
+  if (typeof hostApi?.renameFile !== "function") {
+    const msg = "Rename requires the ArcRho desktop app.";
+    setStatus(msg);
+    postShellStatus(msg);
+    return false;
+  }
+
+  try {
+    const wasDirty = notebookDirty;
+    const result = await hostApi.renameFile({ path: currentNotebookPath, newName: nextName });
+    if (!result?.ok) {
+      const msg = result?.error || "Rename failed";
+      setStatus(msg);
+      postShellStatus(msg);
+      return false;
+    }
+    const nextPath = result.path || currentNotebookPath;
+    setCurrentNotebookFilename(nextPath);
+    lastNotebookDiskRevision = result.revision || await readNotebookDiskRevision(nextPath);
+    if (wasDirty) {
+      notebookDiskConflict = "";
+      hideNotebookFileBanner();
+      startNotebookRevisionPolling();
+      setNotebookDirty(true);
+      scheduleNotebookAutoSave();
+    } else {
+      markNotebookSavedBaseline(nextPath, lastNotebookDiskRevision);
+    }
+    const msg = `Renamed ${getNotebookFilenameFromPath(nextPath)}`;
+    setStatus(msg);
+    postShellStatus(`${msg} (${nextPath})`);
+    return true;
+  } catch {
+    setStatus("Rename failed");
+    postShellStatus("Rename failed");
+    return false;
+  }
 }
 
 async function openOpenNbDialog() {

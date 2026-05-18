@@ -1396,8 +1396,13 @@ function createEditorForCell(cellId, container, code, cellType = CELL_TYPES.CODE
   editor.onKeyDown((event) => {
     const browserEvent = event?.browserEvent;
 
-    // Shift+Tab → introspection tooltip
-    if (browserEvent?.key === "Tab" && browserEvent?.shiftKey && !browserEvent?.ctrlKey && !browserEvent?.altKey) {
+    // Ctrl+Shift+Space -> introspection tooltip. Plain Shift+Tab is left to Monaco for outdent.
+    const isInspectShortcut =
+      (browserEvent?.ctrlKey || browserEvent?.metaKey) &&
+      browserEvent?.shiftKey &&
+      !browserEvent?.altKey &&
+      (browserEvent?.key === " " || browserEvent?.key === "Spacebar" || browserEvent?.code === "Space");
+    if (isInspectShortcut) {
       const cell = getCellById(cellId);
       if (cell && normalizeCellType(cell.type) === CELL_TYPES.CODE) {
         event.preventDefault();
@@ -1621,7 +1626,7 @@ function handleCellClickSelection(event, id) {
 
 
 // ---------------------------------------------------------------------------
-// Introspection tooltip (Shift+Tab)
+// Introspection tooltip (Ctrl+Shift+Space)
 // ---------------------------------------------------------------------------
 
 let _activeInspectEl = null;

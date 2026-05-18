@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("ADAHost", {
   readTextFile: (payload) => invoke("read-text-file", payload),
   readJsonFile: (payload) => invoke("read-json-file", payload),
   getFileRevision: (payload) => invoke("get-file-revision", payload),
+  renameFile: (payload) => invoke("rename-file", payload),
   loadScriptingShortcuts: () => invoke("scripting-shortcuts-load"),
   saveScriptingShortcuts: (bindings) => invoke("scripting-shortcuts-save", { bindings }),
   pickOpenFile: (payload) => invoke("pick-open-file", payload),

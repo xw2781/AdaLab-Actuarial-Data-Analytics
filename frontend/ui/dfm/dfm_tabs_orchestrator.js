@@ -49,7 +49,9 @@ import {
   saveDfmTemplate,
   loadDfmTemplate,
   buildDfmAssistantContextPayload,
-} from "/ui/dfm/dfm_persistence.js?v=20260514c";
+  startDfmMethodFileWatcher,
+  stopDfmMethodFileWatcher,
+} from "/ui/dfm/dfm_persistence.js?v=20260517a";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
 import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js?v=20260514a";
 
@@ -195,6 +197,8 @@ export function initDfmRatios() {
   });
   wireRatioSyncChannel();
   requestRatioStateSync();
+  startDfmMethodFileWatcher();
+  window.addEventListener("beforeunload", stopDfmMethodFileWatcher, { once: true });
 
   window.addEventListener("arcrho:dataset-updated", handleDatasetUpdated);
 

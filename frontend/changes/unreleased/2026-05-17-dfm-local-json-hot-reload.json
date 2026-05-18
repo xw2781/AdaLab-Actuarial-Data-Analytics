@@ -1,0 +1,8 @@
+{
+  "summary": "Reload active DFM pages when local method JSON changes on disk.",
+  "details": [
+    "DFM tabs now watch the active local method JSON file and automatically apply external disk edits when the page is clean, so ArcBot or hand-edited JSON changes show in the GUI without reopening the tab.",
+    "Externally changed Ratios exclusion cells and Average Formula selection cells briefly flash blue after reload so users can see which GUI cells were changed by API editing.",
+    "If the DFM page has unsaved in-app edits, external disk changes do not overwrite the GUI state; the status bar warns the user to save or reload deliberately."
+  ]
+}

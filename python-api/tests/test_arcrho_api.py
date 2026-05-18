@@ -65,14 +65,13 @@ class ArcRhoApiTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(dir=r"C:\tmp")
         self.root = Path(self.tmp.name) / "ArcRho Server"
         self.project_dir = self.root / "projects" / "Demo"
-        self.methods_dir = self.project_dir / "methods"
-        self.methods_dir.mkdir(parents=True)
         self.data_dir = self.project_dir / "data"
-        self.data_dir.mkdir()
-        self.method_path = self.methods_dir / dfm_filename(r"Auto\PP", "Paid DFM")
-        self.input_csv = self.data_dir / "input.csv"
+        self.rc_data_dir = self.data_dir / "Auto^PP"
+        self.rc_data_dir.mkdir(parents=True)
+        self.method_path = self.rc_data_dir / dfm_filename("Paid DFM")
+        self.input_csv = self.rc_data_dir / "input.csv"
         self.input_csv.write_text("10,20,30\n11,22,\n12,,\n", encoding="utf-8")
-        self.ultimate_csv = self.data_dir / "ultimate.csv"
+        self.ultimate_csv = self.rc_data_dir / "ultimate.csv"
         self.ultimate_csv.write_text("100\n200\n300\n", encoding="utf-8")
         payload = sample_payload()
         payload["data tab"]["input data triangle csv path"] = str(self.input_csv)
@@ -89,23 +88,27 @@ class ArcRhoApiTests(unittest.TestCase):
         refs = project.rebuild_dfm_index()
         self.assertEqual(len(refs), 1)
         self.assertEqual(refs[0].name, "Paid DFM")
-        index = json.loads((self.methods_dir / "dfm_method_index.json").read_text(encoding="utf-8"))
+        index = json.loads((self.data_dir / "dfm_method_index.json").read_text(encoding="utf-8"))
         self.assertEqual(index["methods"], [{"path": "Auto^PP", "name": "Paid DFM"}])
 
     def test_dfm_helpers_preserve_unknown_fields(self) -> None:
         dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
         dfm.clear()
         dfm.ex_COVID_AY()
+        dfm.ex_AY(2020, "exclude accident year")
         dfm.ex_hi(1, 1, "high ratio")
         dfm.select_low(2, 1)
         dfm.set_selected_estimate("Simple - 3", "all")
         dfm.set_user_value(1.25, 2)
         dfm.add_notes("reviewed")
         dfm.save()
-        saved = json.loads(self.method_path.read_text(encoding="utf-8"))
+        saved_text = self.method_path.read_text(encoding="utf-8")
+        saved = json.loads(saved_text)
         self.assertEqual(saved["unknown section"], {"preserve": True})
         self.assertNotIn("input data triangle values", saved["data tab"])
         self.assertNotIn("ultimate vector", saved["results tab"])
+        self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1], [1, 1])
+        self.assertIn("[1, 1]", saved_text)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][1][0], 1)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][2][1], 1)
         self.assertIn("reviewed", saved["notes tab"]["notes"])
@@ -127,7 +130,7 @@ class ArcRhoApiTests(unittest.TestCase):
             development_length=12,
         )
         dfm.save()
-        self.assertTrue((self.methods_dir / dfm_filename(r"Auto\PP", "New DFM")).exists())
+        self.assertTrue((self.rc_data_dir / dfm_filename("New DFM")).exists())
 
     def test_migration_session(self) -> None:
         session = ArcRhoSession(self.root)
@@ -158,6 +161,35 @@ class ArcRhoApiTests(unittest.TestCase):
         )
         with self.assertRaises(DfmDataError):
             dfm.ex_hi(1)
+
+    def test_apply_adjustments_uses_col_growth_values(self) -> None:
+        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        dfm.update_details(output_vector="Claim Counts--CWP")
+        dfm.set_selected_estimate("Simple - 3")
+        dfm.apply_adjustments()
+        self.assertEqual(dfm.selected_average_label(1), "User Entry")
+        self.assertEqual(dfm.selected_average_label(2), "Simple - 3")
+        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2862, places=4)
+        self.assertAlmostEqual(dfm.selected_ratio(2) or 0, 1.3, places=4)
+        self.assertIn("Apply growth adjustments of 1+5.08% = 1.0508", dfm.notes)
+        self.assertIn("Apply accounting cutoff 1+2.00% = 1.0200", dfm.notes)
+        self.assertIn('Selected average factor: "Simple - 3" (1.2000)', dfm.notes)
+
+    def test_save_uses_row_compact_json_and_trims_triangle_rows(self) -> None:
+        payload = sample_payload()
+        payload["ratios tab"]["ratio triangle"]["ratio values"] = [[1.2, None, None]]
+        payload["ratios tab"]["ratio triangle"]["excluded"] = [[1, 0, 2, 2]]
+        payload["ratios tab"]["average formulas"]["values"] = [[1.2, None], [None, None], [1.3, None]]
+        self.method_path.write_text(json.dumps(payload), encoding="utf-8")
+        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        dfm.save()
+        saved_text = self.method_path.read_text(encoding="utf-8")
+        saved = json.loads(saved_text)
+        self.assertEqual(saved["ratios tab"]["ratio triangle"]["ratio values"], [[1.2]])
+        self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"], [[1]])
+        self.assertEqual(saved["ratios tab"]["average formulas"]["values"], [[1.2], [], [1.3]])
+        self.assertIn("[1.2]", saved_text)
+        self.assertIn("[1]", saved_text)
 
 
 if __name__ == "__main__":
