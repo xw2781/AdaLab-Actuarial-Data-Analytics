@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "ui",
+  "audience": "user",
+  "summary": "Fixed floating tab window corner borders.",
+  "details": [
+    "Floating tab pop-out windows now draw a complete rounded border at the top-left and top-right corners."
+  ]
+}

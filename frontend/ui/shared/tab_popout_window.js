@@ -99,6 +99,15 @@ export function createTabPopoutManager(config = {}) {
         color: #1f2937;
         font-family: var(--${cssPrefix}-font, var(--app-font, "Segoe UI", Tahoma, Arial, sans-serif));
       }
+      .${windowClass}.tabPopoutWindow::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border: 1px solid #aebbd0;
+        border-radius: 7px;
+        pointer-events: none;
+        z-index: 5;
+      }
       .${windowClass}.tabPopoutWindow.tabPopoutMaximized {
         border-radius: 6px;
       }
