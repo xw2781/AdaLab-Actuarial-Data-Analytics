@@ -56,6 +56,11 @@ def cmd_component(args: argparse.Namespace) -> int:
     return _json_out(payload)
 
 
+def cmd_inspect(args: argparse.Namespace) -> int:
+    dfm = _load(args)
+    return _json_out(dfm.agent_inspect(include=args.include, origins=args.origin))
+
+
 def cmd_ratio_row(args: argparse.Namespace) -> int:
     dfm = _load(args)
     return _json_out(dfm.ratio_row(args.origin))
@@ -138,6 +143,20 @@ def build_parser() -> argparse.ArgumentParser:
     component = sub.add_parser("component", help="Return one DFM component.")
     component.add_argument("name", help="data-triangle, ratio-triangle, average-formulas, or ultimate-vector.")
     component.set_defaults(func=cmd_component)
+
+    inspect = sub.add_parser("inspect", help="Return one bundled DFM inspection payload.")
+    inspect.add_argument(
+        "--include",
+        default="summary,average-formulas",
+        help="Comma-separated components: summary, data-triangle, ratio-triangle, average-formulas, ultimate-vector.",
+    )
+    inspect.add_argument(
+        "--origin",
+        action="append",
+        default=[],
+        help="Origin label or 1-based row number to include as a ratio row. Can be repeated or comma-separated.",
+    )
+    inspect.set_defaults(func=cmd_inspect)
 
     ratio_row = sub.add_parser("ratio-row", help="Return one ratio row with exclusion flags.")
     ratio_row.add_argument("--origin", required=True, help="Origin label or 1-based row number.")

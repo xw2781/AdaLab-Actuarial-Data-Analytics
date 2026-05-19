@@ -30,6 +30,7 @@ let ratioBasisProgrammaticUpdate = false;
 let ultimateRatioDecimalProgrammaticUpdate = false;
 let ratioBasisOptionsRenderedProjectKey = "";
 const ratioBasisOptionsByProject = new Map();
+const ratioBasisOptionsInFlightByProject = new Map();
 const ratioBasisColumnCache = new Map();
 let ratioBasisColumnState = {
   requestKey: "",
@@ -195,27 +196,41 @@ async function ensureRatioBasisOptionsForCurrentProject(options = {}) {
     return cached;
   }
 
+  if (!options?.forceReload && ratioBasisOptionsInFlightByProject.has(projectKey)) {
+    return ratioBasisOptionsInFlightByProject.get(projectKey);
+  }
+
   const seq = ++ratioBasisOptionsLoadSeq;
   if (toText(getRatioBasisInputEl()?.value)) {
     setRatioBasisStatus("Loading ratio-basis options...", "loading");
   }
 
-  const response = await fetch(`/dataset_types?project_name=${encodeURIComponent(projectName)}`);
-  if (!response.ok) {
-    let detail = "";
-    try {
-      detail = toText(await response.text());
-    } catch {}
-    throw new Error(detail || `Failed to load dataset types (${response.status})`);
-  }
-  const payload = await response.json().catch(() => ({}));
-  const rows = extractRatioBasisDatasetOptions(payload?.data || {});
-  ratioBasisOptionsByProject.set(projectKey, rows);
+  const loadPromise = (async () => {
+    const response = await fetch(`/dataset_types?project_name=${encodeURIComponent(projectName)}`);
+    if (!response.ok) {
+      let detail = "";
+      try {
+        detail = toText(await response.text());
+      } catch {}
+      throw new Error(detail || `Failed to load dataset types (${response.status})`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const rows = extractRatioBasisDatasetOptions(payload?.data || {});
+    ratioBasisOptionsByProject.set(projectKey, rows);
 
-  if (seq === ratioBasisOptionsLoadSeq && normalizeKey(getResolvedProjectName()) === projectKey) {
-    renderRatioBasisDatalist(projectKey, rows);
+    if (seq === ratioBasisOptionsLoadSeq && normalizeKey(getResolvedProjectName()) === projectKey) {
+      renderRatioBasisDatalist(projectKey, rows);
+    }
+    return rows;
+  })();
+  ratioBasisOptionsInFlightByProject.set(projectKey, loadPromise);
+  try {
+    return await loadPromise;
+  } finally {
+    if (ratioBasisOptionsInFlightByProject.get(projectKey) === loadPromise) {
+      ratioBasisOptionsInFlightByProject.delete(projectKey);
+    }
   }
-  return rows;
 }
 
 function findRatioBasisOption(projectName, datasetName) {

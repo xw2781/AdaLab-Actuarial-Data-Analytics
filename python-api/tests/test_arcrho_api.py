@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from arcrho_api import ArcRhoClient, DfmDataError, ReadOnlyError
+import arcrho_api.config as api_config
+from arcrho_api.agent import main as agent_main
+from arcrho_api import ArcRhoClient, DfmDataError, ReadOnlyError, get_config_path, get_server_root, set_server_root
 from arcrho_api.paths import dfm_filename
 from arcrho_api.migration import ArcRhoSession
 
@@ -47,7 +53,6 @@ def sample_payload() -> dict:
                 "selected": [[0, 0], [0, 0], [0, 0]],
                 "values": [[1.0, 1.0], [1.2, 1.3], [None, None]],
             },
-            "percent developed curve": {"x-axis label": "Development Month", "selected curves": []},
         },
         "results tab": {
             "ratio basis dataset": "",
@@ -91,7 +96,38 @@ class ArcRhoApiTests(unittest.TestCase):
         index = json.loads((self.data_dir / "dfm_method_index.json").read_text(encoding="utf-8"))
         self.assertEqual(index["methods"], [{"path": "Auto^PP", "name": "Paid DFM"}])
 
+    def test_default_server_root_uses_host_workspace_config(self) -> None:
+        original_root = api_config._server_root
+        with tempfile.TemporaryDirectory(dir=r"C:\tmp") as appdata, patch.dict(os.environ, {"APPDATA": appdata}, clear=False):
+            try:
+                config_path = Path(appdata) / "ArcRho" / "workspace_paths.json"
+                config_path.parent.mkdir(parents=True)
+                config_path.write_text(json.dumps({"workspace_root": str(self.root)}), encoding="utf-8")
+                api_config._server_root = None
+                self.assertEqual(get_server_root(), self.root.resolve())
+                self.assertEqual(ArcRhoClient().server_root, self.root.resolve())
+                self.assertEqual(get_config_path(), config_path)
+            finally:
+                api_config._server_root = original_root
+
+    def test_set_server_root_writes_host_workspace_config(self) -> None:
+        original_root = api_config._server_root
+        with tempfile.TemporaryDirectory(dir=r"C:\tmp") as appdata, patch.dict(os.environ, {"APPDATA": appdata}, clear=False):
+            try:
+                api_config._server_root = None
+                config_path = Path(appdata) / "ArcRho" / "workspace_paths.json"
+                configured = set_server_root(self.root)
+                self.assertEqual(configured, self.root.resolve())
+                saved = json.loads(config_path.read_text(encoding="utf-8"))
+                self.assertEqual(saved["workspace_root"], str(self.root.resolve()))
+                self.assertEqual(saved["paths"], {"projects_dir": "projects", "requests_dir": "requests"})
+            finally:
+                api_config._server_root = original_root
+
     def test_dfm_helpers_preserve_unknown_fields(self) -> None:
+        payload = json.loads(self.method_path.read_text(encoding="utf-8"))
+        payload["ratios tab"]["percent developed curve"] = {"x-axis label": "Development Month", "selected curves": []}
+        self.method_path.write_text(json.dumps(payload), encoding="utf-8")
         dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
         dfm.clear()
         dfm.ex_COVID_AY()
@@ -106,6 +142,7 @@ class ArcRhoApiTests(unittest.TestCase):
         saved = json.loads(saved_text)
         self.assertEqual(saved["unknown section"], {"preserve": True})
         self.assertNotIn("input data triangle values", saved["data tab"])
+        self.assertNotIn("percent developed curve", saved["ratios tab"])
         self.assertNotIn("ultimate vector", saved["results tab"])
         self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1], [1, 1])
         self.assertIn("[1, 1]", saved_text)
@@ -140,7 +177,11 @@ class ArcRhoApiTests(unittest.TestCase):
         self.assertEqual(dfm.name, "Paid DFM")
 
     def test_csv_backed_components_and_agent_edits(self) -> None:
-        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        rc = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP")
+        self.assertEqual(rc.list_datasets(), ["input", "ultimate"])
+        self.assertEqual(rc.dataset_path("input"), self.input_csv)
+        self.assertEqual(rc.read_triangle("input")[0], [10.0, 20.0, 30.0])
+        dfm = rc.dfm("Paid DFM")
         self.assertEqual(dfm.input_data_triangle()[0], [10.0, 20.0, 30.0])
         self.assertEqual(dfm.ultimate_vector(), [100.0, 200.0, 300.0])
         summary = dfm.agent_summary()
@@ -149,6 +190,27 @@ class ArcRhoApiTests(unittest.TestCase):
         saved = json.loads(self.method_path.read_text(encoding="utf-8"))
         self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1][0], 1)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][1][1], 1)
+
+    def test_agent_inspect_bundles_summary_components_and_ratio_rows(self) -> None:
+        output = StringIO()
+        with redirect_stdout(output):
+            exit_code = agent_main([
+                "--file",
+                str(self.method_path),
+                "inspect",
+                "--include",
+                "summary,average-formulas,ratio-triangle",
+                "--origin",
+                "2020",
+            ])
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["api method"], "DfmMethod.agent_inspect")
+        self.assertEqual(payload["included"], ["summary", "average-formulas", "ratio-triangle"])
+        self.assertEqual(payload["components"]["summary"]["api method"], "DfmMethod.agent_summary")
+        self.assertEqual(payload["components"]["average formulas"]["api method"], "DfmMethod.average_formula_summary")
+        self.assertEqual(payload["components"]["ratio triangle"]["values"][0], [1.1, 1.2])
+        self.assertEqual(payload["ratio rows"][0]["origin label"], "2020")
 
     def test_missing_ratio_data_raises(self) -> None:
         rc = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP")

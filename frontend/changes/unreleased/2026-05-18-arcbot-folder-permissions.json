@@ -1,0 +1,6 @@
+{
+  "summary": "Add ArcBot readable folder permissions.",
+  "details": [
+    "ArcBot settings now include a Folder Permissions page where users can add or remove extra local folders that warm ArcBot requests may read, in addition to the configured Server Connection root."
+  ]
+}

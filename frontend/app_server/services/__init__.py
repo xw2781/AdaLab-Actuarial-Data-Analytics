@@ -12,7 +12,6 @@ from . import field_mapping_service
 from . import dfm_rpc_bridge_service
 from . import dfm_method_index_service
 from . import project_user_preferences_service
-from . import debug_trace_service
 
 __all__ = [
     "workflow_service",
@@ -29,5 +28,4 @@ __all__ = [
     "dfm_rpc_bridge_service",
     "dfm_method_index_service",
     "project_user_preferences_service",
-    "debug_trace_service",
 ]

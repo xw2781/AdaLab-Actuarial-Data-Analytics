@@ -30,7 +30,6 @@
     "Project instance dataset table column labels now sort rows by that column when clicked and show an up/down SVG indicator for the active sort order.",
     "Project instance dataset table rendering now precomputes row cell values, filter option lists, and active filter selections once per render so grouping, filtering, and sorting respond faster on project instance tabs.",
     "Project instance tabs now show one centered Dataset-style loading animation while the reserving-class path tree and dataset table are loading.",
-    "Project instance tabs now write local debug trace logs for startup, fetch timings, path-tree loading, and dataset-table rendering so slow project-instance loads can be diagnosed from `%APPDATA%\\ArcRho\\debug_logs`.",
     "Project instance tabs initialize the selected reserving-class path from the project's last-used path, falling back to the first Shortcut item when no last-used path is available.",
     "Dataset viewer windows keep move and resize tracking smooth over embedded iframe content by adding a temporary drag shield.",
     "The project instance toolbar uses a compact height, shows only the selected reserving-class path without a duplicate selected-path strip in the left panel, uses larger selected-path text for readability, and caps the path label width so more minimized tabs can fit on the right.",

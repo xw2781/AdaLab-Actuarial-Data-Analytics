@@ -368,10 +368,21 @@ Excluded from phase one:
 
 ### Path Resolution
 
-The client should accept an explicit server root first:
+The client accepts an explicit server root for one-off use:
 
 ```python
 ArcRhoClient(r"E:\ArcRho Server")
+```
+
+The public module also resolves a default server root from the ArcRho host app config file at `%APPDATA%\ArcRho\workspace_paths.json`. The API does not scan drives or maintain a separate Python-only default.
+
+Users can inspect or persist the default root:
+
+```python
+from arcrho_api import ArcRhoClient, get_server_root, set_server_root
+
+set_server_root(r"E:\ArcRho Server")
+client = ArcRhoClient()
 ```
 
 The client should be read/write by default, but writes must be explicit. In-memory mutations such as `dfm.clear()` or `dfm.set_selected_average(...)` should not touch disk until `dfm.save()` is called.
@@ -383,12 +394,6 @@ ArcRhoClient(r"E:\ArcRho Server", read_only=True)
 ```
 
 In `read_only=True`, save and destructive write operations should raise a clear package-specific error.
-
-Optional auto-discovery can be added later, but phase one should avoid hidden path guessing. If auto-discovery is implemented, it must be explicit:
-
-```python
-ArcRhoClient.discover()
-```
 
 ### DFM Filename Rules
 

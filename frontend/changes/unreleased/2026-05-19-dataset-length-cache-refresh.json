@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Include period lengths in Dataset triangle cache filenames.",
+  "details": [
+    "ArcRhoTri CSV caches now include Origin Length and Development Length in the filename, for example `Claim Counts--CWP@12@12.csv`, so different length selections keep separate cached data.",
+    "Changing Dataset period lengths now uses the matching length-specific cache instead of forcing a clear-cache reload."
+  ]
+}

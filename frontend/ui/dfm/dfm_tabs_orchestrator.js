@@ -14,8 +14,6 @@ import {
   setCurrentDfmTab,
   getCurrentDfmTab,
   getDfmIsDirty,
-  isRatiosTabVisible,
-  isResultsTabVisible,
   notifyDfmEditState,
   buildRatioSavePath,
 } from "/ui/dfm/dfm_state.js";
@@ -54,6 +52,7 @@ import {
 } from "/ui/dfm/dfm_persistence.js?v=20260517a";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
 import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js?v=20260514a";
+import { wireDfmTabPopoutWindows } from "/ui/dfm/dfm_tab_popout_window.js";
 
 const DEFAULT_TOKEN = "__DEFAULT__";
 
@@ -75,13 +74,17 @@ function getDfmInputSnapshotSafe() {
 }
 
 function handleDatasetUpdated() {
-  if (isRatiosTabVisible()) renderRatioTable();
-  if (isResultsTabVisible()) renderResultsTable();
+  refreshDfmTabContent("dataset-updated");
+}
+
+function refreshDfmTabContent(reason = "") {
+  renderRatioTable();
+  renderResultsTable();
   syncMethodNameFromInputs();
   syncOutputTypeFromProject();
   updatePathBar();
   if (!getDfmIsDirty()) {
-    scheduleRatioSelectionLoad("dataset-updated");
+    scheduleRatioSelectionLoad(reason || "dfm-refresh");
   }
   if (isRatioChartOpen()) scheduleRatioChartRender();
 }
@@ -174,6 +177,13 @@ function initDfmTabs() {
   });
 
   window.dfmTabSystem = tabSystem;
+  wireDfmTabPopoutWindows({
+    onPopoutTab: (tabId) => {
+      if (tabId === "ratios") renderRatioTable();
+      if (tabId === "results") renderResultsTable();
+      notifyDfmEditState();
+    },
+  });
 }
 
 export function initDfmRatios() {
@@ -215,6 +225,7 @@ export function initDfmRatios() {
     syncOutputTypeFromProject({ forceReload: true });
     updatePathBar();
   }
+  refreshDfmTabContent("dfm-open");
 
   window.addEventListener("message", (e) => {
     /* Respond to workflow requesting DFM step settings for snapshot */
@@ -273,7 +284,11 @@ export function initDfmRatios() {
       scheduleRatioSelectionLoad("assistant-edit");
       return;
     }
-    if (e?.data?.type === "arcrho:dfm-request-state" || e?.data?.type === "arcrho:dfm-tab-activated") {
+    if (e?.data?.type === "arcrho:dfm-request-state") {
+      notifyDfmEditState();
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-tab-activated") {
       notifyDfmEditState();
       return;
     }

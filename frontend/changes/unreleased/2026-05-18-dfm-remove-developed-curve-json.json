@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Stopped saving unused % Developed Curve settings in DFM method JSON.",
+  "details": [
+    "DFM saves and Python API writes no longer include the display-only percent developed curve section under the Ratios tab."
+  ]
+}

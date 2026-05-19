@@ -14,7 +14,7 @@ from .reserving_class import ReservingClass
 class ArcRhoSession:
     """Context-bound helper that mimics legacy notebook access style."""
 
-    def __init__(self, server_root: str | Path, *, read_only: bool = False) -> None:
+    def __init__(self, server_root: str | Path | None = None, *, read_only: bool = False) -> None:
         self.client = ArcRhoClient(server_root, read_only=read_only)
         self._project: Project | None = None
         self._reserving_class: ReservingClass | None = None
@@ -47,4 +47,3 @@ class ArcRhoSession:
 
     def new_DFM(self, name: str, **details: Any):
         return self.reserving_class.new_dfm(name, **details)
-

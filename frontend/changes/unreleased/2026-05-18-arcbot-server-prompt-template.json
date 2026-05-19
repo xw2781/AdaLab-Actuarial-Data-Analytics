@@ -1,0 +1,6 @@
+{
+  "summary": "Load ArcBot's shared prompt from the server root.",
+  "details": [
+    "ArcBot now reads config\\arcbot_prompt.md from the configured Server Connection root and seeds that file from the bundled default prompt when it is missing, allowing teams to share and update ArcBot behavior instructions without rebuilding the app."
+  ]
+}

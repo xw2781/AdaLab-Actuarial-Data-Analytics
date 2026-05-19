@@ -70,6 +70,8 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
     function_name = ""
     reserving_class = ""
     dataset_name = ""
+    origin_length = ""
+    development_length = ""
     values = []
     for k, v in pairs:
         key = (k or "").strip().lower()
@@ -85,6 +87,12 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
         elif key in {"datasetname", "trianglename"}:
             dataset_name = value
             values.append(value)
+        elif key == "originlength":
+            origin_length = value
+            values.append(value)
+        elif key == "developmentlength":
+            development_length = value
+            values.append(value)
         else:
             values.append(value)
 
@@ -96,6 +104,10 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
     if function_name.strip().lower() == "arcrhotri" and reserving_class and dataset_name:
         rc_folder = sanitize_reserving_class_folder(reserving_class)
         dataset_file = sanitize_dataset_file_name(dataset_name)
+        if origin_length and development_length:
+            origin_part = sanitize_dataset_file_name(origin_length, "OriginLength")
+            dev_part = sanitize_dataset_file_name(development_length, "DevelopmentLength")
+            dataset_file = f"{dataset_file}@{origin_part}@{dev_part}"
         return os.path.join(project_data_dir, rc_folder, f"{dataset_file}.csv")
 
     full_name = "@".join(values)

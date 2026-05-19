@@ -1,0 +1,6 @@
+{
+  "summary": "Give ArcBot default read access to the configured server folder.",
+  "details": [
+    "Warm ArcBot requests now include the app's configured Server Connection root as a readable sandbox root while preserving the existing scoped write/apply flow."
+  ]
+}

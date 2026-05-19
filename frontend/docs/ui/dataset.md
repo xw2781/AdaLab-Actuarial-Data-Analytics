@@ -77,6 +77,7 @@ Detected `arcrho:*` message types in key JS files:
 - Stores latest browsing history entries via `browsing_history.js` (project + reserving class + dataset).
 - Rejects invalid typed values on change/Enter and blocks ArcRhoTri requests until all 3 inputs are valid.
 - On Dataset page open, bypasses the browser-side header-label cache once and refreshes origin/development labels for the selected project and period lengths before the Data grid renders; normal dataset reloads also refresh labels before applying them to the model.
+- ArcRhoTri CSV cache files include Origin Length and Development Length in the filename, for example `Claim Counts--CWP@12@12.csv`, so changing period lengths loads or creates the matching length-specific cache instead of overwriting another length's data.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

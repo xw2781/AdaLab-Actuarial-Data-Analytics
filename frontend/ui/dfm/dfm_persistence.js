@@ -71,10 +71,6 @@ import {
   recordCurrentDfmObjectSnapshot,
   refreshDfmMethodIndex,
 } from "/ui/dfm/dfm_startup_state.js";
-import {
-  applySavedPercentDevelopedCurveSettings,
-  getPercentDevelopedCurveSettings,
-} from "/ui/dfm/dfm_percent_developed_curve_window.js?v=20260514e";
 
 let ratioLoadTimer = null;
 let ratioLoadPendingReason = "";
@@ -704,7 +700,6 @@ function buildDfmGroupedMethodPayload(methodPayload) {
   copyExistingField(data, "excluded", ratioTriangle);
   ratiosTab["ratio triangle"] = ratioTriangle;
   copyExistingField(data, "average formulas", ratiosTab);
-  copyExistingField(data, "percent developed curve", ratiosTab);
   const grouped = {
     "json format": DFM_METHOD_JSON_FORMAT,
     "details tab": copyExistingFields(data, [
@@ -770,7 +765,6 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     const formulas = getDfmAverageFormulaLabels(averageFormulas);
     const matrix = getDfmAverageFormulaSelectedIndex(averageFormulas);
     const averageFormulaValues = getDfmAverageFormulaValues(averageFormulas);
-    const percentDevelopedCurve = ratiosTab["percent developed curve"];
     const averageFormulaRows = buildDfmSummaryRowsFromAverageFormulaObject(averageFormulas);
     const resolvedSummary = buildDfmSummaryRowsFromAverageFormulas(averageFormulaRows, formulas);
     const summaryRows = hydrateUserEntryValuesFromAverageFormulaValues(
@@ -802,14 +796,12 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     setResultsUltimateRatioDecimalPlacesSelection(savedUltimateRatioDecimalPlaces, { silent: true, render: false });
     setDfmNotesText(notesText);
     await setResultsRatioBasisSelection(ratioBasisDataset, { silent: true, render: false });
-    applySavedPercentDevelopedCurveSettings(percentDevelopedCurve);
     if (Array.isArray(formulas) && Array.isArray(matrix)) {
       applyAverageSelectionFromSaved(formulas, matrix);
     }
   } else {
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
-    applySavedPercentDevelopedCurveSettings(null);
   }
 
   if (datasetInputsChanged) {
@@ -820,8 +812,8 @@ export async function applyDfmMethodPayload(payload, options = {}) {
   }
 
   if (applied && options.render !== false) {
-    if (isRatiosTabVisible()) renderRatioTable();
-    if (isResultsTabVisible()) renderResultsTable();
+    renderRatioTable();
+    renderResultsTable();
   }
   if (applied && options.markClean !== false) {
     markMethodSaved();
@@ -863,8 +855,8 @@ export async function loadRatioSelectionIfExists(reason) {
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
     clearMethodSavedFlag();
-    if (isRatiosTabVisible()) renderRatioTable();
-    if (isResultsTabVisible()) renderResultsTable();
+    renderRatioTable();
+    renderResultsTable();
     return;
   }
   emitDfmInstancePresence("found");
@@ -910,7 +902,6 @@ export function buildDfmMethodPayload(options = {}) {
   const ultimateRatioDecimalPlaces = getResultsUltimateRatioDecimalPlacesSelection();
   const cfgKey = getSummaryConfigKey();
   const summaryRows = getSummaryRowsForPersistence(cfgKey);
-  const percentDevelopedCurve = getPercentDevelopedCurveSettings();
   const data = {
     excluded: pattern,
     "origin labels": originLabels,
@@ -919,7 +910,6 @@ export function buildDfmMethodPayload(options = {}) {
     "input data triangle csv path": String(options?.inputTriangleCsvPath || ""),
     "ratio values": calculatedRatioTriangleValues,
     "average formulas": buildDfmAverageFormulaObject(summaryRows, avgSelection.matrix, averageFormulaValues),
-    "percent developed curve": percentDevelopedCurve,
     "ultimate vector csv path": String(options?.ultimateVectorCsvPath || ""),
     notes: notesText,
     name: methodName,
@@ -1303,8 +1293,8 @@ export async function loadDfmTemplate() {
     applyAverageSelectionFromSaved(formulas, matrix);
   }
 
-  if (isRatiosTabVisible()) renderRatioTable();
-  if (isResultsTabVisible()) renderResultsTable();
+  renderRatioTable();
+  renderResultsTable();
 
   window.parent.postMessage({ type: "arcrho:status", text: `Template loaded: ${filePath}` }, "*");
 }

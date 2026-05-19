@@ -1,0 +1,6 @@
+{
+  "summary": "Added an ArcBot AI disclaimer.",
+  "details": [
+    "ArcBot chats now show a small grey disclaimer at the top of the conversation reminding users that AI-powered responses can make mistakes and should be double-checked."
+  ]
+}

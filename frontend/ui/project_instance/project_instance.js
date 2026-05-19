@@ -93,14 +93,6 @@ let hiddenTabsMenuPinned = false;
 let minimizedTabTooltip = null;
 let pageLoadingFrameTimer = 0;
 let pageLoadingStartedAt = 0;
-const debugTraceSessionId = `pi_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-const debugTraceStartMs = performance.now();
-const debugTraceQueue = [];
-let debugTraceFlushTimer = 0;
-let debugTraceFlushInFlight = false;
-let debugTracePath = "";
-let debugTraceFetchWired = false;
-let debugTraceRawFetch = null;
 const datasetTableView = {
   groupBy: [],
   columns: DATASET_TABLE_COLUMNS.map((col) => col.key),
@@ -117,115 +109,6 @@ let datasetTableFilterAnchor = null;
 let datasetTableColumnDragStarted = false;
 let datasetGroupContextId = "";
 let datasetTableMeasureCanvas = null;
-
-function getDebugTraceElapsedMs() {
-  return Math.round((performance.now() - debugTraceStartMs) * 10) / 10;
-}
-
-function traceEvent(step, detail = {}) {
-  const safeStep = toText(step);
-  if (!safeStep) return;
-  debugTraceQueue.push({
-    step: safeStep,
-    elapsed_ms: getDebugTraceElapsedMs(),
-    page_url: window.location.href,
-    detail: detail && typeof detail === "object" ? detail : {},
-  });
-  scheduleDebugTraceFlush();
-}
-
-function scheduleDebugTraceFlush(delayMs = 200) {
-  if (debugTraceFlushTimer) return;
-  debugTraceFlushTimer = window.setTimeout(() => {
-    debugTraceFlushTimer = 0;
-    void flushDebugTrace("timer");
-  }, delayMs);
-}
-
-async function flushDebugTrace(reason = "manual") {
-  if (debugTraceFlushInFlight || !debugTraceQueue.length) return;
-  const fetchImpl = debugTraceRawFetch || window.fetch;
-  if (typeof fetchImpl !== "function") return;
-  const events = debugTraceQueue.splice(0, debugTraceQueue.length);
-  debugTraceFlushInFlight = true;
-  try {
-    const response = await fetchImpl("/debug_trace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: "project_instance",
-        session_id: debugTraceSessionId,
-        project_name: projectName,
-        events: [
-          {
-            step: "flush",
-            elapsed_ms: getDebugTraceElapsedMs(),
-            detail: { reason, count: events.length },
-          },
-          ...events,
-        ],
-      }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (payload?.path) debugTracePath = toText(payload.path);
-  } catch (err) {
-    console.warn("Failed to write project instance debug trace:", err);
-    debugTraceQueue.unshift(...events.slice(-100));
-  } finally {
-    debugTraceFlushInFlight = false;
-    if (debugTraceQueue.length) scheduleDebugTraceFlush(500);
-  }
-}
-
-function getFetchTraceUrl(input) {
-  if (typeof input === "string") return input;
-  if (input instanceof URL) return input.toString();
-  return toText(input?.url);
-}
-
-function installDebugTraceFetchLogger() {
-  if (debugTraceFetchWired || typeof window.fetch !== "function") return;
-  debugTraceFetchWired = true;
-  debugTraceRawFetch = window.fetch.bind(window);
-  window.fetch = async (input, init = undefined) => {
-    const url = getFetchTraceUrl(input);
-    const method = toText(init?.method || input?.method || "GET").toUpperCase();
-    const shouldTrace = !!url && !url.includes("/debug_trace");
-    const start = performance.now();
-    if (shouldTrace) {
-      traceEvent("fetch_start", { method, url });
-    }
-    try {
-      const response = await debugTraceRawFetch(input, init);
-      if (shouldTrace) {
-        traceEvent("fetch_end", {
-          method,
-          url,
-          status: response.status,
-          ok: response.ok,
-          duration_ms: Math.round((performance.now() - start) * 10) / 10,
-        });
-      }
-      return response;
-    } catch (err) {
-      if (shouldTrace) {
-        traceEvent("fetch_error", {
-          method,
-          url,
-          duration_ms: Math.round((performance.now() - start) * 10) / 10,
-          error: toText(err?.message || err),
-        });
-      }
-      throw err;
-    }
-  };
-  window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") void flushDebugTrace("visibility_hidden");
-  });
-  window.addEventListener("beforeunload", () => {
-    void flushDebugTrace("beforeunload");
-  });
-}
 
 async function applyHostFrameCornerStyle() {
   let isWin11 = false;
@@ -273,15 +156,12 @@ function saveLastSelectedPath(path) {
 
 async function loadLastSelectedPath() {
   if (!projectName) return "";
-  traceEvent("load_last_selected_path_start");
   try {
     const prefs = await loadProjectUserPreferences(projectName);
     const path = normalizePath(prefs?.lastReservingClassPath || prefs?.last_reserving_class_path || "");
-    traceEvent("load_last_selected_path_end", { hasPath: !!path, pathLength: path.length });
     return path;
   } catch (err) {
     console.warn("Failed to load last project instance path:", err);
-    traceEvent("load_last_selected_path_error", { error: toText(err?.message || err) });
     return "";
   }
 }
@@ -1346,13 +1226,9 @@ function autoFitDatasetTableColumn(key, colIndex) {
 
 function renderDatasetTable() {
   if (!els.datasetTableSurface) return;
-  const start = performance.now();
   if (!datasetRows.length) {
     els.datasetTableSurface.innerHTML = "";
     setEmptyTable("No dataset types are defined for this project.");
-    traceEvent("render_dataset_table_empty", {
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
     return;
   }
 
@@ -1362,25 +1238,12 @@ function renderDatasetTable() {
     const fragment = document.createDocumentFragment();
     fragment.appendChild(createDatasetTable([], context));
     els.datasetTableSurface.replaceChildren(fragment);
-    traceEvent("render_dataset_table_no_visible_rows", {
-      datasetRows: datasetRows.length,
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
     return;
   }
 
-  const groupKeys = getDatasetGroupByKeys();
   const fragment = document.createDocumentFragment();
   fragment.appendChild(createDatasetTable(records, context));
   els.datasetTableSurface.replaceChildren(fragment);
-  traceEvent("render_dataset_table_end", {
-    datasetRows: datasetRows.length,
-    visibleRows: records.length,
-    groups: groupKeys.length,
-    groupBy: groupKeys.join(","),
-    sortKey: datasetTableView.sort?.key || "",
-    duration_ms: Math.round((performance.now() - start) * 10) / 10,
-  });
 }
 
 function positionFixedMenu(el, x, y) {
@@ -1616,11 +1479,6 @@ function initDatasetTableInteractions() {
 
 function setSelectedPath(path, options = {}) {
   selectedPath = normalizePath(path);
-  traceEvent("set_selected_path", {
-    hasPath: !!selectedPath,
-    pathLength: selectedPath.length,
-    persist: options?.persist !== false,
-  });
   if (els.selectedPathText) {
     els.selectedPathText.textContent = selectedPath || "Select a reserving class path.";
     els.selectedPathText.title = selectedPath;
@@ -1658,21 +1516,17 @@ function getFirstShortcutPath() {
 }
 
 async function selectStartupFallbackPath() {
-  traceEvent("select_startup_fallback_start");
   await waitForPathTreeRender();
   if (selectedPath) {
     markPathTreeActive(selectedPath);
-    traceEvent("select_startup_fallback_skip", { reason: "selected_path_exists" });
     return;
   }
   const shortcutPath = getFirstShortcutPath();
   if (!shortcutPath) {
-    traceEvent("select_startup_fallback_skip", { reason: "no_shortcut_path" });
     return;
   }
   setSelectedPath(shortcutPath, { persist: false });
   markPathTreeActive(shortcutPath);
-  traceEvent("select_startup_fallback_end", { shortcutPathLength: shortcutPath.length });
 }
 
 function getLeftPanelMaxWidth() {
@@ -1802,8 +1656,6 @@ function initLeftPanelResizer() {
 
 async function loadPathTree() {
   if (!els.pathTree) return;
-  const start = performance.now();
-  traceEvent("load_path_tree_start");
   beginPageLoading("paths");
   if (!projectName) {
     els.pathTree.innerHTML = '<div class="ptree-empty">Project name is missing.</div>';
@@ -1816,7 +1668,6 @@ async function loadPathTree() {
     if (initialPath) {
       setSelectedPath(initialPath, { persist: false });
     }
-    traceEvent("open_lazy_reserving_class_picker_start", { hasInitialPath: !!initialPath });
     const result = await openLazyReservingClassPicker({
       projectName,
       inlineContainer: els.pathTree,
@@ -1837,31 +1688,17 @@ async function loadPathTree() {
     if (!result?.ok && !els.pathTree.querySelector(".ptree-window")) {
       els.pathTree.innerHTML = '<div class="ptree-empty">No reserving class paths found.</div>';
     }
-    traceEvent("open_lazy_reserving_class_picker_end", {
-      ok: !!result?.ok,
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
     await selectStartupFallbackPath();
-    traceEvent("load_path_tree_end", {
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-      treeRows: els.pathTree.querySelectorAll(".ptree-favorite-row, .ptree-folder, .ptree-leaf").length,
-    });
   } catch (err) {
     console.error("Failed to load reserving class paths:", err);
     els.pathTree.innerHTML = '<div class="ptree-empty">Failed to load reserving class paths.</div>';
     setStatus(toText(err?.message) || "Failed to load reserving class paths.", true);
-    traceEvent("load_path_tree_error", {
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-      error: toText(err?.message || err),
-    });
   } finally {
     finishPageLoading("paths");
   }
 }
 
 async function loadDatasets() {
-  const start = performance.now();
-  traceEvent("load_datasets_start");
   beginPageLoading("datasets");
   if (!projectName) {
     setEmptyTable("Project name is missing.");
@@ -1874,23 +1711,11 @@ async function loadDatasets() {
       ? fetched.data.rows.filter((row) => getDatasetName(row))
       : [];
     autoFitInitialDatasetTableWidths(datasetRows);
-    traceEvent("load_datasets_fetched", {
-      rows: datasetRows.length,
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
     renderDatasetTable();
-    traceEvent("load_datasets_end", {
-      rows: datasetRows.length,
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-    });
   } catch (err) {
     console.error("Failed to load dataset types:", err);
     setEmptyTable("Failed to load dataset types.");
     setStatus(toText(err?.message) || "Failed to load dataset types.", true);
-    traceEvent("load_datasets_error", {
-      duration_ms: Math.round((performance.now() - start) * 10) / 10,
-      error: toText(err?.message || err),
-    });
   } finally {
     finishPageLoading("datasets");
   }
@@ -2475,31 +2300,20 @@ window.addEventListener("message", (event) => {
 });
 
 async function boot() {
-  installDebugTraceFetchLogger();
-  traceEvent("boot_start", { projectName });
-  const bootStart = performance.now();
   await applyHostFrameCornerStyle();
   initHiddenTabsArea();
   initLeftPanelResizer();
   initDatasetTableInteractions();
   initDatasetWindowShortcuts();
   window.addEventListener("resize", syncMaximizedDatasetWindows);
-  traceEvent("boot_init_complete");
   if (!projectName) {
     setStatus("Project name is missing.", true);
     setEmptyTable("Project name is missing.");
     if (els.pathTree) els.pathTree.innerHTML = '<div class="ptree-empty">Project name is missing.</div>';
     finishPageLoading();
-    traceEvent("boot_error", { reason: "missing_project" });
-    await flushDebugTrace("missing_project");
     return;
   }
   await Promise.all([loadPathTree(), loadDatasets()]);
-  traceEvent("boot_end", {
-    duration_ms: Math.round((performance.now() - bootStart) * 10) / 10,
-    debugTracePath,
-  });
-  await flushDebugTrace("boot_end");
 }
 
 boot();

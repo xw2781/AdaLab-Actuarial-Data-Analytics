@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable as IterableABC, Sequence
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,6 +95,61 @@ def _ensure_matrix(container: dict[str, Any], key: str, rows: int, cols: int, fi
 
 def _normalize_label(value: Any) -> str:
     return " ".join(str(value if value is not None else "").split()).strip()
+
+
+def _split_agent_values(value: Iterable[Any] | Any | None) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    if isinstance(value, IterableABC):
+        out: list[Any] = []
+        for item in value:
+            out.extend(_split_agent_values(item))
+        return out
+    return [value]
+
+
+def _normalize_agent_inspect_include(include: Iterable[str] | str | None) -> list[str]:
+    aliases = {
+        "summary": "summary",
+        "info": "summary",
+        "data": "data-triangle",
+        "data-triangle": "data-triangle",
+        "input-data-triangle": "data-triangle",
+        "input": "data-triangle",
+        "ratio": "ratio-triangle",
+        "ratio-triangle": "ratio-triangle",
+        "ratio-values": "ratio-triangle",
+        "ratios": "ratio-triangle",
+        "average": "average-formulas",
+        "average-formulas": "average-formulas",
+        "avg": "average-formulas",
+        "ultimate": "ultimate-vector",
+        "ultimate-vector": "ultimate-vector",
+        "results": "ultimate-vector",
+    }
+    default = ["summary", "average-formulas"]
+    raw_items = _split_agent_values(include)
+    if not raw_items:
+        raw_items = default
+    out: list[str] = []
+    for item in raw_items:
+        key = str(item).strip().lower().replace("_", "-")
+        normalized = aliases.get(key)
+        if normalized and normalized not in out:
+            out.append(normalized)
+    return out or default
+
+
+def _normalize_agent_inspect_origins(origins: Iterable[int | str] | int | str | None) -> list[int | str]:
+    out: list[int | str] = []
+    for item in _split_agent_values(origins):
+        text = str(item).strip()
+        if not text:
+            continue
+        out.append(int(text) if text.isdigit() else text)
+    return out
 
 
 def _label_key(value: Any) -> str:
@@ -295,10 +350,6 @@ class DfmMethod:
                     "excluded": [],
                 },
                 "average formulas": _default_average_formulas(),
-                "percent developed curve": {
-                    "x-axis label": "Development Month",
-                    "selected curves": [],
-                },
             },
             "results tab": {
                 "ratio basis dataset": "",
@@ -505,6 +556,45 @@ class DfmMethod:
             "development labels": dev_labels,
             "values": row_values,
             "excluded": row_excluded,
+        }
+
+    def agent_inspect(
+        self,
+        include: Iterable[str] | str | None = None,
+        origins: Iterable[int | str] | int | str | None = None,
+    ) -> dict[str, Any]:
+        include_items = _normalize_agent_inspect_include(include)
+        origin_items = _normalize_agent_inspect_origins(origins)
+        components: dict[str, Any] = {}
+        if "summary" in include_items:
+            components["summary"] = self.agent_summary()
+        if "data-triangle" in include_items:
+            components["data triangle"] = {
+                "api method": "DfmMethod.input_data_triangle",
+                "values": self.input_data_triangle(),
+            }
+        if "ratio-triangle" in include_items:
+            components["ratio triangle"] = {
+                "api method": "DfmMethod.ratio_values",
+                "origin labels": self.ratio_triangle.get("origin labels") or [],
+                "development labels": self.ratio_triangle.get("development labels") or [],
+                "values": self.ratio_values(),
+                "excluded": self.ratio_triangle.get("excluded") or [],
+            }
+        if "average-formulas" in include_items:
+            components["average formulas"] = self.average_formula_summary()
+        if "ultimate-vector" in include_items:
+            components["ultimate vector"] = {
+                "api method": "DfmMethod.ultimate_vector",
+                "values": self.ultimate_vector(),
+            }
+        ratio_rows = [self.ratio_row(origin) for origin in origin_items]
+        return {
+            "api method": "DfmMethod.agent_inspect",
+            "file path": str(self.file_path),
+            "included": include_items,
+            "components": components,
+            "ratio rows": ratio_rows,
         }
 
     def average_formula_summary(self) -> dict[str, Any]:
@@ -1088,6 +1178,7 @@ class DfmMethod:
         ratios = _tab(self.payload, "ratios tab")
         _tab(ratios, "ratio triangle")
         _tab(ratios, "average formulas")
+        ratios.pop("percent developed curve", None)
         _tab(self.payload, "results tab")
         _tab(self.payload, "notes tab")
         _tab(self.payload, "method metadata")

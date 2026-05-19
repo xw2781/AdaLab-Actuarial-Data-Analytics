@@ -5,7 +5,7 @@
 ```python
 from arcrho_api import ArcRhoClient
 
-client = ArcRhoClient(r"E:\ArcRho Server")
+client = ArcRhoClient()
 project = client.project("Current Reserve Review")
 rc = project.reserving_class(r"Auto\Private Passenger")
 
@@ -14,6 +14,16 @@ dfm.clear()
 dfm.exclude_covid_years()
 dfm.set_selected_average("Simple - 3")
 dfm.save()
+```
+
+On import, the package reads the same server root used by the ArcRho host app from `%APPDATA%\ArcRho\workspace_paths.json`. You can still pass a root explicitly, or update the shared host config from Python:
+
+```python
+from arcrho_api import ArcRhoClient, get_server_root, set_server_root
+
+set_server_root(r"E:\ArcRho Server")
+print(get_server_root())
+client = ArcRhoClient()
 ```
 
 The package is read/write by default, but writes are explicit: mutations stay in memory until `save()` is called. Use `read_only=True` for audit/exploration workflows.
@@ -35,6 +45,12 @@ dfm = session.DFM("Paid Loss Ultimate")
 dfm.ex_COVID_AY()
 dfm.set_selected_estimate("Simple - 3")
 dfm.save()
+```
+
+ArcBot uses the same package through a compact command helper. For DFM inspection, prefer the bundled `inspect` command so summary, components, and optional ratio rows are returned in one call:
+
+```powershell
+python -m arcrho_api.agent --file active-method.json inspect --include summary,average-formulas,ratio-triangle --origin 2020
 ```
 
 ## Installing From ArcRho

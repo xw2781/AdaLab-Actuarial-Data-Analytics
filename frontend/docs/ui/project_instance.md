@@ -7,7 +7,7 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260517bd`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260518a`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
@@ -32,7 +32,6 @@ Detected `fetch(...)` targets in key JS files:
 <!-- MANUAL:BEGIN -->
 - Opened by shell as a `project_instance` iframe tab after Project Settings posts `arcrho:open-project-instance`.
 - Calls shared dataset-types and reserving-class picker helpers.
-- Writes best-effort startup and interaction timing traces to `/debug_trace`, which appends local JSONL logs under `%APPDATA%\ArcRho\debug_logs`.
 - Embeds the same lazy reserving-class picker body used by Dataset/DFM/Workflow, so the project instance left panel loads the same hierarchy, filters, hidden-path preferences, Shortcut section, favorites, and user-defined favorite folders.
 - The embedded reserving-class path tree uses tight horizontal padding with a small left inset and does not reserve two-sided scrollbar gutters, so more path text fits in the left panel.
 - Project instance loading shows one centered page-level loading card with the same blue sweep spinner style used by Dataset loading while the reserving-class path tree and dataset table load.

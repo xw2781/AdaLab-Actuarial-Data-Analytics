@@ -19,18 +19,20 @@ Phase one does not cover full dataset generation, Excel preview automation, RPC 
 ```python
 from arcrho_api import ArcRhoClient
 
-client = ArcRhoClient(r"E:\ArcRho Server")
+client = ArcRhoClient()
 project = client.project("Project Name")
 rc = project.reserving_class(r"Segment\Path")
 dfm = rc.dfm("Method Name")
 ```
+
+`ArcRhoClient()` uses the default server root from the ArcRho host app config file: `%APPDATA%\ArcRho\workspace_paths.json`. Use `set_server_root(path)` to update that shared host config, `get_server_root()` to inspect it, or pass `ArcRhoClient(path)` for a one-off explicit root.
 
 Legacy migration:
 
 ```python
 from arcrho_api.migration import ArcRhoSession
 
-session = ArcRhoSession(r"E:\ArcRho Server")
+session = ArcRhoSession()
 session.set_project("Project Name")
 session.set_reserving_class(r"Segment\Path")
 dfm = session.DFM("Method Name")
@@ -73,6 +75,17 @@ projects/<project>/data/<ReservingClassFolder>/<DatasetName>.csv
 ```
 
 The reserving-class filename component uses `^` for Windows-invalid filename characters. The method-name component uses `_` for invalid filename characters.
+
+## ArcBot Agent Helper
+
+ArcBot should prefer one bundled inspection call for DFM read/planning work:
+
+```powershell
+python -m arcrho_api.agent --file active-method.json inspect --include summary,average-formulas
+python -m arcrho_api.agent --file active-method.json inspect --include summary,average-formulas,ratio-triangle --origin 2020
+```
+
+The `inspect` command returns `DfmMethod.agent_inspect` with requested components and optional ratio rows in one JSON payload. Use edit helpers such as `exclude-ratio`, `include-ratio`, `select-average`, or `set-user-entry` only when modifying the temp file, then run `validate` after an edit. Avoid repeated `summary` or `component` reads in the same ArcBot turn.
 
 ## Testing
 

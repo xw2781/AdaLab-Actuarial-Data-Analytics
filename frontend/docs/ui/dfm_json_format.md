@@ -11,9 +11,8 @@ Top-level sections:
 - `json format`: currently `arcrho-dfm-method-by-tab-v1`.
 - `details tab`: `name`, `output type`, `input triangle`, `origin length`, `development length`, and `decimal places`.
 - `data tab`: `origin labels`, raw Data-tab `development labels` such as `2m` and `14m`, `input data triangle values`, and `input data triangle csv path`.
-- `ratios tab`: `ratio triangle`, `average formulas`, and `percent developed curve`.
+- `ratios tab`: `ratio triangle` and `average formulas`.
 - `ratios tab`.`ratio triangle`: `origin labels`, GUI-display Ratios-tab `development labels` such as `(1) 2-14`, `ratio values`, and `excluded`.
-- `ratios tab`.`percent developed curve`: `% Developed Curve` display settings, including `x-axis label` and `selected curves`. Each selected curve stores the segment label, endpoint `x-axis value`, internal `curve type`, and display `curve name`.
 - `results tab`: `ratio basis dataset`, `ultimate ratio decimal places`, and `ultimate vector`.
 - `notes tab`: `notes`.
 - `method metadata`: `last modified`.
@@ -44,10 +43,6 @@ These analysis snapshots are ignored when restoring editable method selections. 
 ## Average Formula Space Savings
 
 The former `average formulas` label list, `summary rows` metadata list, `average index`, and `average formula values` are combined under one `ratios tab`.`average formulas` object. Formula metadata is grouped under `custom average formula settings` to keep identity/selection/value arrays separate from custom formula configuration, while keeping the row order explicit through `label`.
-
-## Percent Developed Curve Settings
-
-The `% Developed Curve` window persists chart display settings under `ratios tab`.`percent developed curve`. The `x-axis label` is currently `Development Month`. The `selected curves` array follows the displayed ratio development segments and records each segment's selected curve name/type so reopening a saved method can preselect the same curve choices. Prior-project curve overlays are temporary chart comparisons and are not persisted in the DFM method JSON.
 
 ## ArcBot Active Context
 

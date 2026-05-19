@@ -20,6 +20,7 @@ let latestSessionList = [];
 let assistantMode = "edit";
 let assistantModel = "codex";
 let assistantReasoningEffort = "high";
+let assistantReadableRoots = [];
 const ASSISTANT_LAUNCHER_VISIBLE_KEY = "arcrho_ai_assistant_launcher_visible";
 const ASSISTANT_LAUNCHER_POSITION_KEY = "arcrho_ai_assistant_launcher_position";
 const ASSISTANT_PANEL_SIZE_KEY = "arcrho_ai_assistant_panel_size";
@@ -208,10 +209,19 @@ function renderMessages() {
   container.textContent = "";
   currentWorkCardEl = null;
   assistantWorkCardExpanded = false;
+  appendAssistantDisclaimer(container);
   for (const message of assistantMessages) {
     appendMessage(message.role, message.content, { save: false });
   }
   renderActivities();
+}
+
+function appendAssistantDisclaimer(container) {
+  if (!container) return;
+  const notice = document.createElement("div");
+  notice.className = "aiAssistantDisclaimer";
+  notice.textContent = "ArcBot is AI-powered and can make mistakes. Double-check important responses.";
+  container.appendChild(notice);
 }
 
 function formatElapsed(ms) {
@@ -345,29 +355,54 @@ function formatAssistantActivityForCard(text, event = {}) {
   if (!raw) return "";
   const apiMatch = raw.match(/ArcBot is using the ArcRho Python API:\s*([^.\n]+)\.?/i) ||
     raw.match(/"api method"\s*:\s*"([^"]+)"/i);
-  if (apiMatch) return `Using ArcRho Python API: ${apiMatch[1].trim()}.`;
+  if (apiMatch) return formatArcRhoPythonApiActivity(apiMatch[1], targetKind);
+  if (lower.includes("arcbot is bundling the active dfm method details")) return raw;
+  if (lower.includes("arcbot is reading the active dfm method summary")) return raw;
+  if (lower.includes("arcbot is inspecting a dfm method component")) return raw;
+  if (lower.includes("arcbot is reading ratio-row details")) return raw;
+  if (lower.includes("arcbot is marking selected ratio cells")) return raw;
+  if (lower.includes("arcbot is restoring selected ratio cells")) return raw;
+  if (lower.includes("arcbot is updating the selected average formula")) return raw;
+  if (lower.includes("arcbot is setting a user-entered selected factor")) return raw;
+  if (lower.includes("arcbot is checking that the proposed dfm update is valid")) return raw;
   if (lower.includes("checking latest arcbot edit history")) return "Looking up the latest ArcBot edit so it can be reverted safely.";
   if (lower.includes("resolving arcbot project")) return "Preparing the local ArcBot workspace and checking the configured server root.";
+  if (lower.includes("arcbot can read the configured folders")) return "ArcBot can read the configured folders for this request.";
+  if (lower.includes("arcbot can read the configured server root")) return "ArcBot can read the configured server folder for this request.";
   if (lower.includes("checking active json")) return `Checking read/write access for the active ${targetKind}.`;
   if (lower.includes("creating editable local json")) return `Creating a temporary editable copy of the active ${targetKind}.`;
   if (lower.includes("context estimate")) return formatAssistantUsageStatus(event.usage || currentUsage);
-  if (lower.includes("starting warm codex session")) return `Sending the request to Codex in ${modeLabel} for "${contextTitle}".`;
-  if (lower.includes("warm codex session accepted")) return "Codex accepted the request and is starting the turn.";
-  if (lower.includes("warm codex session unavailable")) return "The warm Codex session was unavailable, so ArcBot is falling back to a one-shot CLI request.";
-  if (lower.includes("starting codex cli")) return "Starting Codex CLI with the prepared request context.";
-  if (lower.includes("codex is drafting")) return "Codex is writing the response.";
-  if (lower.includes("codex is running a command")) return `Codex is running a local check in the ArcBot workspace for the active ${contextKind}.`;
-  if (lower.includes("codex is searching")) return "Codex is searching for supporting context.";
-  if (lower.includes("codex is using a tool")) return `Codex is using a tool to inspect or validate the active ${targetKind}.`;
-  if (lower.includes("codex is preparing file changes")) return `Codex is preparing changes against the temporary ${targetKind} copy.`;
-  if (lower.includes("codex updated the task plan")) return "Codex updated its task plan before continuing.";
-  if (lower.includes("codex response received")) return "Codex finished drafting; ArcBot is checking whether a validated update needs to be applied.";
+  if (lower.includes("starting warm codex session")) return `ArcBot is sending the request in ${modeLabel} for "${contextTitle}".`;
+  if (lower.includes("warm codex session accepted")) return "ArcBot accepted the request and is starting the turn.";
+  if (lower.includes("warm codex session unavailable")) return "ArcBot is switching to a one-shot request.";
+  if (lower.includes("starting codex cli")) return "ArcBot is starting the prepared request.";
+  if (lower.includes("codex is drafting") || lower.includes("arcbot is drafting")) return "ArcBot is drafting the response.";
+  if (lower.includes("codex is running a command") || lower.includes("arcbot is running a local check")) return `ArcBot is running a local check in the workspace for the active ${contextKind}.`;
+  if (lower.includes("codex is searching") || lower.includes("arcbot is searching")) return "ArcBot is searching for supporting context.";
+  if (lower.includes("codex is using a tool") || lower.includes("arcbot is using a tool")) return `ArcBot is using a tool to inspect or validate the active ${targetKind}.`;
+  if (lower.includes("codex is preparing file changes") || lower.includes("arcbot is preparing file changes")) return `ArcBot is preparing changes against the temporary ${targetKind} copy.`;
+  if (lower.includes("codex updated the task plan") || lower.includes("arcbot updated the task plan")) return "ArcBot updated its task plan before continuing.";
+  if (lower.includes("codex response received") || lower.includes("arcbot response received")) return "ArcBot finished drafting and is checking whether a validated update needs to be applied.";
   if (lower.includes("cleaned explanatory text")) return "ArcBot extracted the edited JSON from Codex's response and normalized the temp copy.";
   if (lower.includes("validating and applying")) return "ArcBot is validating the temp copy, backing up the original, and applying the update.";
   if (lower.includes("request canceled")) return "The request was canceled before completion.";
-  if (lower.includes("cancel requested")) return "Stopping the current Codex request.";
+  if (lower.includes("cancel requested")) return "Stopping the current ArcBot request.";
   if (lower.includes("failed") || lower.includes("could not") || lower.includes("error:")) return raw;
   return raw;
+}
+
+function formatArcRhoPythonApiActivity(rawAction, targetKind = "app data") {
+  const action = String(rawAction || "").trim().toLowerCase();
+  if (action.includes("agent_inspect") || action === "inspect") return "ArcBot is bundling the active DFM method details in one helper read.";
+  if (action.includes("agent_summary") || action === "summary") return "ArcBot is reading the active DFM method summary.";
+  if (action.includes("component") || action === "component") return "ArcBot is inspecting part of the active DFM method.";
+  if (action.includes("ratio-row") || action.includes("ratio_row")) return "ArcBot is reading ratio-row details from the active DFM method.";
+  if (action.includes("exclude-ratio") || action.includes("exclude_ratio")) return "ArcBot is marking selected ratio cells as excluded.";
+  if (action.includes("include-ratio") || action.includes("include_ratio")) return "ArcBot is restoring selected ratio cells.";
+  if (action.includes("select-average") || action.includes("select_average")) return "ArcBot is updating the selected average formula.";
+  if (action.includes("set-user-entry") || action.includes("set_user")) return "ArcBot is setting a user-entered selected factor.";
+  if (action.includes("validate")) return `ArcBot is checking that the proposed ${targetKind} update is valid.`;
+  return `ArcBot is using the ArcRho Python helper for the active ${targetKind}.`;
 }
 
 function createAssistantProgressSteps() {
@@ -627,16 +662,25 @@ function shouldShowAssistantActivity(activity, text) {
   const raw = String(activity?.rawText || activity?.text || "").trim();
   const lower = `${visible}\n${raw}`.toLowerCase();
   if (String(activity?.type || "").toLowerCase() === "error") return true;
-  if (lower.includes("using arcrho python api")) return true;
+  if (lower.includes("bundling the active dfm method details")) return true;
+  if (lower.includes("arcrho python helper")) return true;
+  if (lower.includes("active dfm method summary")) return true;
+  if (lower.includes("dfm method component") || lower.includes("part of the active dfm method")) return true;
+  if (lower.includes("ratio-row details")) return true;
+  if (lower.includes("selected ratio cells")) return true;
+  if (lower.includes("selected average formula")) return true;
+  if (lower.includes("user-entered selected factor")) return true;
+  if (lower.includes("proposed") && lower.includes("update is valid")) return true;
   if (lower.includes("running command:") || lower.includes("codex is running a command")) return true;
   if (lower.includes("reading file:") || lower.includes("editing file:")) return true;
+  if (lower.includes("configured server root") || lower.includes("configured server folder") || lower.includes("configured folders")) return true;
   if (lower.includes("checking read/write access")) return true;
   if (lower.includes("temporary editable copy")) return true;
   if (lower.includes("validating the temp copy")) return true;
   if (lower.includes("extracted the edited json")) return true;
-  if (lower.includes("codex is using a tool")) return true;
-  if (lower.includes("codex is searching")) return true;
-  if (lower.includes("codex is drafting")) return true;
+  if (lower.includes("codex is using a tool") || lower.includes("arcbot is using a tool")) return true;
+  if (lower.includes("codex is searching") || lower.includes("arcbot is searching")) return true;
+  if (lower.includes("codex is drafting") || lower.includes("arcbot is drafting")) return true;
   if (lower.includes("active dfm") || lower.includes("active notebook") || lower.includes("active dataset")) return true;
   if (lower.includes("request canceled") || lower.includes("failed") || lower.includes("could not") || lower.includes("error:")) return true;
   return false;
@@ -868,6 +912,142 @@ function setAssistantReasoningEffort(effort, options = {}) {
   if (options.save !== false) saveCurrentSession();
 }
 
+function normalizeReadableRootList(folders = []) {
+  const seen = new Set();
+  const roots = [];
+  for (const folder of Array.isArray(folders) ? folders : []) {
+    const text = String(folder || "").trim();
+    if (!text) continue;
+    const key = text.replace(/[\\/]+$/g, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    roots.push(text);
+  }
+  return roots;
+}
+
+function setFolderPermissionsStatus(text) {
+  const el = $("aiAssistantFolderStatus");
+  if (el) {
+    el.textContent = text || "";
+    el.title = text || "";
+  }
+}
+
+function renderFolderPermissionsList() {
+  const list = $("aiAssistantFolderPermissionsList");
+  if (!list) return;
+  list.textContent = "";
+  if (!assistantReadableRoots.length) {
+    const empty = document.createElement("div");
+    empty.className = "aiAssistantFolderEmpty";
+    empty.textContent = "No extra folders added.";
+    list.appendChild(empty);
+  } else {
+    assistantReadableRoots.forEach((folder, index) => {
+      const row = document.createElement("div");
+      row.className = "aiAssistantFolderRow";
+      const icon = document.createElement("span");
+      icon.className = "aiAssistantFolderIcon";
+      icon.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 6.5h6l2 2h10v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"></path>
+        </svg>
+      `;
+      const pathEl = document.createElement("div");
+      pathEl.className = "aiAssistantFolderPath";
+      pathEl.textContent = folder;
+      pathEl.title = folder;
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "aiAssistantFolderRemoveBtn";
+      removeBtn.type = "button";
+      removeBtn.title = "Remove";
+      removeBtn.setAttribute("aria-label", `Remove ${folder}`);
+      removeBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12"></path>
+          <path d="M18 6L6 18"></path>
+        </svg>
+      `;
+      removeBtn.addEventListener("click", () => removeAssistantReadableRoot(index));
+      row.append(icon, pathEl, removeBtn);
+      list.appendChild(row);
+    });
+  }
+  const countText = assistantReadableRoots.length
+    ? `${assistantReadableRoots.length} extra folder${assistantReadableRoots.length === 1 ? "" : "s"} allowed.`
+    : "Server folder is included by default.";
+  setFolderPermissionsStatus(countText);
+  updateAssistantSettingsPanel();
+}
+
+async function loadAssistantReadableRoots() {
+  const host = getHostApi();
+  if (!host?.codexAssistantLoadReadableRoots) {
+    assistantReadableRoots = [];
+    renderFolderPermissionsList();
+    return;
+  }
+  try {
+    const result = await host.codexAssistantLoadReadableRoots();
+    assistantReadableRoots = normalizeReadableRootList(result?.folders || []);
+    renderFolderPermissionsList();
+  } catch {
+    assistantReadableRoots = [];
+    renderFolderPermissionsList();
+  }
+}
+
+async function saveAssistantReadableRoots(nextFolders) {
+  const host = getHostApi();
+  const normalized = normalizeReadableRootList(nextFolders);
+  if (!host?.codexAssistantSaveReadableRoots) {
+    assistantReadableRoots = normalized;
+    renderFolderPermissionsList();
+    setFolderPermissionsStatus("Folder permissions are available in the desktop app only.");
+    return false;
+  }
+  try {
+    const result = await host.codexAssistantSaveReadableRoots(normalized);
+    if (!result?.ok) throw new Error(result?.error || "Could not save folder permissions.");
+    assistantReadableRoots = normalizeReadableRootList(result.folders || []);
+    renderFolderPermissionsList();
+    return true;
+  } catch (err) {
+    setFolderPermissionsStatus(String(err?.message || err || "Could not save folder permissions."));
+    return false;
+  }
+}
+
+function openFolderPermissionsPage() {
+  closeAssistantSettingsPanel();
+  $("aiAssistantDebugPanel")?.classList.remove("open");
+  $("aiAssistantDebugBtn")?.setAttribute("aria-expanded", "false");
+  $("aiAssistantFolderPermissionsPage")?.classList.add("open");
+  renderFolderPermissionsList();
+}
+
+function closeFolderPermissionsPage() {
+  $("aiAssistantFolderPermissionsPage")?.classList.remove("open");
+}
+
+async function addAssistantReadableRoot() {
+  const host = getHostApi();
+  if (!host?.pickFolder) {
+    setFolderPermissionsStatus("Folder picker is available in the desktop app only.");
+    return;
+  }
+  const startDir = assistantReadableRoots[assistantReadableRoots.length - 1] || "";
+  const folder = await host.pickFolder(startDir);
+  if (!folder) return;
+  await saveAssistantReadableRoots([...assistantReadableRoots, folder]);
+}
+
+async function removeAssistantReadableRoot(index) {
+  const next = assistantReadableRoots.filter((_folder, folderIndex) => folderIndex !== index);
+  await saveAssistantReadableRoots(next);
+}
+
 function updateAssistantSettingsPanel() {
   const panel = $("aiAssistantSettingsPanel");
   if (!panel) return;
@@ -885,6 +1065,7 @@ function updateAssistantSettingsPanel() {
     ["session", currentSessionTitle || currentSessionId || "New ArcBot Chat"],
     ["model", getAssistantModelLabel()],
     ["reasoning", getAssistantReasoningLabel()],
+    ["folders", assistantReadableRoots.length ? `${assistantReadableRoots.length} extra` : "Server only"],
     ["tokens", formatContextWindowUsage(currentUsage || {})],
     ["status", assistantReady ? "Online" : "Offline"],
     ["login", formatAssistantLoginDetail()],
@@ -2270,7 +2451,7 @@ async function sendAssistantMessage() {
       setStatus("ArcBot request canceled.");
       return;
     }
-    setStatus(`Codex is responding in ${getModeLabel()}...`);
+    setStatus(`ArcBot is responding in ${getModeLabel()}...`);
     assistantHostRequestSubmitted = true;
     const result = await host.codexAssistantSend({
       requestId: currentRequestId,
@@ -2295,7 +2476,7 @@ async function sendAssistantMessage() {
     }
     if (!result?.ok) {
       const wasCanceled = !!result?.canceled || assistantCancelRequested;
-      const message = wasCanceled ? "Request canceled." : (result?.error || "Codex request failed.");
+      const message = wasCanceled ? "Request canceled." : (result?.error || "ArcBot request failed.");
       resolveAssistantPendingMessage(pending, message);
       assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
       if (wasCanceled) {
@@ -2326,7 +2507,7 @@ async function sendAssistantMessage() {
     completeAssistantProgress(result?.editApplied ? "Edit applied" : "Response completed");
     setStatus(result?.editApplied ? "ArcBot applied a JSON-backed edit." : `Codex ready. ${getModeLabel()}.`);
   } catch (err) {
-    const message = assistantCancelRequested ? "Request canceled." : String(err?.message || err || "Codex request failed.");
+    const message = assistantCancelRequested ? "Request canceled." : String(err?.message || err || "ArcBot request failed.");
     resolveAssistantPendingMessage(pending, message);
     assistantMessages.push({ role: "assistant", content: message, timestamp: nowIso() });
     appendActivity(assistantCancelRequested ? "Request canceled" : "Request failed", assistantCancelRequested ? "activity" : "error");
@@ -2353,7 +2534,7 @@ function handleAssistantEvent(event) {
   if (event.type === "stdout") {
     appendDebugLog(event.text, "stdout");
     const apiStatus = formatAssistantActivityForCard(event.text, event);
-    if (apiStatus && apiStatus.includes("ArcRho Python API")) {
+    if (apiStatus && /ArcRho Python API|"api method"|arcrho_api/iu.test(String(event.text || ""))) {
       appendActivity(event.text, "activity", { displayText: apiStatus, save: false });
     }
     return;
@@ -2378,6 +2559,7 @@ function handleAssistantEvent(event) {
   const text = String(event.text || "").trim();
   if (!text) return;
   appendDebugLog(text, event.type || "activity");
+  if (event.debugText) appendDebugLog(event.debugText, "debug");
   const displayText = formatAssistantActivityForCard(text, event);
   if (displayText) appendActivity(text, event.type || "activity", { displayText });
 }
@@ -2468,6 +2650,16 @@ export function initAiAssistant() {
     event.stopPropagation();
     toggleAssistantSettingsPanel();
   });
+  $("aiAssistantFolderPermissionsBtn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openFolderPermissionsPage();
+  });
+  $("aiAssistantFolderPermissionsCloseBtn")?.addEventListener("click", () => {
+    closeFolderPermissionsPage();
+  });
+  $("aiAssistantFolderAddBtn")?.addEventListener("click", () => {
+    addAssistantReadableRoot();
+  });
   $("aiAssistantSettingsModelSelect")?.addEventListener("change", (event) => {
     setAssistantModel(event.target?.value);
   });
@@ -2526,6 +2718,7 @@ export function initAiAssistant() {
   }, true);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closeFolderPermissionsPage();
       closeAssistantSettingsPanel();
       closeSelectMenus();
       closeAttachMenu();
@@ -2538,6 +2731,7 @@ export function initAiAssistant() {
   setAssistantModel(assistantModel, { save: false });
   setAssistantReasoningEffort(assistantReasoningEffort, { save: false });
   renderAssistantAttachments();
+  loadAssistantReadableRoots();
   loadAssistantUserAvatarName();
   setComposerEnabled(false);
 }

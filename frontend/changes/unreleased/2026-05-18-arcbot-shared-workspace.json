@@ -1,0 +1,6 @@
+{
+  "summary": "Moved ArcBot exchange files into a shared workspace.",
+  "details": [
+    "ArcBot now stages server-root JSON and CSV exchange copies under Documents\\ArcRho\\ArcBot\\workspace so chat sessions share the same local API workspace, while per-request metadata remains under Documents\\ArcRho\\ArcBot\\sessions."
+  ]
+}

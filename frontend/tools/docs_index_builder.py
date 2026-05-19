@@ -574,15 +574,6 @@ BACKEND_DOMAIN_META: Mapping[str, Dict[str, object]] = {
             ("app_server/config.py", "Audit file constants and lock objects."),
         ],
     },
-    "debug_trace": {
-        "doc": "docs/app_server/domains/debug_trace.md",
-        "files": [
-            ("app_server/api/debug_trace_router.py", "Debug trace append route."),
-            ("app_server/services/debug_trace_service.py", "Local JSONL debug trace writer."),
-            ("app_server/schemas/debug_trace.py", "Debug trace append request schema."),
-            ("app_server/config.py", "AppData root path helper used for local debug logs."),
-        ],
-    },
     "dataset": {
         "doc": "docs/app_server/domains/dataset.md",
         "files": [
@@ -920,13 +911,6 @@ def module_specs() -> Dict[str, ModuleDocSpec]:
             "- Stores rolling JSON audit records with lock protection.",
             "1. Add audit event fields: update schema and writer helper together.",
             "- Lock/file contention may surface under concurrent writes.",
-        ),
-        "debug_trace": (
-            "Best-effort local debug trace logging domain.",
-            "- Called by frontend pages when temporary diagnostics are needed.\n- The project instance page uses it to record startup, fetch, and render timing.",
-            "- Appends JSONL trace files under `%APPDATA%\\ArcRho\\debug_logs`.\n- Trace writes do not affect project data or cache state.",
-            "1. Add a new trace source: keep payloads small, sanitized, and best-effort.\n2. Change log location: update `debug_trace_service.py` and docs together.",
-            "- Debug logs may grow over time and can include endpoint URLs, timing metadata, and row counts.",
         ),
         "dataset": (
             "Dataset retrieval/patch domain for in-memory dataset instances.",

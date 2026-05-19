@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcRho Python API User Guide</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #202937;
+      --muted: #5f6b7a;
+      --line: #dbe1e8;
+      --accent: #2563eb;
+      --code-bg: #f2f5f8;
+      --code-border: #d7dee8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      padding: 28px 32px;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+    h1, h2, h3 { line-height: 1.25; margin: 0; }
+    h1 { font-size: 30px; letter-spacing: 0; }
+    h2 { font-size: 20px; margin-top: 30px; }
+    h3 { font-size: 15px; margin-top: 18px; }
+    p { margin: 10px 0; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .intro {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+    .subtitle {
+      max-width: 760px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px 22px;
+      margin-top: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      background: #fbfcfd;
+    }
+    .mini strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    code, pre {
+      font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+      font-size: 13px;
+    }
+    code {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 4px;
+      padding: 1px 4px;
+      color: #17324d;
+    }
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      overflow: auto;
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 7px;
+      color: #172033;
+    }
+    pre code {
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    ul {
+      margin: 10px 0 0 20px;
+      padding: 0;
+      color: var(--muted);
+    }
+    li { margin: 5px 0; }
+    .note {
+      border-left: 3px solid var(--accent);
+      background: #f4f8ff;
+      padding: 10px 12px;
+      color: #31445e;
+      margin-top: 12px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="intro">
+      <h1>ArcRho Python API User Guide</h1>
+      <div class="subtitle">
+        Use <code>arcrho_api</code> to read and edit ArcRho projects, reserving classes, and DFM methods from Python notebooks or scripts.
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <h2>Install</h2>
+      <p>ArcRho release builds include a wheel that can be installed with pip.</p>
+      <pre><code>python -m pip install "&lt;ArcRho install folder&gt;\resources\python_packages\arcrho_api-0.1.0-py3-none-any.whl"</code></pre>
+      <p>For development from this repository:</p>
+      <pre><code>python python-api\tools\build_wheel.py --out-dir python-api\dist
+python -m pip install python-api\dist\arcrho_api-0.1.0-py3-none-any.whl</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Server Root</h2>
+      <p>
+        By default, <code>ArcRhoClient()</code> reads the same server root used by the ArcRho host app:
+        <code>%APPDATA%\ArcRho\workspace_paths.json</code>. Set it in the ArcRho app through
+        <strong>Server Connection</strong>, or update the same config from Python.
+      </p>
+      <pre><code>from arcrho_api import ArcRhoClient, get_server_root, set_server_root
+
+print(get_server_root())
+
+set_server_root(r"E:\ArcRho Server")
+client = ArcRhoClient()</code></pre>
+      <div class="note">
+        Passing <code>ArcRhoClient(r"E:\ArcRho Server")</code> still works for one script without changing the saved host config.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Basic Workflow</h2>
+      <pre><code>from arcrho_api import ArcRhoClient
+
+client = ArcRhoClient()
+print(client.list_projects())
+
+project = client.project("Current Reserve Review")
+rc = project.reserving_class(r"Auto\Private Passenger")
+dfm = rc.dfm("Paid Loss Ultimate")
+
+print(dfm.name)
+print(dfm.input_triangle)
+print(dfm.output_vector)
+print(dfm.notes)</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Edit A DFM</h2>
+      <p>DFM objects are read/write by default, but changes are only written to disk when <code>save()</code> is called.</p>
+      <pre><code>dfm.clear()
+dfm.exclude_covid_years()
+dfm.exclude_high(dev_period=2, count=1, reason="High selected ratio reviewed.")
+dfm.set_selected_average("Simple - 3")
+dfm.add_notes("Updated through arcrho_api.")
+
+dfm.save()</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Create A DFM</h2>
+      <pre><code>new_dfm = rc.new_dfm(
+    "New Paid Loss Ultimate",
+    output_vector="New Paid Loss Ultimate",
+    input_triangle="Paid Loss",
+    origin_length=12,
+    development_length=12,
+)
+new_dfm.save()</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Read-Only Mode</h2>
+      <p>Use read-only mode for review notebooks where accidental writes should be blocked.</p>
+      <pre><code>client = ArcRhoClient(read_only=True)
+dfm = client.project("Current Reserve Review").reserving_class(r"Auto\Private Passenger").dfm("Paid Loss Ultimate")
+
+dfm.add_notes("This will stay in memory.")
+dfm.save()  # raises ReadOnlyError</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Legacy Notebook Style</h2>
+      <p><code>ArcRhoSession</code> provides a context-bound wrapper for legacy reserve-review notebooks.</p>
+      <pre><code>from arcrho_api.migration import ArcRhoSession
+
+session = ArcRhoSession()
+session.set_project("Current Reserve Review")
+session.set_reserving_class(r"Auto\Private Passenger")
+
+aDFM = session.DFM("Paid Loss Ultimate")
+aDFM.clear()
+aDFM.ex_COVID_AY()
+aDFM.set_selected_estimate("Simple - 3")
+aDFM.save()</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>Common Methods</h2>
+      <div class="grid">
+        <div class="mini">
+          <strong>Client</strong>
+          <code>list_projects()</code><br>
+          <code>project(name)</code><br>
+          <code>project_exists(name)</code>
+        </div>
+        <div class="mini">
+          <strong>Project</strong>
+          <code>reserving_class(path)</code><br>
+          <code>list_dfms()</code><br>
+          <code>rebuild_dfm_index()</code>
+        </div>
+        <div class="mini">
+          <strong>Reserving Class</strong>
+          <code>dfm(name)</code><br>
+          <code>new_dfm(name, ...)</code><br>
+          <code>dataset_path(name)</code>
+        </div>
+        <div class="mini">
+          <strong>DFM</strong>
+          <code>clear()</code><br>
+          <code>exclude_covid_years()</code><br>
+          <code>set_selected_average(...)</code><br>
+          <code>apply_adjustments()</code><br>
+          <code>save()</code>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

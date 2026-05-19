@@ -782,6 +782,34 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .aiAssistantSettingsAction {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      height: 30px;
+      margin-top: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #263747;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .aiAssistantSettingsAction:hover {
+      background: #f3f6fa;
+      border-color: #b9c6d5;
+    }
+    .aiAssistantSettingsAction svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
     @keyframes aiAssistantPopoverIn {
       from {
         opacity: 0;
@@ -831,6 +859,147 @@
       font: 11px/1.35 Consolas, "Courier New", monospace;
       white-space: pre-wrap;
       user-select: text;
+    }
+    #aiAssistantFolderPermissionsPage {
+      position: absolute;
+      inset: 34px 0 0;
+      z-index: 9300;
+      display: none;
+      flex-direction: column;
+      background: #f7f8f9;
+      color: #263747;
+    }
+    #aiAssistantFolderPermissionsPage.open {
+      display: flex;
+    }
+    #aiAssistantFolderPermissionsToolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 44px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #d8e0ea;
+      background: #eef2f6;
+      box-sizing: border-box;
+    }
+    #aiAssistantFolderPermissionsTitle {
+      overflow: hidden;
+      color: #263747;
+      font-size: 13px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #aiAssistantFolderPermissionsList {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 10px 12px;
+      overflow: auto;
+    }
+    .aiAssistantFolderRow {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 9px;
+      min-height: 38px;
+      margin-bottom: 7px;
+      padding: 7px 8px;
+      border: 1px solid #d8e0ea;
+      border-radius: 8px;
+      background: #ffffff;
+      box-sizing: border-box;
+    }
+    .aiAssistantFolderIcon {
+      width: 18px;
+      height: 18px;
+      color: #4f83c2;
+    }
+    .aiAssistantFolderIcon svg,
+    .aiAssistantFolderRemoveBtn svg,
+    #aiAssistantFolderAddBtn svg,
+    #aiAssistantFolderPermissionsCloseBtn svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .aiAssistantFolderPath {
+      min-width: 0;
+      overflow: hidden;
+      color: #2f3f52;
+      font-size: 11.5px;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      user-select: text;
+    }
+    .aiAssistantFolderRemoveBtn,
+    #aiAssistantFolderPermissionsCloseBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #596879;
+      cursor: pointer;
+    }
+    .aiAssistantFolderRemoveBtn:hover,
+    #aiAssistantFolderPermissionsCloseBtn:hover {
+      background: #e6ebf1;
+      color: #263747;
+    }
+    #aiAssistantFolderPermissionsFooter {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-top: 1px solid #d8e0ea;
+      background: #eef2f6;
+    }
+    #aiAssistantFolderStatus {
+      min-width: 0;
+      overflow: hidden;
+      color: #667589;
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #aiAssistantFolderAddBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #1f4f86;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    #aiAssistantFolderAddBtn:hover {
+      background: #f3f8ff;
+      border-color: #9cb9dc;
+    }
+    #aiAssistantFolderAddBtn svg {
+      width: 14px;
+      height: 14px;
+    }
+    .aiAssistantFolderEmpty {
+      padding: 18px 10px;
+      color: #697789;
+      font-size: 12px;
+      text-align: center;
     }
     .aiAssistantContextGrid {
       display: grid;
@@ -1061,6 +1230,15 @@
     .aiAssistantMessageRow.user {
       align-self: flex-end;
       flex-direction: row-reverse;
+    }
+    .aiAssistantDisclaimer {
+      align-self: center;
+      max-width: 92%;
+      color: #7a828c;
+      font-size: 11.5px;
+      line-height: 1.35;
+      text-align: center;
+      margin: 0 6px 2px;
     }
     .aiAssistantAvatar {
       width: 24px;
@@ -3480,15 +3658,48 @@
         </label>
       </div>
       <div class="aiAssistantSettingsSection">
+        <div class="aiAssistantSettingsTitle">Access</div>
+        <button id="aiAssistantFolderPermissionsBtn" class="aiAssistantSettingsAction" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6.5h6l2 2h8v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"></path>
+            <path d="M8 14h8"></path>
+          </svg>
+          <span>Folder Permissions</span>
+        </button>
+      </div>
+      <div class="aiAssistantSettingsSection">
         <div class="aiAssistantSettingsTitle">Current Chat</div>
         <div class="aiAssistantSettingsDetails">
           <span>Session</span><span data-ai-settings-detail="session">New ArcBot Chat</span>
           <span>Model</span><span data-ai-settings-detail="model">Codex default</span>
           <span>Reasoning</span><span data-ai-settings-detail="reasoning">High</span>
+          <span>Folders</span><span data-ai-settings-detail="folders">Server only</span>
           <span>Tokens</span><span data-ai-settings-detail="tokens">Not measured yet</span>
           <span>Status</span><span data-ai-settings-detail="status">Offline</span>
           <span>Login</span><span data-ai-settings-detail="login">Unknown</span>
         </div>
+      </div>
+    </div>
+    <div id="aiAssistantFolderPermissionsPage" aria-label="ArcBot folder permissions">
+      <div id="aiAssistantFolderPermissionsToolbar">
+        <div id="aiAssistantFolderPermissionsTitle">Folder Permissions</div>
+        <button id="aiAssistantFolderPermissionsCloseBtn" type="button" title="Close" aria-label="Close folder permissions">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10"></path>
+            <path d="M17 7L7 17"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="aiAssistantFolderPermissionsList"></div>
+      <div id="aiAssistantFolderPermissionsFooter">
+        <div id="aiAssistantFolderStatus">Server folder is included by default.</div>
+        <button id="aiAssistantFolderAddBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+          </svg>
+          <span>Add Folder</span>
+        </button>
       </div>
     </div>
     <div id="aiAssistantDebugPanel">

@@ -1,6 +1,7 @@
 """Public ArcRho Python API."""
 
 from .client import ArcRhoClient
+from .config import get_config_path, get_server_root, reload_server_root, set_server_root
 from .dfm import DfmMethod
 from .exceptions import (
     ArcRhoApiError,
@@ -20,6 +21,8 @@ __all__ = [
     "DfmDataError",
     "DfmMethod",
     "DfmMethodRef",
+    "get_config_path",
+    "get_server_root",
     "InvalidArcRhoServerError",
     "InvalidDfmJsonError",
     "Project",
@@ -27,5 +30,6 @@ __all__ = [
     "ProjectSettings",
     "ReadOnlyError",
     "ReservingClass",
+    "reload_server_root",
+    "set_server_root",
 ]
-

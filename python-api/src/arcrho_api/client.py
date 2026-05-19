@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .config import get_server_root
 from .exceptions import InvalidArcRhoServerError
 from .paths import clean_text, project_dir_case_insensitive
 from .project import Project
@@ -12,8 +13,9 @@ from .project import Project
 class ArcRhoClient:
     """Client bound to one ArcRho Server root folder."""
 
-    def __init__(self, server_root: str | Path, *, read_only: bool = False, validate: bool = True) -> None:
-        self.server_root = Path(server_root).expanduser().resolve()
+    def __init__(self, server_root: str | Path | None = None, *, read_only: bool = False, validate: bool = True) -> None:
+        resolved_root = server_root if server_root is not None else get_server_root(required=True)
+        self.server_root = Path(resolved_root).expanduser().resolve()
         self.read_only = bool(read_only)
         self.projects_dir = self.server_root / "projects"
         self.requests_dir = self.server_root / "requests"
@@ -43,4 +45,3 @@ class ArcRhoClient:
     def project(self, name: str) -> Project:
         project_name = clean_text(name)
         return Project(self, project_name)
-

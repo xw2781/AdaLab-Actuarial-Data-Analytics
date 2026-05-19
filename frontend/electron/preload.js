@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld("ADAHost", {
   codexAssistantStatus: () => invoke("codex-assistant-status"),
   codexAssistantInstall: () => invoke("codex-assistant-install"),
   codexAssistantLogin: () => invoke("codex-assistant-login"),
+  codexAssistantLoadReadableRoots: () => invoke("codex-assistant-readable-roots-load"),
+  codexAssistantSaveReadableRoots: (folders) => invoke("codex-assistant-readable-roots-save", { folders }),
   codexAssistantListSessions: (payload) => invoke("codex-assistant-sessions-list", payload),
   codexAssistantCreateSession: (payload) => invoke("codex-assistant-session-create", payload),
   codexAssistantLoadSession: (sessionId) => invoke("codex-assistant-session-load", { sessionId }),

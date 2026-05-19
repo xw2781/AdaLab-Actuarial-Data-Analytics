@@ -1,0 +1,13 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Added floating DFM tab pop-out windows.",
+  "details": [
+    "Right-clicking a DFM tab now temporarily moves the live tab page into a draggable, resizable floating window, so users can view and interact with two DFM tabs at the same time.",
+    "The floating tab keeps the original tab controls and state because the live tab DOM is moved instead of mirrored.",
+    "DFM tab pop-outs use shell-style minimize, maximize, and close/dock controls and can be resized from every edge and corner.",
+    "Opening a DFM page now refreshes Ratios and Results immediately, even before those tabs are visited.",
+    "Popping out the Ratios or Results tab still performs an immediate table render if needed."
+  ]
+}

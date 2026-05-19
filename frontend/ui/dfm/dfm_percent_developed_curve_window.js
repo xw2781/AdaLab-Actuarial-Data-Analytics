@@ -21,10 +21,6 @@ const CURVE_TYPE_LABELS = new Map([
 const SERIES_COLORS = ["#1f5ca8", "#b45309", "#047857", "#7c3aed", "#be123c", "#0f766e"];
 const curveTypesBySegmentLabel = new Map();
 const curveTypesBySegmentIndex = new Map();
-let lastPercentDevelopedCurveSettings = {
-  "x-axis label": X_AXIS_LABEL,
-  "selected curves": [],
-};
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -49,10 +45,6 @@ function normalizeCurveType(value) {
   return "linear";
 }
 
-function getCurveTypeName(value) {
-  return CURVE_TYPE_LABELS.get(normalizeCurveType(value)) || "Linear";
-}
-
 function getSegmentLabel(point, index) {
   const label = String(point?.label || "").trim();
   return label || `Segment ${index + 1}`;
@@ -75,15 +67,6 @@ function rememberCurveTypes(points, segmentTypes) {
     curveTypesBySegmentLabel.set(getSegmentLabel(point, index), type);
     curveTypesBySegmentIndex.set(index, type);
   });
-}
-
-function clonePercentDevelopedCurveSettings(settings) {
-  return {
-    "x-axis label": X_AXIS_LABEL,
-    "selected curves": Array.isArray(settings?.["selected curves"])
-      ? settings["selected curves"].map((curve) => ({ ...curve }))
-      : [],
-  };
 }
 
 function ensureStyles() {
@@ -800,51 +783,6 @@ export function openPercentDevelopedCurveWindow(selectedTable) {
   });
   win.querySelector(".dfmDevelopedCurveClose")?.addEventListener("click", () => win.remove());
   render();
-}
-
-export function getPercentDevelopedCurveSettings(selectedTable = null) {
-  const table = selectedTable || document.querySelector("#ratioWrap table.ratioSelectedTable");
-  const points = readDevelopedCurvePoints(table);
-  if (!points.length) return clonePercentDevelopedCurveSettings(lastPercentDevelopedCurveSettings);
-  const selectedCurves = points.map((point, index) => {
-    const curveType = getSavedCurveTypeForPoint(point, index);
-    return {
-      "segment label": getSegmentLabel(point, index),
-      "x-axis value": point.x,
-      "curve type": curveType,
-      "curve name": getCurveTypeName(curveType),
-    };
-  });
-  rememberCurveTypes(points, selectedCurves.map((curve) => curve["curve type"]));
-  lastPercentDevelopedCurveSettings = {
-    "x-axis label": X_AXIS_LABEL,
-    "selected curves": selectedCurves,
-  };
-  return clonePercentDevelopedCurveSettings(lastPercentDevelopedCurveSettings);
-}
-
-export function applySavedPercentDevelopedCurveSettings(settings) {
-  curveTypesBySegmentLabel.clear();
-  curveTypesBySegmentIndex.clear();
-  const curves = Array.isArray(settings?.["selected curves"]) ? settings["selected curves"] : [];
-  lastPercentDevelopedCurveSettings = {
-    "x-axis label": X_AXIS_LABEL,
-    "selected curves": curves.map((curve, index) => {
-      const curveType = normalizeCurveType(curve?.["curve type"] || curve?.["curve name"]);
-      return {
-        "segment label": String(curve?.["segment label"] || curve?.label || `Segment ${index + 1}`),
-        "x-axis value": Number.isFinite(Number(curve?.["x-axis value"])) ? Number(curve["x-axis value"]) : null,
-        "curve type": curveType,
-        "curve name": getCurveTypeName(curveType),
-      };
-    }),
-  };
-  curves.forEach((curve, index) => {
-    const label = String(curve?.["segment label"] || curve?.label || "").trim();
-    const curveType = normalizeCurveType(curve?.["curve type"] || curve?.["curve name"]);
-    if (label) curveTypesBySegmentLabel.set(label, curveType);
-    curveTypesBySegmentIndex.set(index, curveType);
-  });
 }
 
 function getMenu() {
