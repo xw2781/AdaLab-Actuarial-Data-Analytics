@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Format DFM % Developed row values as one-decimal percentages.",
+  "details": [
+    "The DFM Ratios selected-summary `% Developed` row now displays values like `89.1%` while the `% Developed Curve` continues to interpret those values as ratios."
+  ]
+}

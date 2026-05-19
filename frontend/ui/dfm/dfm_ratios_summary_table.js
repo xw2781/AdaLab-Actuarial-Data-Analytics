@@ -2002,6 +2002,11 @@ export function wireSummaryContextMenu(summaryTable) {
 // =============================================================================
 // Summary Selection
 // =============================================================================
+function formatPercentDeveloped(value) {
+  if (!Number.isFinite(value)) return "";
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function ensureSelectedRowValues(summaryTable, selectedTable) {
   if (!selectedTable) return;
   const selectedRow = selectedTable.querySelector('tr[data-row-id="selected"]');
@@ -2067,7 +2072,7 @@ function ensureSelectedRowValues(summaryTable, selectedTable) {
         target.textContent = "";
         return;
       }
-      target.textContent = formatRatio(roundRatio(1 / cumulativeValue, 6), getDfmDecimalPlaces());
+      target.textContent = formatPercentDeveloped(roundRatio(1 / cumulativeValue, 6));
     });
   }
 }

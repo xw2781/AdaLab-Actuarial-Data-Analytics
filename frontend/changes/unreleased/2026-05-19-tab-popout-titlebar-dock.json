@@ -1,0 +1,9 @@
+{
+  "type": "changed",
+  "area": "frontend",
+  "summary": "Added titlebar right-click docking for floating tab windows.",
+  "details": [
+    "Right-clicking the titlebar of a floating Dataset or DFM tab now sends the live tab page back to its original tab bar group.",
+    "Right-clicking the grey popped tab button also docks the floating tab back into the original tab bar group."
+  ]
+}

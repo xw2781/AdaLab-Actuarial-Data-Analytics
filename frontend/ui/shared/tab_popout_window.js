@@ -2,6 +2,7 @@ const DEFAULT_MIN_W = 440;
 const DEFAULT_MIN_H = 300;
 const TITLEBAR_H = 34;
 const VIEWPORT_MARGIN = 12;
+const POPOUT_ANIMATION_MS = 140;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -98,6 +99,15 @@ export function createTabPopoutManager(config = {}) {
         overflow: visible;
         color: #1f2937;
         font-family: var(--${cssPrefix}-font, var(--app-font, "Segoe UI", Tahoma, Arial, sans-serif));
+        transform-origin: 32px 18px;
+        will-change: transform, opacity;
+      }
+      .${windowClass}.tabPopoutWindow.tabPopoutOpening {
+        animation: tabPopoutOpen ${POPOUT_ANIMATION_MS}ms cubic-bezier(0.2, 0, 0, 1);
+      }
+      .${windowClass}.tabPopoutWindow.tabPopoutClosing {
+        animation: tabPopoutClose ${POPOUT_ANIMATION_MS}ms cubic-bezier(0.4, 0, 1, 1) forwards;
+        pointer-events: none;
       }
       .${windowClass}.tabPopoutWindow::before {
         content: "";
@@ -204,9 +214,32 @@ export function createTabPopoutManager(config = {}) {
         border: 0 !important;
         box-sizing: border-box;
       }
+      .${tabClass} {
+        transition: background-color ${POPOUT_ANIMATION_MS}ms ease, color ${POPOUT_ANIMATION_MS}ms ease, box-shadow ${POPOUT_ANIMATION_MS}ms ease;
+      }
       .${tabClass}.${poppedTabClass} {
         background: #e5e7eb;
         font-style: normal;
+      }
+      @keyframes tabPopoutOpen {
+        from {
+          opacity: 0;
+          transform: translateY(-6px) scale(0.985);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      @keyframes tabPopoutClose {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-6px) scale(0.985);
+        }
       }
       .${windowClass} .tabPopoutResizeHandle {
         position: absolute;
@@ -323,19 +356,53 @@ export function createTabPopoutManager(config = {}) {
 
   function makeDraggable(record, header) {
     const { win, tabId } = record;
+    header.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dockTab(tabId);
+    });
+    header.addEventListener("dblclick", (event) => {
+      if (event.button !== 0 || event.target?.closest?.("button")) return;
+      event.preventDefault();
+      toggleMaximized(record);
+    });
     header.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || event.target?.closest?.("button")) return;
       event.preventDefault();
       win.style.zIndex = String(++popoutZ);
-      win.classList.remove("tabPopoutMaximized");
-      const rect = win.getBoundingClientRect();
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const startLeft = rect.left;
-      const startTop = rect.top;
+      const wasMaximized = win.classList.contains("tabPopoutMaximized");
+      const maximizedRect = win.getBoundingClientRect();
+      const restoreRect = record.restoreRect || {
+        left: Math.max(0, event.clientX - 460),
+        top: Math.max(0, event.clientY - TITLEBAR_H / 2),
+        width: Math.min(920, Math.max(minW, window.innerWidth - 96)),
+        height: Math.min(640, Math.max(minH, window.innerHeight - 96)),
+      };
+      const pointerRatio = maximizedRect.width > 0 ? (event.clientX - maximizedRect.left) / maximizedRect.width : 0.5;
+      let startX = event.clientX;
+      let startY = event.clientY;
+      let startLeft = maximizedRect.left;
+      let startTop = maximizedRect.top;
+      let restoredForDrag = false;
       const pointerId = event.pointerId;
       header.setPointerCapture?.(pointerId);
       const move = (moveEvent) => {
+        if (wasMaximized && !restoredForDrag) {
+          win.classList.remove("tabPopoutMaximized", "tabPopoutMinimized");
+          setRect(win, {
+            ...restoreRect,
+            left: moveEvent.clientX - restoreRect.width * Math.min(0.9, Math.max(0.1, pointerRatio)),
+            top: Math.max(0, moveEvent.clientY - TITLEBAR_H / 2),
+          }, tabId, "restore-drag");
+          const restoredRect = win.getBoundingClientRect();
+          startX = moveEvent.clientX;
+          startY = moveEvent.clientY;
+          startLeft = restoredRect.left;
+          startTop = restoredRect.top;
+          restoredForDrag = true;
+        } else if (!wasMaximized) {
+          win.classList.remove("tabPopoutMaximized");
+        }
         const maxLeft = Math.max(0, window.innerWidth - 80);
         const maxTop = Math.max(0, window.innerHeight - 44);
         const nextLeft = Math.min(maxLeft, Math.max(0, startLeft + moveEvent.clientX - startX));
@@ -443,6 +510,15 @@ export function createTabPopoutManager(config = {}) {
   function dockTab(tabId) {
     const record = poppedTabs.get(tabId);
     if (!record) return;
+    if (record.docking) return;
+    record.docking = true;
+    record.win.classList.remove("tabPopoutOpening");
+    record.win.classList.add("tabPopoutClosing");
+    window.setTimeout(() => finishDockTab(tabId, record), POPOUT_ANIMATION_MS);
+  }
+
+  function finishDockTab(tabId, record) {
+    if (poppedTabs.get(tabId) !== record) return;
     poppedTabs.delete(tabId);
     record.page.classList.remove(pageFloatingClass);
     record.placeholder.parentNode?.insertBefore(record.page, record.placeholder);
@@ -468,7 +544,7 @@ export function createTabPopoutManager(config = {}) {
     page.parentNode?.insertBefore(placeholder, page);
 
     const win = document.createElement("div");
-    win.className = `tabPopoutWindow ${windowClass}`;
+    win.className = `tabPopoutWindow ${windowClass} tabPopoutOpening`;
     win.style.zIndex = String(++popoutZ);
     win.innerHTML = `
       <div class="tabPopoutHeader">
@@ -531,6 +607,9 @@ export function createTabPopoutManager(config = {}) {
     }
     if (typeof config.onPopoutTab === "function") config.onPopoutTab(tabId, record);
     notifyLayout(tabId, "popout");
+    window.setTimeout(() => {
+      if (poppedTabs.get(tabId) === record) win.classList.remove("tabPopoutOpening");
+    }, POPOUT_ANIMATION_MS);
   }
 
   function wire() {
@@ -551,6 +630,10 @@ export function createTabPopoutManager(config = {}) {
       if (!tabId) return;
       event.preventDefault();
       event.stopPropagation();
+      if (poppedTabs.has(tabId)) {
+        dockTab(tabId);
+        return;
+      }
       popoutTab(tabId);
     });
   }

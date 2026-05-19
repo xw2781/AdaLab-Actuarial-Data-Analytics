@@ -133,13 +133,14 @@ export function initShellMessages() {
     if (msg.type === "arcrho:open-path") {
       const requestId = String(msg.requestId || "").trim();
       const targetPath = String(msg.path || "").trim();
+      const preferredApp = String(msg.preferredApp || "").trim();
       const source = e?.source;
       const reply = (payload) => { if (requestId && source?.postMessage) { try { source.postMessage({ type: "arcrho:open-path-result", requestId, ...payload }, "*"); } catch {} } };
       if (!requestId) return;
       if (!targetPath) { reply({ ok: false, error: "Empty path." }); return; }
       const hostApi = shell.getHostApi?.();
       if (!hostApi || typeof hostApi.openPath !== "function") { reply({ ok: false, error: "Open path requires desktop app." }); return; }
-      Promise.resolve(hostApi.openPath({ path: targetPath })).then((result) => reply(result?.ok ? { ok: true } : { ok: false, error: String(result?.error || `Path not found: ${targetPath}`) })).catch((err) => reply({ ok: false, error: String(err?.message || err) }));
+      Promise.resolve(hostApi.openPath({ path: targetPath, preferredApp })).then((result) => reply(result?.ok ? { ok: true } : { ok: false, error: String(result?.error || `Path not found: ${targetPath}`) })).catch((err) => reply({ ok: false, error: String(err?.message || err) }));
       return;
     }
     if (msg.type === "arcrho:status") { const text = String(msg.text || "").trim(); if (text) shell.updateStatusBar?.(text, { tone: msg.tone || msg.level || "" }); return; }

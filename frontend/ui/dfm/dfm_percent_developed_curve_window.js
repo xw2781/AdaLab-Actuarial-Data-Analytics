@@ -31,8 +31,12 @@ function escapeHtml(value) {
 }
 
 function parseNumber(value) {
-  const match = String(value ?? "").replace(/,/g, "").match(/[-+]?\d*\.?\d+/);
-  return match ? Number(match[0]) : null;
+  const text = String(value ?? "").replace(/,/g, "");
+  const match = text.match(/[-+]?\d*\.?\d+/);
+  if (!match) return null;
+  const parsed = Number(match[0]);
+  if (!Number.isFinite(parsed)) return null;
+  return text.includes("%") ? parsed / 100 : parsed;
 }
 
 function normalizeCurveType(value) {

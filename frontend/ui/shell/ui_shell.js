@@ -8,7 +8,7 @@ import { clearTestData, getLastWorkflowDir, getLastWorkflowPath, getWorkflowTabS
 import { closeTab, closeTabsExcept, dockTab, floatTab, openBrowsingHistoryTab, openDatasetTab, openDFMTab, openProjectInstanceTab, openProjectSettingsTab, openScriptingTab, openWorkflowTab, setActive, setDockedActive } from "./tab_actions.js?v=20260516a";
 import { applyDockedIframeLayout, clampFloatingTabsToContent, clampFloatRect, defaultFloatRectFromPointer, ensureContentContainers, ensureIframe, notifyBrowsingHistoryTabs, notifyServerConnectionUpdated, notifyTabActivated, printActiveTab, removeFloatPreview, renderContent, renderFloatingWindows, updateFloatPreview } from "./shell_content.js?v=20260516a";
 import { closeTabCtxMenu, initTabStrip, isTabStripDragging, renderTabs, togglePlusMenu } from "./tab_strip.js?v=20260518a";
-import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMTab, isActiveProjectSettingsDatasetTypesTab, isActiveProjectSettingsReservingClassTypesTab, isActiveScriptingTab, isActiveWorkflowTab, sendDFMCommand, sendProjectSettingsCommand, sendScriptingCommand, sendWorkflowCommand, setDfmEditEnabled, toggleNavigationPanel, updateEditMenuState, updateFileMenuState, updateViewMenuState } from "./shell_menus.js?v=20260515a";
+import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMTab, isActiveProjectSettingsDatasetTypesTab, isActiveProjectSettingsReservingClassTypesTab, isActiveScriptingTab, isActiveWorkflowTab, sendDFMCommand, sendProjectSettingsCommand, sendScriptingCommand, sendWorkflowCommand, setDfmEditEnabled, toggleNavigationPanel, updateEditMenuState, updateFileMenuState, updateHelpMenuState, updateViewMenuState } from "./shell_menus.js?v=20260515a";
 import { initHotkeys, runHotkeyAction } from "./shell_hotkeys.js?v=20260517a";
 import { initShellMessages } from "./shell_messages.js?v=20260517a";
 import { initTitlebarControls } from "./titlebar_controls.js?v=20260517a";
@@ -23,6 +23,7 @@ function render() {
   updateFileMenuState();
   updateEditMenuState();
   updateViewMenuState();
+  updateHelpMenuState();
   saveState();
 }
 
@@ -133,6 +134,7 @@ registerShellApi({
   uiVersionParam: UI_VERSION_PARAM,
   updateEditMenuState,
   updateFileMenuState,
+  updateHelpMenuState,
   updateFloatPreview,
   updateStatusBar,
   updateViewMenuState,

@@ -1,0 +1,8 @@
+{
+  "type": "changed",
+  "area": "frontend",
+  "summary": "Added transition animations for floating tab pop-out and dock actions.",
+  "details": [
+    "Dataset and DFM floating tab windows now use short fade/scale animations when tabs pop out or dock back, and the grey popped-tab state transitions smoothly."
+  ]
+}

@@ -127,6 +127,71 @@ async function buildAssistantContext() {
   };
 }
 
+function postDfmStatus(text, tone = "") {
+  window.parent.postMessage({ type: "arcrho:status", text: String(text || ""), tone }, "*");
+}
+
+function openPathViaShellBridge(targetPath, preferredApp = "") {
+  return new Promise((resolve) => {
+    if (!targetPath || !window.parent || window.parent === window) {
+      resolve({ ok: false, error: "Open path requires desktop app." });
+      return;
+    }
+    const requestId = `dfm-open-json-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let done = false;
+    let timeoutId = null;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+      window.removeEventListener("message", onMessage);
+      resolve(result || { ok: false, error: "Open path failed." });
+    };
+    const onMessage = (evt) => {
+      const msg = evt?.data;
+      if (!msg || msg.type !== "arcrho:open-path-result") return;
+      if (String(msg.requestId || "") !== requestId) return;
+      finish({ ok: !!msg.ok, error: String(msg.error || "") });
+    };
+    window.addEventListener("message", onMessage);
+    timeoutId = window.setTimeout(() => {
+      finish({ ok: false, error: "Open path timed out." });
+    }, 5000);
+    try {
+      window.parent.postMessage({ type: "arcrho:open-path", requestId, path: targetPath, preferredApp }, "*");
+    } catch {
+      finish({ ok: false, error: "Open path requires desktop app." });
+    }
+  });
+}
+
+async function openCurrentDfmMethodJson() {
+  let methodPath = "";
+  try {
+    methodPath = await buildRatioSavePath();
+  } catch (err) {
+    postDfmStatus(`Open DFM JSON failed: ${String(err?.message || err)}`, "error");
+    return;
+  }
+  if (!methodPath) {
+    postDfmStatus("Open DFM JSON failed: no DFM JSON path is available.", "error");
+    return;
+  }
+  try {
+    const hostApi = window.ADAHost || null;
+    const result = hostApi && typeof hostApi.openPath === "function"
+      ? await hostApi.openPath({ path: methodPath, preferredApp: "vscode" })
+      : await openPathViaShellBridge(methodPath, "vscode");
+    if (result?.ok) {
+      postDfmStatus(`Opened DFM JSON: ${methodPath}`);
+    } else {
+      postDfmStatus(`Open DFM JSON failed: ${result?.error || methodPath}`, "error");
+    }
+  } catch (err) {
+    postDfmStatus(`Open DFM JSON failed: ${String(err?.message || err)}`, "error");
+  }
+}
+
 function initDfmTabs() {
   const detailsPage = document.getElementById("dfmDetailsPage");
   const dataPage = document.getElementById("dfmDataPage");
@@ -308,6 +373,10 @@ export function initDfmRatios() {
       const ratiosPage = document.getElementById("dfmRatiosPage");
       if (!ratiosPage || ratiosPage.style.display === "none") return;
       includeAllInActiveCol();
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-open-method-json") {
+      openCurrentDfmMethodJson();
       return;
     }
     if (e?.data?.type === "arcrho:dfm-save") {

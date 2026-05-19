@@ -9,6 +9,8 @@ const viewMenuBtn = document.querySelector('.menu[data-menu="view"]');
 const viewMenuDropdown = document.getElementById("viewMenuDropdown");
 const settingsMenuBtn = document.querySelector('.menu[data-menu="settings"]');
 const settingsMenuDropdown = document.getElementById("settingsMenuDropdown");
+const helpMenuBtn = document.querySelector('.menu[data-menu="help"]');
+const helpMenuDropdown = document.getElementById("helpMenuDropdown");
 const menuBarEl = document.getElementById("menubar");
 const aboutOverlay = document.getElementById("aboutOverlay");
 const aboutCloseBtn = document.getElementById("aboutCloseBtn");
@@ -31,9 +33,10 @@ function toggleFileMenu(forceOpen) { toggleDropdown(fileMenuBtn, fileMenuDropdow
 function toggleEditMenu(forceOpen) { toggleDropdown(editMenuBtn, editMenuDropdown, forceOpen); }
 function toggleViewMenu(forceOpen) { toggleDropdown(viewMenuBtn, viewMenuDropdown, forceOpen); }
 function toggleSettingsMenu(forceOpen) { toggleDropdown(settingsMenuBtn, settingsMenuDropdown, forceOpen); }
+function toggleHelpMenu(forceOpen) { toggleDropdown(helpMenuBtn, helpMenuDropdown, forceOpen); }
 
-const shellMenuToggles = { file: toggleFileMenu, edit: toggleEditMenu, view: toggleViewMenu, settings: toggleSettingsMenu };
-const shellMenuDropdowns = { file: fileMenuDropdown, edit: editMenuDropdown, view: viewMenuDropdown, settings: settingsMenuDropdown };
+const shellMenuToggles = { file: toggleFileMenu, edit: toggleEditMenu, view: toggleViewMenu, settings: toggleSettingsMenu, help: toggleHelpMenu };
+const shellMenuDropdowns = { file: fileMenuDropdown, edit: editMenuDropdown, view: viewMenuDropdown, settings: settingsMenuDropdown, help: helpMenuDropdown };
 
 function openShellMenu(type, forceOpen) {
   const toggle = shellMenuToggles[type];
@@ -42,6 +45,7 @@ function openShellMenu(type, forceOpen) {
   if (type === "file") updateFileMenuState();
   if (type === "edit") updateEditMenuState();
   if (type === "view") updateViewMenuState();
+  if (type === "help") updateHelpMenuState();
   const isOpen = dropdown.classList.contains("open");
   const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !isOpen;
   closeAllShellMenus();
@@ -54,6 +58,7 @@ export function closeAllShellMenus() {
   toggleEditMenu(false);
   toggleViewMenu(false);
   toggleSettingsMenu(false);
+  toggleHelpMenu(false);
   shell.togglePlusMenu?.(false);
   shell.closeTabCtxMenu?.();
 }
@@ -158,6 +163,15 @@ export function updateViewMenuState() {
   normalizeMenuSeparators(viewMenuDropdown);
 }
 
+export function updateHelpMenuState() {
+  if (!helpMenuDropdown) return;
+  applyScopedMenuVisibility(helpMenuDropdown);
+  helpMenuDropdown.querySelectorAll(".menuItem").forEach((el) => {
+    if (el.hidden) el.classList.remove("disabled");
+  });
+  normalizeMenuSeparators(helpMenuDropdown);
+}
+
 export function sendWorkflowCommand(type) { const tab = shell.state.tabs.find(t => t.id === shell.state.activeId); if (!tab || tab.type !== "workflow") return; shell.ensureIframe?.(tab); try { tab.iframe?.contentWindow?.postMessage({ type }, "*"); } catch {} }
 export function sendDFMCommand(type) { const tab = shell.state.tabs.find(t => t.id === shell.state.activeId); if (!tab || tab.type !== "dfm") return; shell.ensureIframe?.(tab); try { tab.iframe?.contentWindow?.postMessage({ type }, "*"); } catch {} }
 export function sendScriptingCommand(type) { const tab = shell.state.tabs.find(t => t.id === shell.state.activeId); if (!tab || tab.type !== "scripting") return; shell.ensureIframe?.(tab); try { tab.iframe?.contentWindow?.postMessage({ type }, "*"); } catch {} }
@@ -221,8 +235,9 @@ export function initShellMenus() {
     }
   });
   settingsMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action) return; toggleSettingsMenu(false); if (action === "font-settings") shell.openFontSettingsModal?.(); else if (action === "root-path-settings") shell.openRootPathSettingsModal?.(); else if (action === "force-rebuild-settings") shell.openForceRebuildSettingsModal?.(); else if (action === "refresh-page") shell.refreshActiveTab?.(); else if (action === "clear-cache-reload") shell.clearCacheAndReload?.(); });
+  helpMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action || item.classList.contains("disabled")) return; toggleHelpMenu(false); if (action === "open-dfm-json") { shell.updateStatusBar?.("Opening DFM JSON..."); sendDFMCommand("arcrho:dfm-open-method-json"); } });
   editMenuDropdown?.addEventListener("click", (e) => { const item = e.target?.closest?.(".menuItem"); const action = item?.getAttribute("data-action"); if (!action || item.classList.contains("disabled")) return; toggleEditMenu(false); if (action === "dfm-exclude-high") sendDFMCommand("arcrho:dfm-exclude-high"); else if (action === "dfm-exclude-low") sendDFMCommand("arcrho:dfm-exclude-low"); else if (action === "dfm-include-all") sendDFMCommand("arcrho:dfm-include-all"); else if (action === "render-all-markdown") sendScriptingCommand("arcrho:scripting-render-all-markdown"); });
   document.addEventListener("pointerdown", (e) => { const hit = e.target?.closest?.(".menu, .menuDropdown, .tabMenu, .plusTab, #tabCtxMenu"); if (!hit) closeAllShellMenus(); }, true);
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllShellMenus(); }, true);
-  window.addEventListener("resize", () => { if (fileMenuDropdown?.classList.contains("open")) positionDropdown(fileMenuBtn, fileMenuDropdown); if (editMenuDropdown?.classList.contains("open")) positionDropdown(editMenuBtn, editMenuDropdown); if (viewMenuDropdown?.classList.contains("open")) positionDropdown(viewMenuBtn, viewMenuDropdown); if (settingsMenuDropdown?.classList.contains("open")) positionDropdown(settingsMenuBtn, settingsMenuDropdown); shell.clampFloatingTabsToContent?.(); });
+  window.addEventListener("resize", () => { if (fileMenuDropdown?.classList.contains("open")) positionDropdown(fileMenuBtn, fileMenuDropdown); if (editMenuDropdown?.classList.contains("open")) positionDropdown(editMenuBtn, editMenuDropdown); if (viewMenuDropdown?.classList.contains("open")) positionDropdown(viewMenuBtn, viewMenuDropdown); if (settingsMenuDropdown?.classList.contains("open")) positionDropdown(settingsMenuBtn, settingsMenuDropdown); if (helpMenuDropdown?.classList.contains("open")) positionDropdown(helpMenuBtn, helpMenuDropdown); shell.clampFloatingTabsToContent?.(); });
 }

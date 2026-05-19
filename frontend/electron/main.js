@@ -568,6 +568,51 @@ function runHostCommand(command, args = [], options = {}) {
   });
 }
 
+function getVsCodeCommand() {
+  const configured = String(process.env.ARCRHO_VSCODE_CMD || "").trim();
+  if (configured) return configured;
+  if (process.platform === "win32") {
+    const candidates = [
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code", "Code.exe") : "",
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code", "bin", "code.cmd") : "",
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code Insiders", "Code - Insiders.exe") : "",
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "Microsoft VS Code Insiders", "bin", "code-insiders.cmd") : "",
+      process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "Microsoft VS Code", "Code.exe") : "",
+      process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "Microsoft VS Code", "bin", "code.cmd") : "",
+      process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "Microsoft VS Code", "Code.exe") : "",
+      process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "Microsoft VS Code", "bin", "code.cmd") : "",
+      findExecutableOnPath(["code.cmd", "code.exe", "code-insiders.cmd", "code-insiders.exe"]),
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate) && !isWindowsAppsPath(candidate)) return candidate;
+      } catch {
+        // Try the next candidate.
+      }
+    }
+    return "";
+  }
+  return findExecutableOnPath(["code", "code-insiders"]) || "code";
+}
+
+async function openPathInVsCode(targetPath) {
+  const codeCommand = getVsCodeCommand();
+  if (!codeCommand) return { ok: false, missing: true, error: "VS Code command not found." };
+  try {
+    const child = spawn(codeCommand, ["-r", targetPath], {
+      cwd: fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath),
+      detached: true,
+      shell: process.platform === "win32" && /\.cmd$/i.test(codeCommand),
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+    return { ok: true, opener: "vscode" };
+  } catch (err) {
+    return { ok: false, error: `VS Code open failed: ${String(err?.message || err)}` };
+  }
+}
+
 function getArcBotCodexEnv(env = process.env) {
   const nextEnv = { ...env };
   if (fs.existsSync(PYTHON_API_SRC)) {
@@ -2531,14 +2576,22 @@ ipcMain.handle("pick-open-file", async (_event, payload) => {
 
 ipcMain.handle("open-path", async (_event, payload) => {
   const targetPath = String(payload?.path || "").trim();
+  const preferredApp = String(payload?.preferredApp || payload?.preferred_app || "").trim().toLowerCase();
   if (!targetPath) return { ok: false, error: "Empty path." };
   try {
     if (!fs.existsSync(targetPath)) {
       return { ok: false, error: `Path not found: ${targetPath}` };
     }
+    let preferredError = "";
+    if (preferredApp === "vscode" || preferredApp === "code") {
+      const preferred = await openPathInVsCode(targetPath);
+      if (preferred?.ok) return { ok: true, opener: preferred.opener || "vscode" };
+      if (!preferred?.missing) return { ok: false, error: String(preferred?.error || "VS Code open failed.") };
+      preferredError = String(preferred?.error || "").trim();
+    }
     const openErr = await shell.openPath(targetPath);
-    if (openErr) return { ok: false, error: String(openErr) };
-    return { ok: true };
+    if (openErr) return { ok: false, error: preferredError ? `${preferredError}; ${String(openErr)}` : String(openErr) };
+    return { ok: true, opener: "default" };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }
