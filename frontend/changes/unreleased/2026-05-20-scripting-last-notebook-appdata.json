@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Scripting Console now remembers the last opened .ipynb file in user AppData and reloads it for new notebook pages.",
+  "details": [
+    "The saved path is skipped when a tab has an existing local draft or is opening an explicitly dropped notebook."
+  ]
+}

@@ -1,5 +1,5 @@
 import { $, shell } from "./shell_context.js?v=20260510a";
-import { createIframeHost } from "./iframe_host.js?v=20260516a";
+import { createIframeHost } from "./iframe_host.js?v=20260520a";
 import { createFloatingTabsController, isFloatingTab } from "./floating_tabs.js?v=20260510a";
 import { normalizeBrowsingHistoryEntry } from "/ui/shell/browsing_history.js";
 import { renderHomeViewOnce } from "./home_view.js?v=20260510a";
@@ -19,6 +19,8 @@ function initShellControllers() {
       getAutoSaveEnabled: () => shell.getAutoSaveEnabled?.(),
       getIframeHost: () => iframeHost,
       getState: () => shell.state,
+      handleShellFileDragOver: (event) => shell.handleShellFileDragOver?.(event),
+      handleShellFileDrop: (event) => shell.handleShellFileDrop?.(event),
       normalizeBrowsingHistoryEntry,
       refreshActiveTab: () => shell.refreshActiveTab?.(),
       setActive: (id) => shell.setActive?.(id),

@@ -5,12 +5,13 @@ import { clearSavedStatusOnDirty, formatStatusTimestamp, getStatusBarHeight, ini
 import { closeRootPathSettingsModal, initRootPathSettingsModal, openRootPathSettingsModal } from "./root_path_settings.js?v=20260510a";
 import { clearCacheAndReload, customHardRefresh, initAppLifecycle, refreshActiveTab, restartApplication, sendShutdownSignal, showAppConfirm, shutdownApplication } from "./app_lifecycle.js?v=20260510a";
 import { clearTestData, getLastWorkflowDir, getLastWorkflowPath, getWorkflowTabState, importWorkflow, postToWorkflowTab, setLastWorkflowPath } from "./workflow_host_actions.js?v=20260510a";
-import { closeTab, closeTabsExcept, dockTab, floatTab, openBrowsingHistoryTab, openDatasetTab, openDFMTab, openProjectInstanceTab, openProjectSettingsTab, openScriptingTab, openWorkflowTab, setActive, setDockedActive } from "./tab_actions.js?v=20260516a";
-import { applyDockedIframeLayout, clampFloatingTabsToContent, clampFloatRect, defaultFloatRectFromPointer, ensureContentContainers, ensureIframe, notifyBrowsingHistoryTabs, notifyServerConnectionUpdated, notifyTabActivated, printActiveTab, removeFloatPreview, renderContent, renderFloatingWindows, updateFloatPreview } from "./shell_content.js?v=20260516a";
+import { closeTab, closeTabsExcept, dockTab, floatTab, openAgentGuideTab, openBrowsingHistoryTab, openDatasetTab, openDFMTab, openProjectInstanceTab, openProjectSettingsTab, openScriptingTab, openWorkflowTab, setActive, setDockedActive } from "./tab_actions.js?v=20260516a";
+import { applyDockedIframeLayout, clampFloatingTabsToContent, clampFloatRect, defaultFloatRectFromPointer, ensureContentContainers, ensureIframe, notifyBrowsingHistoryTabs, notifyServerConnectionUpdated, notifyTabActivated, printActiveTab, removeFloatPreview, renderContent, renderFloatingWindows, updateFloatPreview } from "./shell_content.js?v=20260520a";
 import { closeTabCtxMenu, initTabStrip, isTabStripDragging, renderTabs, togglePlusMenu } from "./tab_strip.js?v=20260518a";
-import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMTab, isActiveProjectSettingsDatasetTypesTab, isActiveProjectSettingsReservingClassTypesTab, isActiveScriptingTab, isActiveWorkflowTab, sendDFMCommand, sendProjectSettingsCommand, sendScriptingCommand, sendWorkflowCommand, setDfmEditEnabled, toggleNavigationPanel, updateEditMenuState, updateFileMenuState, updateHelpMenuState, updateViewMenuState } from "./shell_menus.js?v=20260515a";
+import { closeAllShellMenus, initShellMenus, isActiveDFMDetailsTab, isActiveDFMTab, isActiveProjectSettingsDatasetTypesTab, isActiveProjectSettingsReservingClassTypesTab, isActiveScriptingTab, isActiveWorkflowTab, sendDFMCommand, sendProjectSettingsCommand, sendScriptingCommand, sendWorkflowCommand, setDfmEditEnabled, toggleNavigationPanel, updateEditMenuState, updateFileMenuState, updateHelpMenuState, updateViewMenuState } from "./shell_menus.js?v=20260520a";
 import { initHotkeys, runHotkeyAction } from "./shell_hotkeys.js?v=20260517a";
-import { initShellMessages } from "./shell_messages.js?v=20260517a";
+import { initShellMessages } from "./shell_messages.js?v=20260520a";
+import { handleShellFileDragOver, handleShellFileDrop, initShellFileDrops } from "./shell_file_drop.js?v=20260519a";
 import { initTitlebarControls } from "./titlebar_controls.js?v=20260517a";
 import { initAiAssistant } from "./ai_assistant.js?v=20260515b";
 
@@ -36,6 +37,7 @@ function wire() {
   initShellMenus();
   initTabStrip();
   initShellMessages();
+  initShellFileDrops();
   initHotkeys();
   initAppLifecycle();
   initAiAssistant();
@@ -78,6 +80,8 @@ registerShellApi({
   getStatusBarHeight,
   getWorkflowTabState,
   getZoomPercent,
+  handleShellFileDragOver,
+  handleShellFileDrop,
   hideGlobalTooltip,
   hostZoomAvailable,
   importWorkflow,
@@ -93,6 +97,7 @@ registerShellApi({
   notifyServerConnectionUpdated,
   notifyTabActivated,
   openBrowsingHistoryTab,
+  openAgentGuideTab,
   openDatasetTab,
   openDFMTab,
   openFontSettingsModal,

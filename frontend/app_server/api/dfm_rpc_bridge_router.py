@@ -35,6 +35,11 @@ def keep_local_dfm_rpc_bridge(req: DfmRpcBridgeKeepLocalRequest) -> Dict[str, An
     return dfm_rpc_bridge_service.keep_local(req)
 
 
+@router.post("/dfm/rpc-bridge/cleanup")
+def cleanup_dfm_rpc_bridge(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
+    return dfm_rpc_bridge_service.cleanup_tmp(req)
+
+
 @router.post("/dfm/rpc-bridge/update-remote")
 def update_remote_dfm_rpc_bridge(req: DfmRpcBridgeUpdateRemoteRequest) -> Dict[str, Any]:
     return dfm_rpc_bridge_service.update_remote(req)

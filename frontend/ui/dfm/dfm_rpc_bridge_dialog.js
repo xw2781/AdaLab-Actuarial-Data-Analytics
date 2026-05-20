@@ -921,7 +921,7 @@ function renderVersionCard(version, selectedKey, versions, labelFallbacks = {}) 
   `;
 }
 
-export function createDfmRpcBridgeDialog() {
+export function createDfmRpcBridgeDialog(options = {}) {
   ensureStyles();
   const overlay = document.createElement("div");
   overlay.className = "dfmRpcOverlay";
@@ -955,11 +955,14 @@ export function createDfmRpcBridgeDialog() {
   placeDialogWindow(dialogWindow);
   enableDialogDrag(dialogWindow, header);
 
-  function close() {
+  function close(reason = "user") {
     overlay.remove();
+    if (typeof options?.onClose === "function") {
+      options.onClose(reason);
+    }
   }
 
-  closeBtns.forEach((btn) => btn.addEventListener("click", close));
+  closeBtns.forEach((btn) => btn.addEventListener("click", () => close("user")));
   refreshBtn?.addEventListener("click", async () => {
     if (typeof onRefresh !== "function") return;
     await onRefresh();

@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Scripting Console sidebar controls are simpler, with double-click collapse on the sidebar resize handle.",
+  "details": [
+    "Removed the toolbar Variables toggle and API Reference subpanel from the scripting page."
+  ]
+}

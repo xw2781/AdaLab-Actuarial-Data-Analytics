@@ -7,6 +7,8 @@ export function createIframeHost(deps) {
     normalizeBrowsingHistoryEntry,
     refreshActiveTab,
     setActive,
+    handleShellFileDragOver,
+    handleShellFileDrop,
     uiVersionParam,
   } = deps;
 
@@ -70,6 +72,12 @@ export function createIframeHost(deps) {
             e.stopPropagation();
             refreshActiveTab();
           }
+        }, true);
+        frameDoc.addEventListener("dragover", (e) => {
+          if (typeof handleShellFileDragOver === "function" && handleShellFileDragOver(e)) return;
+        }, true);
+        frameDoc.addEventListener("drop", (e) => {
+          if (typeof handleShellFileDrop === "function" && handleShellFileDrop(e)) return;
         }, true);
         frameWin.__arcRhoShellBridgeWiredV2 = true;
       } catch {
@@ -145,9 +153,26 @@ export function createIframeHost(deps) {
       iframe.src = `/ui/project_instance/project_instance.html?${params.toString()}`;
     } else if (tab.type === "browsing_history") {
       iframe.src = `/ui/shell/browsing_history.html?v=${encodeURIComponent(uiVersionParam)}`;
+    } else if (tab.type === "agent_guide") {
+      iframe.src = `/ui/agent_guide/agent_guide.html?v=${encodeURIComponent(uiVersionParam)}`;
     } else if (tab.type === "scripting") {
       const inst = tab.scInst || tab.id || `sc_${Date.now()}`;
-      iframe.src = `/ui/scripting_console/scripting_console.html?inst=${encodeURIComponent(inst)}${tab.scFresh ? "&fresh=1" : ""}`;
+      const openPath = String(tab.scOpenPath || "").trim();
+      const params = new URLSearchParams();
+      params.set("inst", inst);
+      if (tab.scFresh) params.set("fresh", "1");
+      if (openPath) {
+        params.set("skipLast", "1");
+        iframe.addEventListener("load", () => {
+          try {
+            iframe.contentWindow?.postMessage({ type: "arcrho:scripting-open-path", path: openPath }, "*");
+          } catch {
+            // ignore
+          }
+          tab.scOpenPath = "";
+        }, { once: true });
+      }
+      iframe.src = `/ui/scripting_console/scripting_console.html?${params.toString()}`;
       tab.scFresh = false;
     }
 

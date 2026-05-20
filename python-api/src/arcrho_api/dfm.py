@@ -392,6 +392,16 @@ class DfmMethod:
     def output_vector(self) -> str:
         return clean_text(self.details.get("output type"))
 
+    def output_vector_dataset_type(self) -> Any | None:
+        lookup = getattr(self.project, "dataset_type", None)
+        if not callable(lookup):
+            return None
+        return lookup(self.output_vector)
+
+    def output_vector_category(self) -> str:
+        info = self.output_vector_dataset_type()
+        return clean_text(getattr(info, "category", ""))
+
     @property
     def input_triangle(self) -> str:
         return clean_text(self.details.get("input triangle"))
@@ -1615,6 +1625,9 @@ class DfmMethod:
         return out
 
     def _adjustment_method_kind(self) -> str:
+        dataset_kind = self._adjustment_method_kind_from_dataset_type()
+        if dataset_kind is not None:
+            return dataset_kind
         text = f"{self.output_vector} {self.name}".lower()
         if re.search(r"(^|\D)52(\D|$)", text):
             return "skip"
@@ -1629,6 +1642,26 @@ class DfmMethod:
         if "reported" in text or "cwp" in text or "cwop" in text:
             return "counts"
         return "incurred"
+
+    def _adjustment_method_kind_from_dataset_type(self) -> str | None:
+        info = self.output_vector_dataset_type()
+        if info is None:
+            return None
+        dataset_type = clean_text(getattr(info, "name", ""))
+        category = clean_text(getattr(info, "category", ""))
+        dataset_type_lower = dataset_type.lower()
+        category_lower = category.lower()
+        if "52" in dataset_type:
+            return "skip"
+        if category_lower == "c claim count":
+            return "counts"
+        if category_lower == "h severity":
+            return "severity"
+        if "paid" in dataset_type_lower or "salv dfm" in dataset_type_lower or "subr dfm" in dataset_type_lower:
+            return "paid"
+        if "incurred" in dataset_type_lower:
+            return "incurred"
+        return None
 
     def _selected_average_row(self, col: int, selected: list[list[Any]] | None = None) -> int | None:
         matrix = selected if selected is not None else _coerce_matrix(self.average_formulas.get("selected"))

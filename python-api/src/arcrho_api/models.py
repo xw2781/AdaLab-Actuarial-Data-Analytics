@@ -17,10 +17,21 @@ class DfmMethodRef:
 
 
 @dataclass(frozen=True)
+class DatasetTypeInfo:
+    """Project dataset-type table row."""
+
+    name: str
+    data_format: str = ""
+    category: str = ""
+    calculated: bool = False
+    formula: str = ""
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class ProjectSettings:
     """Project-level settings loaded from known ArcRho JSON files."""
 
     project_name: str
     project_path: Path
     general_settings: dict[str, Any] = field(default_factory=dict)
-

@@ -44,6 +44,12 @@ High-risk files that must follow contracts:
 - `ui/scripting_console/scripting_console*.js` and `ui/scripting_console/scripting_console.html`
 <!-- MANUAL:END -->
 
+## Design References
+<!-- MANUAL:BEGIN -->
+- [`design.md`](design.md) - Atlas-based global UI design reference for future ArcRho interface work.
+- [`global_app_ui_demo.html`](global_app_ui_demo.html) - Standalone UI style demo with Workbench, Atlas, and Assistant Studio concepts.
+<!-- MANUAL:END -->
+
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
 - App-server HTTP interface via `fetch(...)` calls.

@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Clean up temporary DFM RPC JSON files when the sync window closes.",
+  "details": [
+    "Closing or dismissing the DFM RPC sync review window now asks the app server to remove the returned temporary DFM JSON and SyncDFM status JSON from the project tmp folder."
+  ]
+}

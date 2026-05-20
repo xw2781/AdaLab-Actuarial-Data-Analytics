@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Scripting Console TOC panel headers and heading numbers are easier to control.",
+  "details": [
+    "The TOC and Variables panel headers now collapse or expand their sections directly, replacing the small collapse buttons.",
+    "The TOC heading-number control now cycles through hidden, numbering from the first heading, and numbering from the second heading, and rendered markdown headings show the same numbering."
+  ]
+}

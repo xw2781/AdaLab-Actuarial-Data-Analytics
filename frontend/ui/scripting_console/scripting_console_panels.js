@@ -40,8 +40,15 @@ function renderVariables(vars) {
   });
 }
 
-function toggleVarsPanel() {
-  sidebar.classList.toggle("collapsed");
+function setSidebarCollapsed(collapsed) {
+  sidebar.classList.toggle("collapsed", Boolean(collapsed));
+  requestAnimationFrame(() => {
+    cells.forEach((c) => { if (c.editor) c.editor.layout(); });
+  });
+}
+
+function toggleSidebarCollapsed() {
+  setSidebarCollapsed(!sidebar.classList.contains("collapsed"));
 }
 
 
@@ -61,23 +68,25 @@ const scMain = document.querySelector(".sc-main");
 const SIDEBAR_POS_KEY = "sc_sidebar_position";
 const SIDEBAR_SPLIT_LAYOUT_KEY = "sc_sidebar_split_layout";
 const SIDEBAR_SPLIT_RATIO_KEY = "sc_sidebar_split_ratio";
-const VARS_API_HEIGHT_KEY = "sc_vars_api_height";
-const API_COLLAPSE_KEY = "sc_api_collapsed";
+const TOC_HEADING_NUMBERS_KEY = "sc_toc_heading_numbers";
+const TOC_HEADING_NUMBER_MODES = Object.freeze({
+  NONE: 0,
+  FROM_FIRST: 1,
+  FROM_SECOND: 2,
+});
 const PANEL_TYPES = Object.freeze({
   TOC: "toc",
   VARS: "vars",
 });
 const PANEL_COLLAPSE_KEY = "sc_panel_collapsed";
 const SIDEBAR_PANEL_MIN_HEIGHT = 72;
-const VARS_API_MIN_HEIGHT = 72;
-const VARS_BODY_MIN_HEIGHT = 80;
 
 let sidebarPosition = localStorage.getItem(SIDEBAR_POS_KEY) || "left";
 let sidebarSplitLayout = loadSidebarSplitLayout();
 let sidebarSplitRatio = loadSidebarSplitRatio();
 let panelCollapsedState = loadPanelCollapsedState();
-let varsApiHeight = loadVarsApiHeight();
-let apiCollapsed = loadApiCollapsedState();
+let tocHeadingNumberMode = loadTocHeadingNumberMode();
+let syncingRenderedMarkdownHeadings = false;
 
 function normalizePanelType(raw) {
   return raw === PANEL_TYPES.VARS ? PANEL_TYPES.VARS : PANEL_TYPES.TOC;
@@ -134,34 +143,50 @@ function saveSidebarSplitRatio() {
   } catch {}
 }
 
-function loadVarsApiHeight() {
+function normalizeTocHeadingNumberMode(value) {
+  const numeric = Number(value);
+  if (numeric === TOC_HEADING_NUMBER_MODES.FROM_SECOND) return TOC_HEADING_NUMBER_MODES.FROM_SECOND;
+  if (numeric === TOC_HEADING_NUMBER_MODES.FROM_FIRST) return TOC_HEADING_NUMBER_MODES.FROM_FIRST;
+  return TOC_HEADING_NUMBER_MODES.NONE;
+}
+
+function loadTocHeadingNumberMode() {
   try {
-    const raw = Number.parseFloat(localStorage.getItem(VARS_API_HEIGHT_KEY) || "");
-    if (!Number.isFinite(raw)) return 180;
-    return clampNumber(raw, VARS_API_MIN_HEIGHT, 420);
+    return normalizeTocHeadingNumberMode(localStorage.getItem(TOC_HEADING_NUMBERS_KEY));
   } catch {
-    return 180;
+    return TOC_HEADING_NUMBER_MODES.NONE;
   }
 }
 
-function saveVarsApiHeight() {
+function saveTocHeadingNumberMode() {
   try {
-    localStorage.setItem(VARS_API_HEIGHT_KEY, String(Math.round(varsApiHeight)));
+    localStorage.setItem(TOC_HEADING_NUMBERS_KEY, String(tocHeadingNumberMode));
   } catch {}
 }
 
-function loadApiCollapsedState() {
-  try {
-    return localStorage.getItem(API_COLLAPSE_KEY) === "1";
-  } catch {
-    return false;
+function updateTocHeadingNumbersButton() {
+  if (!tocHeadingNumbersBtn) return;
+  const mode = normalizeTocHeadingNumberMode(tocHeadingNumberMode);
+  tocHeadingNumbersBtn.classList.toggle("active", mode !== TOC_HEADING_NUMBER_MODES.NONE);
+  tocHeadingNumbersBtn.setAttribute(
+    "aria-pressed",
+    mode === TOC_HEADING_NUMBER_MODES.NONE ? "false" : (mode === TOC_HEADING_NUMBER_MODES.FROM_FIRST ? "true" : "mixed")
+  );
+  tocHeadingNumbersBtn.title = mode === TOC_HEADING_NUMBER_MODES.NONE
+    ? "Show heading numbers from first heading"
+    : (mode === TOC_HEADING_NUMBER_MODES.FROM_FIRST
+      ? "Show heading numbers from second heading"
+      : "Hide heading numbers");
+}
+
+function toggleTocHeadingNumbers() {
+  tocHeadingNumberMode = normalizeTocHeadingNumberMode(tocHeadingNumberMode + 1);
+  saveTocHeadingNumberMode();
+  updateTocHeadingNumbersButton();
+  if (typeof refreshRenderedMarkdownCells === "function") {
+    refreshRenderedMarkdownCells({ refresh: false });
   }
-}
-
-function saveApiCollapsedState() {
-  try {
-    localStorage.setItem(API_COLLAPSE_KEY, apiCollapsed ? "1" : "0");
-  } catch {}
+  renderToc();
 }
 
 function getPanelSlot(panelType) {
@@ -174,9 +199,9 @@ function panelDisplayName(panelType) {
 
 function getPanelElements(panelType) {
   if (panelType === PANEL_TYPES.VARS) {
-    return { view: varsView, slot: varsView?.parentElement, toggleBtn: collapseVarsBtn };
+    return { view: varsView, slot: varsView?.parentElement, header: varsHeader };
   }
-  return { view: tocView, slot: tocView?.parentElement, toggleBtn: collapseTocBtn };
+  return { view: tocView, slot: tocView?.parentElement, header: tocHeader };
 }
 
 function loadPanelCollapsedState() {
@@ -201,20 +226,24 @@ function savePanelCollapsedState() {
 
 function setPanelCollapsed(panelType, collapsed, { persist = true } = {}) {
   const normalized = normalizePanelType(panelType);
-  const { view, slot, toggleBtn } = getPanelElements(normalized);
-  if (!view || !slot || !toggleBtn) return;
+  const { view, slot, header } = getPanelElements(normalized);
+  if (!view || !slot) return;
 
   const nextCollapsed = Boolean(collapsed);
   panelCollapsedState[normalized] = nextCollapsed;
   view.classList.toggle("collapsed", nextCollapsed);
   slot.classList.toggle("collapsed", nextCollapsed);
-  toggleBtn.textContent = nextCollapsed ? "+" : "-";
-  toggleBtn.title = nextCollapsed
-    ? `Expand ${panelDisplayName(normalized)} panel`
-    : `Collapse ${panelDisplayName(normalized)} panel`;
+  if (header) {
+    header.title = nextCollapsed
+      ? `Expand ${panelDisplayName(normalized)} panel`
+      : `Collapse ${panelDisplayName(normalized)} panel`;
+    header.setAttribute("role", "button");
+    header.setAttribute("tabindex", "0");
+    header.setAttribute("aria-expanded", nextCollapsed ? "false" : "true");
+  }
 
   if (!nextCollapsed && sidebar.classList.contains("collapsed")) {
-    sidebar.classList.remove("collapsed");
+    setSidebarCollapsed(false);
   }
   if (persist) savePanelCollapsedState();
   applySidebarSplitSizes({ persistRatio: false });
@@ -223,30 +252,6 @@ function setPanelCollapsed(panelType, collapsed, { persist = true } = {}) {
 function togglePanelCollapsed(panelType) {
   const normalized = normalizePanelType(panelType);
   setPanelCollapsed(normalized, !panelCollapsedState[normalized]);
-}
-
-function setApiCollapsed(collapsed, { persist = true, load = true } = {}) {
-  apiCollapsed = Boolean(collapsed);
-
-  if (collapseApiBtn) {
-    collapseApiBtn.textContent = apiCollapsed ? "+" : "-";
-    collapseApiBtn.title = apiCollapsed
-      ? "Expand API Reference panel"
-      : "Collapse API Reference panel";
-  }
-
-  applyVarsApiSectionHeight({ persist: false });
-
-  if (!apiCollapsed && load) {
-    void ensureApiHelpLoaded();
-  }
-  if (persist) {
-    saveApiCollapsedState();
-  }
-}
-
-function toggleApiCollapsed() {
-  setApiCollapsed(!apiCollapsed);
 }
 
 function applySidebarSplitSizes({ persistRatio = false } = {}) {
@@ -275,33 +280,6 @@ function applySidebarSplitSizes({ persistRatio = false } = {}) {
   if (persistRatio) {
     saveSidebarSplitRatio();
   }
-  applyVarsApiSectionHeight({ persist: false });
-}
-
-function applyVarsApiSectionHeight({ persist = false } = {}) {
-  if (!apiSection) return;
-  const varsPanelCollapsed = Boolean(varsView?.classList.contains("collapsed"));
-  apiSection.classList.toggle("collapsed", apiCollapsed);
-  varsApiResizeHandle?.classList.toggle("hidden", varsPanelCollapsed || apiCollapsed);
-
-  if (apiCollapsed) {
-    apiSection.style.flex = "0 0 auto";
-    return;
-  }
-
-  let nextHeight = clampNumber(varsApiHeight, VARS_API_MIN_HEIGHT, 420);
-  if (varsView && varsHeader && varsApiResizeHandle && !varsPanelCollapsed) {
-    const viewHeight = varsView.getBoundingClientRect().height;
-    const headerHeight = varsHeader.getBoundingClientRect().height || 28;
-    const handleHeight = varsApiResizeHandle.getBoundingClientRect().height || 6;
-    const available = viewHeight - headerHeight - handleHeight;
-    if (available > VARS_API_MIN_HEIGHT + VARS_BODY_MIN_HEIGHT) {
-      nextHeight = clampNumber(nextHeight, VARS_API_MIN_HEIGHT, available - VARS_BODY_MIN_HEIGHT);
-    }
-  }
-  varsApiHeight = nextHeight;
-  apiSection.style.flex = `0 0 ${Math.round(varsApiHeight)}px`;
-  if (persist) saveVarsApiHeight();
 }
 
 function applySidebarSplitLayout(layout = sidebarSplitLayout) {
@@ -316,7 +294,6 @@ function applySidebarSplitLayout(layout = sidebarSplitLayout) {
   setPanelCollapsed(PANEL_TYPES.TOC, panelCollapsedState[PANEL_TYPES.TOC], { persist: false });
   setPanelCollapsed(PANEL_TYPES.VARS, panelCollapsedState[PANEL_TYPES.VARS], { persist: false });
   applySidebarSplitSizes({ persistRatio: false });
-  applyVarsApiSectionHeight({ persist: false });
 }
 
 function movePanelToSlot(panelType, targetSlot) {
@@ -413,7 +390,30 @@ document.addEventListener("mousedown", (e) => {
 
 // Right-click on panel headers for top/bottom move; elsewhere in sidebar for left/right move.
 tocHeader?.addEventListener("contextmenu", (e) => openPanelSlotCtxMenu(PANEL_TYPES.TOC, e));
+tocHeader?.addEventListener("click", (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  if (target?.closest("button")) return;
+  togglePanelCollapsed(PANEL_TYPES.TOC);
+});
+tocHeader?.addEventListener("keydown", (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  if (target?.closest("button")) return;
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  togglePanelCollapsed(PANEL_TYPES.TOC);
+});
+tocHeadingNumbersBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  toggleTocHeadingNumbers();
+});
 varsHeader?.addEventListener("contextmenu", (e) => openPanelSlotCtxMenu(PANEL_TYPES.VARS, e));
+varsHeader?.addEventListener("click", () => togglePanelCollapsed(PANEL_TYPES.VARS));
+varsHeader?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  togglePanelCollapsed(PANEL_TYPES.VARS);
+});
 sidebar?.addEventListener("contextmenu", (e) => {
   const target = e.target;
   if (!(target instanceof Element)) return;
@@ -425,7 +425,7 @@ sidebar?.addEventListener("contextmenu", (e) => {
 // Apply saved layout on load
 applySidebarPosition(sidebarPosition);
 applySidebarSplitLayout(sidebarSplitLayout);
-setApiCollapsed(apiCollapsed, { persist: false });
+updateTocHeadingNumbersButton();
 
 
 // ---------------------------------------------------------------------------
@@ -438,18 +438,62 @@ function buildToc() {
     if (normalizeCellType(cell.type) !== CELL_TYPES.MARKDOWN) return;
     const source = cell.editor ? cell.editor.getValue() : "";
     const lines = source.split("\n");
+    let headingIndex = 0;
     for (const line of lines) {
       const match = line.trim().match(/^(#{1,6})\s+(.+)$/);
       if (match) {
         entries.push({
           cellId: cell.id,
+          headingIndex,
           level: match[1].length,
           text: match[2].replace(/[*_`\[\]]/g, "").trim(),
         });
+        headingIndex += 1;
       }
     }
   });
   return entries;
+}
+
+function buildTocNumberLabels(entries, mode = tocHeadingNumberMode) {
+  const normalizedMode = normalizeTocHeadingNumberMode(mode);
+  const counters = [0, 0, 0, 0, 0, 0];
+  const labels = [];
+  if (!Array.isArray(entries)) return labels;
+  if (normalizedMode === TOC_HEADING_NUMBER_MODES.NONE) return entries.map(() => "");
+  const titleLevel = entries.length ? clampNumber(Number(entries[0]?.level || 1), 1, 6) : 1;
+
+  entries.forEach((entry, idx) => {
+    if (normalizedMode === TOC_HEADING_NUMBER_MODES.FROM_SECOND && idx === 0) {
+      labels[idx] = "";
+      return;
+    }
+    const rawLevel = clampNumber(Number(entry?.level || 1), 1, 6);
+    const level = normalizedMode === TOC_HEADING_NUMBER_MODES.FROM_SECOND
+      ? clampNumber(rawLevel - titleLevel, 1, 6)
+      : rawLevel;
+    const index = level - 1;
+    counters[index] += 1;
+    for (let i = index + 1; i < counters.length; i += 1) counters[i] = 0;
+    const label = counters.slice(0, level).filter((value) => value > 0).join(".");
+    labels[idx] = label;
+  });
+  return labels;
+}
+
+function getRenderedMarkdownHeadingNumberLabel(cellId, headingIndex) {
+  const mode = normalizeTocHeadingNumberMode(tocHeadingNumberMode);
+  if (mode === TOC_HEADING_NUMBER_MODES.NONE) return "";
+  const normalizedCellId = Number(cellId);
+  const normalizedHeadingIndex = Number(headingIndex);
+  if (!Number.isFinite(normalizedCellId) || !Number.isFinite(normalizedHeadingIndex)) return "";
+  const entries = buildToc();
+  const numberLabels = buildTocNumberLabels(entries, mode);
+  const index = entries.findIndex((entry) => (
+    Number(entry.cellId) === normalizedCellId
+    && Number(entry.headingIndex) === normalizedHeadingIndex
+  ));
+  return index >= 0 ? (numberLabels[index] || "") : "";
 }
 
 function getRunningTocTargetCellId(entries) {
@@ -481,8 +525,9 @@ function renderToc() {
 
   tocBody.innerHTML = "";
   const runningTocCellId = getRunningTocTargetCellId(entries);
+  const numberLabels = buildTocNumberLabels(entries);
   const collapsedAncestorStack = [];
-  entries.forEach((entry) => {
+  entries.forEach((entry, entryIndex) => {
     while (
       collapsedAncestorStack.length
       && entry.level <= collapsedAncestorStack[collapsedAncestorStack.length - 1]
@@ -537,6 +582,12 @@ function renderToc() {
     });
 
     row.appendChild(foldBtn);
+    if (tocHeadingNumberMode !== TOC_HEADING_NUMBER_MODES.NONE && numberLabels[entryIndex]) {
+      const numberEl = document.createElement("span");
+      numberEl.className = "sc-toc-number";
+      numberEl.textContent = `${numberLabels[entryIndex] || ""}.`;
+      row.appendChild(numberEl);
+    }
     row.appendChild(btn);
     const runningSpinner = document.createElement("span");
     runningSpinner.className = "sc-toc-running-spinner";
@@ -590,6 +641,14 @@ function scrollCellsAreaToCell(cellEl, options = {}) {
 function refreshToc() {
   refreshSectionCollapses({ animate: false });
   renderToc();
+  if (!syncingRenderedMarkdownHeadings && typeof refreshRenderedMarkdownCells === "function") {
+    syncingRenderedMarkdownHeadings = true;
+    try {
+      refreshRenderedMarkdownCells({ refresh: false });
+    } finally {
+      syncingRenderedMarkdownHeadings = false;
+    }
+  }
 }
 
 

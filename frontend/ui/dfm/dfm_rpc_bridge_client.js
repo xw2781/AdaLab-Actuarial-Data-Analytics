@@ -64,6 +64,16 @@ async function postJson(url, payload) {
   return data;
 }
 
+async function cleanupRemoteTmp(payload) {
+  if (!payload) return null;
+  try {
+    return await postJson("/dfm/rpc-bridge/cleanup", payload);
+  } catch (err) {
+    postStatus(`DFM sync cleanup failed: ${String(err?.message || err)}`, "warn");
+    return null;
+  }
+}
+
 function postStatus(text, tone = "") {
   window.parent.postMessage({ type: "arcrho:status", text, ...(tone ? { tone } : {}) }, "*");
 }
@@ -140,7 +150,7 @@ async function runPrimaryAction(dialog, payload, action) {
   dialog.setBusy(true);
   const statusDialog = createDfmRpcBridgeMessageBox("Preparing selected DFM version action...");
   statusDialog.setBusy(true);
-  dialog.close();
+  dialog.close("primary-action");
   try {
     if (action === "update-local") {
       statusDialog.setWaiting("Updating local DFM JSON from remote...");
@@ -199,7 +209,25 @@ export async function startDfmRpcBridgeSync(buttonEl = null) {
   if (syncInFlight) return;
   syncInFlight = true;
   if (buttonEl) buttonEl.disabled = true;
-  const dialog = createDfmRpcBridgeDialog();
+  let cleanupPayload = null;
+  let dialogClosed = false;
+  let cleanupAfterClose = null;
+  const cleanupAfterUserClose = () => {
+    if (!cleanupPayload || cleanupAfterClose) return;
+    cleanupAfterClose = cleanupRemoteTmp(cleanupPayload).finally(() => {
+      cleanupAfterClose = null;
+    });
+    window.setTimeout(() => {
+      if (cleanupPayload) cleanupRemoteTmp(cleanupPayload);
+    }, 10000);
+  };
+  const dialog = createDfmRpcBridgeDialog({
+    onClose: (reason) => {
+      dialogClosed = true;
+      if (reason === "primary-action") return;
+      cleanupAfterUserClose();
+    },
+  });
   dialog.setWaiting("Preparing DFM RPC bridge sync...");
   try {
     const saved = await ensureSavedBeforeSync(dialog);
@@ -212,8 +240,13 @@ export async function startDfmRpcBridgeSync(buttonEl = null) {
       return;
     }
 
+    cleanupPayload = payload;
     dialog.setWaiting("Sending DFM request and waiting for remote JSON...");
     const data = await postJson("/dfm/rpc-bridge/sync", payload);
+    if (dialogClosed) {
+      await cleanupRemoteTmp(payload);
+      return;
+    }
     if (!data?.ok && data?.status === "timeout") {
       dialog.setMessage("Timed out waiting for remote DFM JSON. Use Refresh if the remote file appears later.", "warn");
       postStatus("DFM sync timed out waiting for remote JSON.", "warn");

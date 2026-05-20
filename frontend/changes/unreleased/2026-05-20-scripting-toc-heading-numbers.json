@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Scripting Console TOC can now show or hide hierarchical heading numbers.",
+  "details": [
+    "A numbered-list icon in the Table of Contents header toggles heading numbers and remembers the preference."
+  ]
+}

@@ -143,6 +143,21 @@ export function initShellMessages() {
       Promise.resolve(hostApi.openPath({ path: targetPath, preferredApp })).then((result) => reply(result?.ok ? { ok: true } : { ok: false, error: String(result?.error || `Path not found: ${targetPath}`) })).catch((err) => reply({ ok: false, error: String(err?.message || err) }));
       return;
     }
+    if (msg.type === "arcrho:agent-guide-load") {
+      const requestId = String(msg.requestId || "").trim();
+      const source = e?.source;
+      const reply = (payload) => { if (requestId && source?.postMessage) { try { source.postMessage({ type: "arcrho:agent-guide-load-result", requestId, ...payload }, "*"); } catch {} } };
+      if (!requestId) return;
+      const hostApi = shell.getHostApi?.();
+      if (!hostApi || typeof hostApi.codexAssistantLoadPromptGuide !== "function") {
+        reply({ ok: false, error: "ArcBot prompt guide requires the desktop app host." });
+        return;
+      }
+      Promise.resolve(hostApi.codexAssistantLoadPromptGuide())
+        .then((result) => reply(result?.ok ? result : { ok: false, error: String(result?.error || "Could not load ArcBot prompt guide.") }))
+        .catch((err) => reply({ ok: false, error: String(err?.message || err) }));
+      return;
+    }
     if (msg.type === "arcrho:status") { const text = String(msg.text || "").trim(); if (text) shell.updateStatusBar?.(text, { tone: msg.tone || msg.level || "" }); return; }
     if (msg.type === "arcrho:dataset-settings-changed") {
       const active = shell.state.tabs.find(t => t.id === shell.state.activeId);

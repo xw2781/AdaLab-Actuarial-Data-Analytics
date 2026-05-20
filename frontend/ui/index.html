@@ -3121,6 +3121,46 @@
 
     .menuItem:hover { background: rgba(0,0,0,0.06); }
 
+    .menuItem.hasSubmenu {
+      position: relative;
+    }
+    .menuItem.hasSubmenu::after {
+      content: ">";
+      color: #777;
+      font-size: 12px;
+      margin-left: auto;
+    }
+    .menuItem.hasSubmenu.disabled::after {
+      color: #aaa;
+    }
+    .menuSubmenu {
+      position: absolute;
+      top: -6px;
+      left: calc(100% + 6px);
+      min-width: 280px;
+      max-width: 420px;
+      background: #fff;
+      border: 1px solid #cfcfcf;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+      border-radius: 10px;
+      padding: 6px;
+      display: none;
+      z-index: 10000;
+    }
+    .menuItem.hasSubmenu:hover > .menuSubmenu {
+      display: block;
+    }
+    .menuSubmenu .menuItem {
+      max-width: 396px;
+      gap: 8px;
+    }
+    .menuPathLabel {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .menuShortcut {
       color: #777;
       font-size: 12px;
@@ -3521,6 +3561,12 @@
 
   <div id="fileMenuDropdown" class="menuDropdown">
     <div class="menuItem" data-action="open-notebook" data-page-scopes="scripting"><span>Open Notebook...</span><span class="menuShortcut">Ctrl+O</span></div>
+    <div class="menuItem hasSubmenu disabled" id="recentNotebookMenuItem" data-action="recent-notebooks" data-page-scopes="scripting">
+      <span>Recent ...</span>
+      <div class="menuSubmenu" id="recentNotebookSubmenu">
+        <div class="menuItem disabled"><span>No recent notebooks</span></div>
+      </div>
+    </div>
     <div class="menuSep"></div>
     <div class="menuItem" data-action="close-tab"><span>Close Tab</span><span class="menuShortcut">Alt+W</span></div>
     <div class="menuSep"></div>
@@ -3668,6 +3714,18 @@
             <path d="M8 14h8"></path>
           </svg>
           <span>Folder Permissions</span>
+        </button>
+      </div>
+      <div class="aiAssistantSettingsSection">
+        <div class="aiAssistantSettingsTitle">Prompts</div>
+        <button id="aiAssistantPromptGuideBtn" class="aiAssistantSettingsAction" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 4h10a4 4 0 0 1 4 4v12H9a4 4 0 0 0-4-4z"></path>
+            <path d="M5 4v12"></path>
+            <path d="M9 8h6"></path>
+            <path d="M9 12h5"></path>
+          </svg>
+          <span>Prompt Guide</span>
         </button>
       </div>
       <div class="aiAssistantSettingsSection">

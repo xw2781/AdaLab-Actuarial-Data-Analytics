@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Notebook files can now be dropped from File Explorer onto the ArcRho shell to open them in Scripting Console.",
+  "details": [
+    "Dropped .ipynb and .arcnb files open in fresh scripting tabs and keep the same disk-backed save/reload behavior as File > Open Notebook.",
+    "A shell drop overlay now clarifies when a dragged file can be opened as a notebook."
+  ]
+}

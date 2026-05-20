@@ -43,6 +43,15 @@ function getNotebookExtension(pathLike) {
   return dot >= 0 ? name.slice(dot) : "";
 }
 
+function isIpynbPath(pathLike) {
+  return getNotebookExtension(pathLike).toLowerCase() === ".ipynb";
+}
+
+function isAbsoluteFilePath(pathLike) {
+  const value = String(pathLike || "").trim();
+  return /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\\\") || value.startsWith("/");
+}
+
 function getNotebookCopyFilename(pathLike) {
   const name = getNotebookFilenameFromPath(pathLike) || "notebook.ipynb";
   const dot = name.lastIndexOf(".");
@@ -388,6 +397,7 @@ async function saveNotebookViaApi(filename, { closeDialog = true } = {}) {
 
     const savedName = getNotebookFilenameFromPath(result?.path) || nextName;
     setCurrentNotebookFilename(result?.path || savedName);
+    rememberLastOpenedIpynbPath(result?.path || savedName);
     try {
       lastNotebookDiskRevision = await readNotebookDiskRevision(result?.path || "");
     } catch {
@@ -424,6 +434,31 @@ async function requestNotebookSave(forcePrompt = false) {
     return;
   }
   await saveNotebookByFilename(currentNotebookFilename, { closeDialog: false });
+}
+
+function rememberLastOpenedIpynbPath(pathLike) {
+  const filePath = String(pathLike || "").trim();
+  if (!filePath || !isIpynbPath(filePath) || !isAbsoluteFilePath(filePath)) return;
+  const hostApi = getNotebookHostApi();
+  if (typeof hostApi?.saveLastScriptingNotebook !== "function") return;
+  try {
+    Promise.resolve(hostApi.saveLastScriptingNotebook(filePath)).catch(() => {});
+  } catch {
+    // ignore persistence failures; notebook open/save should still succeed
+  }
+}
+
+async function loadLastOpenedNotebookFromHost() {
+  const hostApi = getNotebookHostApi();
+  if (typeof hostApi?.loadLastScriptingNotebook !== "function") return false;
+  try {
+    const result = await hostApi.loadLastScriptingNotebook();
+    const filePath = String(result?.path || "").trim();
+    if (!result?.exists || !filePath || !isIpynbPath(filePath)) return false;
+    return await openNotebookFilePath(filePath, { remember: false, source: "startup" });
+  } catch {
+    return false;
+  }
 }
 
 async function renameCurrentNotebook() {
@@ -474,6 +509,7 @@ async function renameCurrentNotebook() {
     }
     const nextPath = result.path || currentNotebookPath;
     setCurrentNotebookFilename(nextPath);
+    rememberLastOpenedIpynbPath(nextPath);
     lastNotebookDiskRevision = result.revision || await readNotebookDiskRevision(nextPath);
     if (wasDirty) {
       notebookDiskConflict = "";
@@ -715,27 +751,54 @@ async function openNotebookFromAnyFolder() {
   }
   if (!filePath) return true;
 
+  await openNotebookFilePath(filePath);
+  return true;
+}
+
+async function openNotebookFilePath(filePath, options = {}) {
+  const hostApi = getNotebookHostApi();
+  const targetPath = String(filePath || "").trim();
+  const extension = getNotebookExtension(targetPath).toLowerCase();
+  if (!targetPath) {
+    setStatus("Open failed");
+    postShellStatus("Open failed");
+    return false;
+  }
+  if (extension !== ".ipynb" && extension !== ".arcnb") {
+    const msg = "Only .ipynb and .arcnb notebooks can be opened in Scripting Console.";
+    setStatus(msg);
+    postShellStatus(msg);
+    return false;
+  }
+  if (!hostApi || typeof hostApi.readJsonFile !== "function") {
+    const msg = "Opening notebooks from disk requires the ArcRho desktop app.";
+    setStatus(msg);
+    postShellStatus(msg);
+    return false;
+  }
+
   try {
-    const result = await hostApi.readJsonFile({ path: filePath });
+    const result = await hostApi.readJsonFile({ path: targetPath });
     if (!result || !result.exists) {
-      const msg = result?.error || `File not found: ${filePath}`;
+      const msg = result?.error || `File not found: ${targetPath}`;
       setStatus(msg);
       postShellStatus(msg);
-      return true;
+      return false;
     }
-    const loadedCells = normalizeNotebookData(result.data, filePath);
-    const unsupportedOutputCells = applyLoadedNotebookCells(loadedCells, filePath, { revision: result.revision || null });
+    const loadedCells = normalizeNotebookData(result.data, targetPath);
+    const unsupportedOutputCells = applyLoadedNotebookCells(loadedCells, targetPath, { revision: result.revision || null });
     if (unsupportedOutputCells > 0) {
-      setStatus(`Opened ${getNotebookFilenameFromPath(filePath)} (${unsupportedOutputCells} cells include unsupported rich outputs)`);
+      setStatus(`Opened ${getNotebookFilenameFromPath(targetPath)} (${unsupportedOutputCells} cells include unsupported rich outputs)`);
     } else {
-      setStatus(`Opened ${getNotebookFilenameFromPath(filePath)}`);
+      setStatus(`Opened ${getNotebookFilenameFromPath(targetPath)}`);
     }
-    postShellStatus(`Opened ${filePath}`);
+    if (options.remember !== false) rememberLastOpenedIpynbPath(targetPath);
+    postShellStatus(`Opened ${targetPath}`);
     return true;
   } catch {
     setStatus("Load failed");
     postShellStatus("Load failed");
-    return true;
+    return false;
   }
 }
 
@@ -791,6 +854,7 @@ async function saveCurrentNotebookFile({ closeDialog = true, ignoreRevisionConfl
     markNotebookSavedBaseline(savedPath, lastNotebookDiskRevision);
     const savedName = getNotebookFilenameFromPath(savedPath);
     const msg = source === "auto" ? `Auto-saved ${savedName}` : `Saved ${savedName}`;
+    rememberLastOpenedIpynbPath(savedPath);
     setStatus(msg);
     postShellStatus(`${msg}${source === "auto" ? "" : ` (${savedPath})`}`);
     if (closeDialog) closeSaveNbDialog();
@@ -831,6 +895,7 @@ async function loadNotebook(filename) {
       revision = null;
     }
     const unsupportedOutputCells = applyLoadedNotebookCells(loadedCells, openedPath, { revision });
+    rememberLastOpenedIpynbPath(openedPath);
 
     closeOpenNbDialog();
     if (unsupportedOutputCells > 0) {
@@ -840,30 +905,6 @@ async function loadNotebook(filename) {
     }
   } catch {
     setStatus("Load failed");
-  }
-}
-
-
-// ---------------------------------------------------------------------------
-// API help
-// ---------------------------------------------------------------------------
-
-let apiLoaded = false;
-
-async function ensureApiHelpLoaded() {
-  if (!apiList || apiLoaded) return;
-  try {
-    const resp = await scriptingFetch("/scripting/api-help");
-    const funcs = await resp.json();
-    apiList.innerHTML = funcs
-      .map(
-        (f) =>
-          `<div><span class="sc-api-fn">${escapeHtml(f.name)}</span><span class="sc-api-desc"> - ${escapeHtml(f.description)}</span></div>`
-      )
-      .join("");
-    apiLoaded = true;
-  } catch {
-    apiList.textContent = "Failed to load.";
   }
 }
 

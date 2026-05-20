@@ -1,0 +1,6 @@
+{
+  "summary": "Added shared ArcBot instruction files.",
+  "details": [
+    "ArcBot now uses config\\arcbot\\arcbot_prompt.md as the shared server prompt entry point and appends Markdown files from config\\arcbot\\instructions for team-maintained data label, DFM, reserving, project, scripting, and Excel guidance."
+  ]
+}

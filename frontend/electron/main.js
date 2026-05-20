@@ -30,10 +30,21 @@ const PYTHON_API_WHEEL_DIR = app.isPackaged
   ? path.join(process.resourcesPath, "python_packages")
   : path.join(APP_ROOT, "build", "python_packages");
 const ARCBOT_PROMPT_TEMPLATE_PATH = path.join(__dirname, "prompts", "arcbot_prompt.md");
-const ARCBOT_SERVER_PROMPT_RELATIVE_PATH = path.join("config", "arcbot_prompt.md");
+const ARCBOT_SERVER_PROMPT_RELATIVE_PATH = path.join("config", "arcbot", "arcbot_prompt.md");
+const ARCBOT_LEGACY_SERVER_PROMPT_RELATIVE_PATH = path.join("config", "arcbot_prompt.md");
+const ARCBOT_SERVER_INSTRUCTIONS_RELATIVE_DIR = path.join("config", "arcbot", "instructions");
+const ARCBOT_SERVER_INSTRUCTION_PLACEHOLDERS = [
+  ["data_labels.md", "# Data Labels\n\nAdd shared definitions for dataset labels, triangle names, abbreviations, and common naming patterns.\n"],
+  ["dfm_workflow.md", "# DFM Workflow\n\nAdd DFM-specific review, analysis, and editing practices.\n"],
+  ["reserving_practice.md", "# Reserving Practice\n\nAdd reserving workflow expectations, review standards, and business judgment notes.\n"],
+  ["project_workflow.md", "# Project Workflow\n\nAdd project, reserving class, and folder conventions.\n"],
+  ["scripting_console.md", "# Scripting Console\n\nAdd notebook and scripting-console usage guidance.\n"],
+  ["excel_addin.md", "# Excel Add-in\n\nAdd Excel add-in, UDF, and request-handler workflow guidance.\n"],
+];
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
 const MAIN_WINDOW_PREFS_FILE = "main_window_prefs.json";
 const SCRIPTING_SHORTCUTS_FILE = "scripting_shortcuts.json";
+const SCRIPTING_NOTEBOOK_PREFS_FILE = "scripting_notebook_prefs.json";
 const WORKSPACE_PATHS_FILE = "workspace_paths.json";
 const ARCBOT_READABLE_ROOTS_FILE = "arcbot_readable_roots.json";
 const ARCBOT_CHAT_SESSIONS_DIR = "arcbot_chat_sessions";
@@ -99,6 +110,27 @@ function getPrefsDir() {
 
 function getScriptingShortcutsPath() {
   return path.join(getPrefsDir(), SCRIPTING_SHORTCUTS_FILE);
+}
+
+function getScriptingNotebookPrefsPath() {
+  return path.join(getPrefsDir(), SCRIPTING_NOTEBOOK_PREFS_FILE);
+}
+
+function normalizeRecentIpynbPaths(value, fallbackPath = "") {
+  const inputs = Array.isArray(value) ? value : [];
+  if (fallbackPath) inputs.unshift(fallbackPath);
+  const seen = new Set();
+  const paths = [];
+  for (const item of inputs) {
+    const notebookPath = String(item || "").trim();
+    if (!notebookPath || path.extname(notebookPath).toLowerCase() !== ".ipynb") continue;
+    const key = path.resolve(notebookPath).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    paths.push(notebookPath);
+    if (paths.length >= 5) break;
+  }
+  return paths;
 }
 
 function getWorkspacePathsPath() {
@@ -1844,16 +1876,124 @@ function getArcBotServerPromptTemplatePath() {
   return configuredRoot ? path.join(configuredRoot, ARCBOT_SERVER_PROMPT_RELATIVE_PATH) : "";
 }
 
+function getArcBotLegacyServerPromptTemplatePath() {
+  const configuredRoot = getConfiguredWorkspaceRoot();
+  return configuredRoot ? path.join(configuredRoot, ARCBOT_LEGACY_SERVER_PROMPT_RELATIVE_PATH) : "";
+}
+
+function getArcBotServerInstructionsDir() {
+  const configuredRoot = getConfiguredWorkspaceRoot();
+  return configuredRoot ? path.join(configuredRoot, ARCBOT_SERVER_INSTRUCTIONS_RELATIVE_DIR) : "";
+}
+
+function seedArcBotServerPromptFiles(serverPromptPath, bundledTemplate) {
+  if (!serverPromptPath) return;
+  fs.mkdirSync(path.dirname(serverPromptPath), { recursive: true });
+  if (!fs.existsSync(serverPromptPath)) {
+    const legacyPromptPath = getArcBotLegacyServerPromptTemplatePath();
+    const seedText = legacyPromptPath && fs.existsSync(legacyPromptPath)
+      ? fs.readFileSync(legacyPromptPath, "utf8")
+      : bundledTemplate;
+    fs.writeFileSync(serverPromptPath, seedText, "utf8");
+  }
+  const instructionsDir = getArcBotServerInstructionsDir();
+  if (!instructionsDir) return;
+  fs.mkdirSync(instructionsDir, { recursive: true });
+  for (const [fileName, placeholderText] of ARCBOT_SERVER_INSTRUCTION_PLACEHOLDERS) {
+    const filePath = path.join(instructionsDir, fileName);
+    if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, placeholderText, "utf8");
+  }
+}
+
+function readArcBotSharedInstructions() {
+  const instructionsDir = getArcBotServerInstructionsDir();
+  if (!instructionsDir || !fs.existsSync(instructionsDir)) return "No shared instruction files were found.";
+  const parts = [];
+  const maxFileChars = 30000;
+  const maxTotalChars = 80000;
+  for (const item of fs.readdirSync(instructionsDir, { withFileTypes: true })) {
+    if (!item.isFile() || path.extname(item.name).toLowerCase() !== ".md") continue;
+    if (item.name.startsWith(".") || item.name.startsWith("_")) continue;
+    const filePath = path.join(instructionsDir, item.name);
+    let text = fs.readFileSync(filePath, "utf8").trim();
+    if (!text) continue;
+    if (text.length > maxFileChars) {
+      text = `${text.slice(0, maxFileChars)}\n\n[Instruction file truncated at ${maxFileChars} characters.]`;
+    }
+    parts.push(`## ${item.name}\n\n${text}`);
+  }
+  if (!parts.length) return "No shared instruction files contain content yet.";
+  const combined = parts.join("\n\n---\n\n");
+  return combined.length > maxTotalChars
+    ? `${combined.slice(0, maxTotalChars)}\n\n[Shared instruction files truncated at ${maxTotalChars} characters.]`
+    : combined;
+}
+
+function ensureArcBotSharedInstructionsPlaceholder(template) {
+  const text = String(template || "");
+  if (text.includes("{{SHARED_INSTRUCTIONS}}")) return text;
+  if (text.includes("{{MODE_INSTRUCTIONS}}")) {
+    return text.replace(
+      "{{MODE_INSTRUCTIONS}}",
+      "{{MODE_INSTRUCTIONS}}\n\nShared team instructions:\n{{SHARED_INSTRUCTIONS}}"
+    );
+  }
+  return `${text}\n\nShared team instructions:\n{{SHARED_INSTRUCTIONS}}\n`;
+}
+
+function readArcBotPromptComponentsForGuide() {
+  const bundledTemplate = readBundledArcBotPromptTemplate();
+  const serverPromptPath = getArcBotServerPromptTemplatePath();
+  if (serverPromptPath) seedArcBotServerPromptFiles(serverPromptPath, bundledTemplate);
+  const promptPath = serverPromptPath || ARCBOT_PROMPT_TEMPLATE_PATH;
+  const components = [{
+    id: "entry",
+    title: "Entry Prompt",
+    path: promptPath,
+    text: ensureArcBotSharedInstructionsPlaceholder(
+      serverPromptPath && fs.existsSync(serverPromptPath)
+        ? fs.readFileSync(serverPromptPath, "utf8")
+        : bundledTemplate
+    ),
+  }];
+  const instructionsDir = getArcBotServerInstructionsDir();
+  const included = new Set();
+  for (const [fileName, placeholderText] of ARCBOT_SERVER_INSTRUCTION_PLACEHOLDERS) {
+    const filePath = instructionsDir ? path.join(instructionsDir, fileName) : fileName;
+    included.add(fileName.toLowerCase());
+    components.push({
+      id: fileName.replace(/[^a-z0-9]+/giu, "-").replace(/^-+|-+$/g, ""),
+      title: fileName,
+      path: filePath,
+      text: instructionsDir && fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : placeholderText,
+    });
+  }
+  if (instructionsDir && fs.existsSync(instructionsDir)) {
+    const extraFiles = fs.readdirSync(instructionsDir, { withFileTypes: true })
+      .filter((item) => item.isFile() && path.extname(item.name).toLowerCase() === ".md")
+      .map((item) => item.name)
+      .filter((fileName) => !included.has(fileName.toLowerCase()) && !fileName.startsWith(".") && !fileName.startsWith("_"))
+      .sort((a, b) => a.localeCompare(b));
+    for (const fileName of extraFiles) {
+      const filePath = path.join(instructionsDir, fileName);
+      components.push({
+        id: fileName.replace(/[^a-z0-9]+/giu, "-").replace(/^-+|-+$/g, ""),
+        title: fileName,
+        path: filePath,
+        text: fs.readFileSync(filePath, "utf8"),
+      });
+    }
+  }
+  return components;
+}
+
 function readArcBotPromptTemplate() {
   const bundledTemplate = readBundledArcBotPromptTemplate();
   const serverPromptPath = getArcBotServerPromptTemplatePath();
-  if (!serverPromptPath) return bundledTemplate;
+  if (!serverPromptPath) return ensureArcBotSharedInstructionsPlaceholder(bundledTemplate);
   try {
-    if (!fs.existsSync(serverPromptPath)) {
-      fs.mkdirSync(path.dirname(serverPromptPath), { recursive: true });
-      fs.writeFileSync(serverPromptPath, bundledTemplate, "utf8");
-    }
-    return fs.readFileSync(serverPromptPath, "utf8");
+    seedArcBotServerPromptFiles(serverPromptPath, bundledTemplate);
+    return ensureArcBotSharedInstructionsPlaceholder(fs.readFileSync(serverPromptPath, "utf8"));
   } catch (err) {
     throw new Error(`ArcBot server prompt template could not be read: ${serverPromptPath}: ${err?.message || err}`);
   }
@@ -1944,6 +2084,7 @@ function buildAssistantPrompt(
     ACTIVE_JSON_DATA: editSession?.jsonPath
       ? `The active JSON-backed file is available as ${activeJsonName} in the current working folder. Use the ArcRho Python API helper for DFM reads and edits before falling back to raw JSON inspection. When using the public ArcRho Python API directly, use ArcRhoClient(${JSON.stringify(exchangeRoot || ".")}) so API reads and writes stay inside the local exchange workspace.`
       : (activeJson ? JSON.stringify(activeJson, null, 2) : "No active JSON-backed data was loaded."),
+    SHARED_INSTRUCTIONS: readArcBotSharedInstructions(),
     ATTACHMENT_TEXT: attachmentText,
     TRANSCRIPT: transcript || "User: Hello",
   });
@@ -2774,6 +2915,74 @@ ipcMain.handle("scripting-shortcuts-save", async (_event, payload) => {
   }
 });
 
+ipcMain.handle("scripting-last-notebook-load", async () => {
+  const filePath = getScriptingNotebookPrefsPath();
+  try {
+    if (!fs.existsSync(filePath)) return { exists: false };
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const recentPaths = normalizeRecentIpynbPaths(parsed?.recentIpynbPaths, parsed?.lastIpynbPath || parsed?.lastNotebookPath || "");
+    const notebookPath = recentPaths[0] || "";
+    if (!notebookPath || path.extname(notebookPath).toLowerCase() !== ".ipynb") {
+      return { exists: false, recentPaths };
+    }
+    if (!fs.existsSync(notebookPath)) {
+      return { exists: false, path: notebookPath, missing: true, recentPaths };
+    }
+    const stat = fs.statSync(notebookPath);
+    if (!stat.isFile()) return { exists: false, path: notebookPath, error: "Path is not a file.", recentPaths };
+    return { exists: true, path: notebookPath, recentPaths, updated_at: String(parsed?.updated_at || "") };
+  } catch (err) {
+    return { exists: false, error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("scripting-recent-notebooks-load", async () => {
+  const filePath = getScriptingNotebookPrefsPath();
+  try {
+    if (!fs.existsSync(filePath)) return { exists: false, recentPaths: [] };
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const recentPaths = normalizeRecentIpynbPaths(parsed?.recentIpynbPaths, parsed?.lastIpynbPath || parsed?.lastNotebookPath || "")
+      .filter((notebookPath) => {
+        try {
+          return fs.existsSync(notebookPath) && fs.statSync(notebookPath).isFile();
+        } catch {
+          return false;
+        }
+      });
+    return { exists: recentPaths.length > 0, recentPaths, updated_at: String(parsed?.updated_at || "") };
+  } catch (err) {
+    return { exists: false, recentPaths: [], error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("scripting-last-notebook-save", async (_event, payload) => {
+  const notebookPath = String(payload?.path || "").trim();
+  if (!notebookPath) return { ok: false, error: "Empty notebook path." };
+  if (path.extname(notebookPath).toLowerCase() !== ".ipynb") {
+    return { ok: false, error: "Only .ipynb notebook paths are stored." };
+  }
+  const filePath = getScriptingNotebookPrefsPath();
+  try {
+    let existing = {};
+    if (fs.existsSync(filePath)) {
+      try { existing = JSON.parse(fs.readFileSync(filePath, "utf8")) || {}; } catch { existing = {}; }
+    }
+    const recentIpynbPaths = normalizeRecentIpynbPaths(existing?.recentIpynbPaths, notebookPath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const data = {
+      lastIpynbPath: recentIpynbPaths[0] || notebookPath,
+      recentIpynbPaths,
+      updated_at: new Date().toISOString(),
+    };
+    const tmpPath = `${filePath}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf8");
+    fs.renameSync(tmpPath, filePath);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
+
 ipcMain.handle("app-shutdown", async () => {
   allowClose = true;
   await requestBackendShutdown();
@@ -2847,6 +3056,21 @@ ipcMain.handle("codex-assistant-readable-roots-save", async (_event, payload) =>
     return { ok: true, folders };
   } catch (err) {
     return { ok: false, error: String(err?.message || err || "Could not save ArcBot readable folders.") };
+  }
+});
+
+ipcMain.handle("codex-assistant-prompt-guide-load", async () => {
+  try {
+    const components = readArcBotPromptComponentsForGuide();
+    return {
+      ok: true,
+      serverRoot: getConfiguredWorkspaceRoot(),
+      instructionsDir: getArcBotServerInstructionsDir(),
+      entryPromptPath: getArcBotServerPromptTemplatePath() || ARCBOT_PROMPT_TEMPLATE_PATH,
+      components,
+    };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err || "Could not load ArcBot prompt guide.") };
   }
 });
 

@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "ui",
+  "audience": "user",
+  "summary": "Added a standalone global app UI style demo with three ArcRho design directions and interactive motion tests.",
+  "details": [
+    "The demo covers compact workbench, object atlas, and assistant-forward layouts with tabs, navigation, forms, tables, modals, toasts, drag sorting, drops, switches, and animation controls."
+  ]
+}

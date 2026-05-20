@@ -863,7 +863,7 @@ export async function loadRatioSelectionIfExists(reason) {
   const applied = await applyDfmMethodPayload(result.data);
   if (applied.ok) {
     rememberDfmMethodFileRevision(path, result.revision);
-    postDfmStatus(`Ready: Loaded method settings from ${path}`);
+    postDfmStatus("Ready");
   } else if (reason) {
     postDfmStatus("Error: Ratio file found but could not be applied.");
   }

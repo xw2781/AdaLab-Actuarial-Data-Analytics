@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "ui",
+  "audience": "internal",
+  "summary": "Added an Atlas-based UI design reference for future ArcRho interface work.",
+  "details": [
+    "The reference describes layout, visual style, components, controls, motion, and implementation guidance for agents designing future UI."
+  ]
+}

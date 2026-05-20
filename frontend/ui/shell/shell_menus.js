@@ -3,6 +3,8 @@ import { isAiAssistantLauncherVisible, toggleAiAssistantLauncherVisible } from "
 
 const fileMenuBtn = document.querySelector('.menu[data-menu="file"]');
 const fileMenuDropdown = document.getElementById("fileMenuDropdown");
+const recentNotebookMenuItem = document.getElementById("recentNotebookMenuItem");
+const recentNotebookSubmenu = document.getElementById("recentNotebookSubmenu");
 const editMenuBtn = document.querySelector('.menu[data-menu="edit"]');
 const editMenuDropdown = document.getElementById("editMenuDropdown");
 const viewMenuBtn = document.querySelector('.menu[data-menu="view"]');
@@ -16,6 +18,7 @@ const aboutOverlay = document.getElementById("aboutOverlay");
 const aboutCloseBtn = document.getElementById("aboutCloseBtn");
 let dfmEditEnabled = false;
 let shellMenusWired = false;
+let recentNotebookLoadToken = 0;
 
 function positionDropdown(btn, dropdown) {
   if (!btn || !dropdown) return;
@@ -108,6 +111,71 @@ function normalizeMenuSeparators(dropdown) {
 }
 function hasVisibleMenuItems(dropdown) { return !!dropdown && Array.from(dropdown.querySelectorAll(".menuItem")).some((el) => !el.hidden); }
 
+function getFilenameFromPath(pathLike) {
+  const normalized = String(pathLike || "").replace(/\\/g, "/").trim();
+  if (!normalized) return "";
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : normalized;
+}
+
+function renderRecentNotebookSubmenu(paths = [], { loading = false } = {}) {
+  if (!recentNotebookMenuItem || !recentNotebookSubmenu) return;
+  recentNotebookSubmenu.innerHTML = "";
+  const recentPaths = Array.isArray(paths) ? paths.slice(0, 5).map((p) => String(p || "").trim()).filter(Boolean) : [];
+  recentNotebookMenuItem.classList.toggle("disabled", loading || recentPaths.length === 0);
+
+  if (loading) {
+    const item = document.createElement("div");
+    item.className = "menuItem disabled";
+    item.innerHTML = "<span>Loading...</span>";
+    recentNotebookSubmenu.appendChild(item);
+    return;
+  }
+
+  if (!recentPaths.length) {
+    const item = document.createElement("div");
+    item.className = "menuItem disabled";
+    item.innerHTML = "<span>No recent notebooks</span>";
+    recentNotebookSubmenu.appendChild(item);
+    return;
+  }
+
+  recentPaths.forEach((notebookPath) => {
+    const item = document.createElement("div");
+    item.className = "menuItem";
+    item.dataset.action = "open-recent-notebook";
+    item.dataset.path = notebookPath;
+    item.dataset.pageScopes = "scripting";
+
+    const label = document.createElement("span");
+    label.className = "menuPathLabel";
+    label.textContent = getFilenameFromPath(notebookPath);
+    label.title = notebookPath;
+    item.appendChild(label);
+    recentNotebookSubmenu.appendChild(item);
+  });
+}
+
+function refreshRecentNotebookMenu() {
+  if (!recentNotebookMenuItem || !recentNotebookSubmenu || !isActiveScriptingTab()) return;
+  const hostApi = shell.getHostApi?.();
+  if (typeof hostApi?.loadRecentScriptingNotebooks !== "function") {
+    renderRecentNotebookSubmenu([]);
+    return;
+  }
+  const token = ++recentNotebookLoadToken;
+  renderRecentNotebookSubmenu([], { loading: true });
+  Promise.resolve(hostApi.loadRecentScriptingNotebooks())
+    .then((result) => {
+      if (token !== recentNotebookLoadToken) return;
+      renderRecentNotebookSubmenu(result?.recentPaths || []);
+    })
+    .catch(() => {
+      if (token !== recentNotebookLoadToken) return;
+      renderRecentNotebookSubmenu([]);
+    });
+}
+
 function updateFileSaveMenuLabels() {
   if (!fileMenuDropdown) return;
   const saveLabel = fileMenuDropdown.querySelector('.menuItem[data-action="save"] > span:not(.menuShortcut)');
@@ -122,10 +190,13 @@ export function updateFileMenuState() {
   if (!fileMenuDropdown) return;
   applyScopedMenuVisibility(fileMenuDropdown);
   updateFileSaveMenuLabels();
+  refreshRecentNotebookMenu();
   const saveEnabled = isActiveWorkflowTab() || isActiveDFMTab() || isActiveScriptingTab() || isActiveProjectSettingsReservingClassTypesTab() || isActiveProjectSettingsDatasetTypesTab();
   fileMenuDropdown.querySelectorAll(".menuItem").forEach((el) => {
+    if (recentNotebookSubmenu?.contains(el)) return;
     if (el.hidden) { el.classList.remove("disabled"); return; }
     const action = el.getAttribute("data-action") || "";
+    if (action === "recent-notebooks") return;
     const shouldDisable = (!saveEnabled && (action === "save" || action === "save-as")) || (action === "close-tab" && shell.state.activeId === "home");
     el.classList.toggle("disabled", shouldDisable);
   });
@@ -196,10 +267,18 @@ export function initShellMenus() {
     const item = e.target?.closest?.(".menuItem");
     const action = item?.getAttribute("data-action");
     if (!action || item.classList.contains("disabled")) return;
+    if (action === "recent-notebooks") return;
     toggleFileMenu(false);
     if (action === "save-workflow") { shell.updateStatusBar?.("Saving..."); sendWorkflowCommand("arcrho:workflow-save"); }
     else if (action === "save-workflow-as") { shell.updateStatusBar?.("Saving as..."); sendWorkflowCommand("arcrho:workflow-save-as"); }
     else if (action === "open-notebook") { shell.updateStatusBar?.("Opening notebook..."); sendScriptingCommand("arcrho:scripting-open"); }
+    else if (action === "open-recent-notebook") {
+      const notebookPath = String(item.dataset.path || "").trim();
+      if (notebookPath) {
+        shell.updateStatusBar?.(`Opening ${getFilenameFromPath(notebookPath)}...`);
+        shell.openScriptingTab?.({ forceNew: true, notebookPath });
+      }
+    }
     else if (action === "save") {
       if (isActiveWorkflowTab()) { shell.updateStatusBar?.("Saving..."); sendWorkflowCommand("arcrho:workflow-save"); }
       else if (isActiveDFMTab()) { shell.updateStatusBar?.("Saving..."); sendDFMCommand("arcrho:dfm-save"); }

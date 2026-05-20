@@ -9,6 +9,9 @@ Local exchange server root: {{EXCHANGE_SERVER_ROOT}}.
 
 {{MODE_INSTRUCTIONS}}
 
+Shared team instructions:
+{{SHARED_INSTRUCTIONS}}
+
 ArcRho Python API for DFM work:
 - In development, `PYTHONPATH` includes `{{PYTHON_API_SRC}}` when that source folder exists.
 - Packaged ArcRho ships a pip-installable wheel at `{{PYTHON_API_WHEEL_PATH}}`.

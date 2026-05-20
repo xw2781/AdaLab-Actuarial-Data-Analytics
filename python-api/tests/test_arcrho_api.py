@@ -169,6 +169,17 @@ class ArcRhoApiTests(unittest.TestCase):
         dfm.save()
         self.assertTrue((self.rc_data_dir / dfm_filename("New DFM")).exists())
 
+    def test_project_reads_dataset_type_category(self) -> None:
+        (self.project_dir / "dataset_types.json").write_text(json.dumps({
+            "columns": ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"],
+            "rows": [["Odd Output", "Vector", "C Claim Count", False, "", ""]],
+        }), encoding="utf-8")
+        project = ArcRhoClient(self.root).project("Demo")
+        info = project.dataset_type("Odd Output")
+        self.assertIsNotNone(info)
+        self.assertEqual(info.category, "C Claim Count")
+        self.assertEqual(project.dataset_type_category("Odd Output"), "C Claim Count")
+
     def test_migration_session(self) -> None:
         session = ArcRhoSession(self.root)
         session.set_project("Demo")
@@ -236,6 +247,30 @@ class ArcRhoApiTests(unittest.TestCase):
         self.assertIn("Apply growth adjustments of 1+5.08% = 1.0508", dfm.notes)
         self.assertIn("Apply accounting cutoff 1+2.00% = 1.0200", dfm.notes)
         self.assertIn('Selected average factor: "Simple - 3" (1.2000)', dfm.notes)
+
+    def test_apply_adjustments_uses_dataset_type_category_before_name_heuristic(self) -> None:
+        (self.project_dir / "dataset_types.json").write_text(json.dumps({
+            "columns": ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"],
+            "rows": [["Odd Output", "Vector", "C Claim Count", False, "", ""]],
+        }), encoding="utf-8")
+        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        dfm.update_details(output_vector="Odd Output")
+        dfm.set_selected_estimate("Simple - 3")
+        dfm.apply_adjustments()
+        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2862, places=4)
+        self.assertIn("Apply growth adjustments of 1+5.08% = 1.0508", dfm.notes)
+
+    def test_apply_adjustments_dataset_type_52_skips_before_category(self) -> None:
+        (self.project_dir / "dataset_types.json").write_text(json.dumps({
+            "columns": ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"],
+            "rows": [["Odd 52 Output", "Vector", "C Claim Count", False, "", ""]],
+        }), encoding="utf-8")
+        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        dfm.update_details(output_vector="Odd 52 Output")
+        dfm.set_selected_estimate("Simple - 3")
+        dfm.apply_adjustments()
+        self.assertEqual(dfm.selected_average_label(1), "Simple - 3")
+        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2, places=4)
 
     def test_save_uses_row_compact_json_and_trims_triangle_rows(self) -> None:
         payload = sample_payload()

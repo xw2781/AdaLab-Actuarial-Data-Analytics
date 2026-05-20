@@ -965,13 +965,15 @@ function markdownInlineToHtml(text) {
   return html;
 }
 
-function renderMarkdownToHtml(source) {
+function renderMarkdownToHtml(source, options = {}) {
+  const cellId = Number(options?.cellId);
   const lines = String(source || "").replace(/\r\n/g, "\n").split("\n");
   const out = [];
   let paragraph = [];
   let listMode = "";
   let inCodeBlock = false;
   let codeLines = [];
+  let headingIndex = 0;
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
@@ -1024,7 +1026,14 @@ function renderMarkdownToHtml(source) {
       flushParagraph();
       closeList();
       const level = headingMatch[1].length;
-      out.push(`<h${level}>${markdownInlineToHtml(headingMatch[2])}</h${level}>`);
+      const label = typeof getRenderedMarkdownHeadingNumberLabel === "function"
+        ? getRenderedMarkdownHeadingNumberLabel(cellId, headingIndex)
+        : "";
+      const numberHtml = label
+        ? `<span class="sc-markdown-heading-number" aria-hidden="true">${escapeHtml(label)}.</span>`
+        : "";
+      out.push(`<h${level}>${numberHtml}${markdownInlineToHtml(headingMatch[2])}</h${level}>`);
+      headingIndex += 1;
       continue;
     }
 
@@ -1320,7 +1329,7 @@ function runMarkdownCell(cell, options = {}) {
   const silent = options.silent === true;
   const refresh = options.refresh !== false;
   const markdown = cell.editor ? cell.editor.getValue() : "";
-  const html = renderMarkdownToHtml(markdown);
+  const html = renderMarkdownToHtml(markdown, { cellId: cell.id });
   const hasHtml = Boolean(html);
 
   cell.outputEl.innerHTML = hasHtml ? `<div class="sc-markdown-render">${html}</div>` : "";
@@ -1339,6 +1348,16 @@ function runMarkdownCell(cell, options = {}) {
     setStatus(hasHtml ? "Markdown rendered" : "Markdown is empty");
   }
   return hasHtml;
+}
+
+function refreshRenderedMarkdownCells(options = {}) {
+  const refresh = options.refresh !== false;
+  cells.forEach((cell) => {
+    if (normalizeCellType(cell.type) !== CELL_TYPES.MARKDOWN) return;
+    if (!cell.markdownRendered) return;
+    runMarkdownCell(cell, { silent: true, refresh: false });
+  });
+  if (refresh) refreshToc();
 }
 
 function renderAllMarkdownCells(options = {}) {

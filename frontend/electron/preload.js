@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
 
@@ -40,6 +40,19 @@ contextBridge.exposeInMainWorld("ADAHost", {
   readJsonFile: (payload) => invoke("read-json-file", payload),
   getFileRevision: (payload) => invoke("get-file-revision", payload),
   renameFile: (payload) => invoke("rename-file", payload),
+  getPathForFile: (file) => {
+    try {
+      if (webUtils && typeof webUtils.getPathForFile === "function") {
+        return webUtils.getPathForFile(file) || "";
+      }
+    } catch {
+      // ignore
+    }
+    return file && typeof file.path === "string" ? file.path : "";
+  },
+  loadLastScriptingNotebook: () => invoke("scripting-last-notebook-load"),
+  loadRecentScriptingNotebooks: () => invoke("scripting-recent-notebooks-load"),
+  saveLastScriptingNotebook: (path) => invoke("scripting-last-notebook-save", { path }),
   loadScriptingShortcuts: () => invoke("scripting-shortcuts-load"),
   saveScriptingShortcuts: (bindings) => invoke("scripting-shortcuts-save", { bindings }),
   pickOpenFile: (payload) => invoke("pick-open-file", payload),
@@ -47,6 +60,7 @@ contextBridge.exposeInMainWorld("ADAHost", {
   codexAssistantStatus: () => invoke("codex-assistant-status"),
   codexAssistantInstall: () => invoke("codex-assistant-install"),
   codexAssistantLogin: () => invoke("codex-assistant-login"),
+  codexAssistantLoadPromptGuide: () => invoke("codex-assistant-prompt-guide-load"),
   codexAssistantLoadReadableRoots: () => invoke("codex-assistant-readable-roots-load"),
   codexAssistantSaveReadableRoots: (folders) => invoke("codex-assistant-readable-roots-save", { folders }),
   codexAssistantListSessions: (payload) => invoke("codex-assistant-sessions-list", payload),

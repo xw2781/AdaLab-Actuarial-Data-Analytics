@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "The File menu now includes a Recent ... submenu for reopening recently used scripting notebooks.",
+  "details": [
+    "Up to five recent .ipynb files are shown below Open Notebook and can be opened in fresh scripting tabs."
+  ]
+}

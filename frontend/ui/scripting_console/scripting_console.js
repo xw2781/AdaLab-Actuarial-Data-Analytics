@@ -21,9 +21,9 @@ resizeHandle.addEventListener("pointermove", (e) => {
     ? Math.max(0, e.clientX - rect.left)
     : Math.max(0, rect.right - e.clientX);
   if (panelWidth < 60) {
-    sidebar.classList.add("collapsed");
+    setSidebarCollapsed(true);
   } else {
-    sidebar.classList.remove("collapsed");
+    setSidebarCollapsed(false);
     const contentWidth = Math.min(500, Math.max(210, panelWidth));
     sidebarContent.style.width = `${contentWidth}px`;
   }
@@ -38,8 +38,16 @@ resizeHandle.addEventListener("pointerup", (e) => {
   document.body.style.userSelect = "";
 });
 
+resizeHandle.addEventListener("dblclick", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (sidebar.classList.contains("collapsed") && !sidebarContent.style.width) {
+    sidebarContent.style.width = "290px";
+  }
+  toggleSidebarCollapsed();
+});
+
 let resizingSidebarSplit = false;
-let resizingVarsApi = false;
 
 sidebarSplitHandle?.addEventListener("pointerdown", (e) => {
   if (sidebarSplitHandle.classList.contains("hidden")) return;
@@ -81,51 +89,6 @@ sidebarSplitHandle?.addEventListener("pointercancel", () => {
   resizingSidebarSplit = false;
   sidebarSplitHandle.classList.remove("active");
   sidebarContent?.classList.remove("dragging-split");
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-});
-
-varsApiResizeHandle?.addEventListener("pointerdown", (e) => {
-  if (varsView?.classList.contains("collapsed") || apiCollapsed) return;
-  resizingVarsApi = true;
-  varsApiResizeHandle.classList.add("active");
-  sidebarContent?.classList.add("dragging-api");
-  varsApiResizeHandle.setPointerCapture(e.pointerId);
-  document.body.style.cursor = "row-resize";
-  document.body.style.userSelect = "none";
-});
-
-varsApiResizeHandle?.addEventListener("pointermove", (e) => {
-  if (!resizingVarsApi) return;
-  if (!varsView || !varsHeader || !varsApiResizeHandle) return;
-  if (varsView.classList.contains("collapsed") || apiCollapsed) return;
-
-  const viewRect = varsView.getBoundingClientRect();
-  const headerHeight = varsHeader.getBoundingClientRect().height || 28;
-  const handleHeight = varsApiResizeHandle.getBoundingClientRect().height || 6;
-  const available = viewRect.height - headerHeight - handleHeight;
-  if (available <= VARS_API_MIN_HEIGHT + VARS_BODY_MIN_HEIGHT) return;
-
-  const maxApi = available - VARS_BODY_MIN_HEIGHT;
-  const rawApiHeight = viewRect.bottom - e.clientY;
-  varsApiHeight = clampNumber(rawApiHeight, VARS_API_MIN_HEIGHT, maxApi);
-  applyVarsApiSectionHeight({ persist: false });
-});
-
-varsApiResizeHandle?.addEventListener("pointerup", (e) => {
-  if (!resizingVarsApi) return;
-  resizingVarsApi = false;
-  varsApiResizeHandle.classList.remove("active");
-  sidebarContent?.classList.remove("dragging-api");
-  try { varsApiResizeHandle.releasePointerCapture(e.pointerId); } catch {}
-  saveVarsApiHeight();
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-});
-varsApiResizeHandle?.addEventListener("pointercancel", () => {
-  resizingVarsApi = false;
-  varsApiResizeHandle.classList.remove("active");
-  sidebarContent?.classList.remove("dragging-api");
   document.body.style.cursor = "";
   document.body.style.userSelect = "";
 });
@@ -284,10 +247,6 @@ stopBtn.addEventListener("click", () => interruptExecution());
 restartBtn.addEventListener("click", () => restartSession());
 clearOutputBtn.addEventListener("click", () => clearAllOutputs());
 shortcutsBtn.addEventListener("click", () => openShortcutsDialog());
-toggleVarsBtn.addEventListener("click", () => toggleVarsPanel());
-collapseVarsBtn.addEventListener("click", () => togglePanelCollapsed(PANEL_TYPES.VARS));
-collapseTocBtn.addEventListener("click", () => togglePanelCollapsed(PANEL_TYPES.TOC));
-collapseApiBtn?.addEventListener("click", () => toggleApiCollapsed());
 
 shortcutsCloseBtn.addEventListener("click", () => closeShortcutsDialog());
 shortcutsCancelBtn.addEventListener("click", () => closeShortcutsDialog());
@@ -372,6 +331,10 @@ window.addEventListener("message", (event) => {
   }
   if (type === "arcrho:scripting-open") {
     void openOpenNbDialog();
+    return;
+  }
+  if (type === "arcrho:scripting-open-path") {
+    void openNotebookFilePath(event.data?.path || "");
     return;
   }
   if (type === "arcrho:scripting-rename-notebook") {

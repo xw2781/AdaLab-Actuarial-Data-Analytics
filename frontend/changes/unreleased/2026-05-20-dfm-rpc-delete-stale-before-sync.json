@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Delete stale DFM RPC JSON before each sync request.",
+  "details": [
+    "The DFM RPC bridge now removes existing temporary remote DFM JSON and SyncDFM status JSON before sending a new sync request, ensuring the review window only uses a fresh RPC response."
+  ]
+}

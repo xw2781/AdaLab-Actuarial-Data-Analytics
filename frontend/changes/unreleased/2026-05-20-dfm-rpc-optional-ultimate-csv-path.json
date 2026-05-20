@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Stop warning about optional DFM ultimate vector CSV paths during RPC sync.",
+  "details": [
+    "DFM RPC sync no longer lists `results tab.ultimate vector csv path` as a missing component because the CSV path is not required for remote-to-local sync."
+  ]
+}

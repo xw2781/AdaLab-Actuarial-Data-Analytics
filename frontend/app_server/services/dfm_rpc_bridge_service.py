@@ -45,6 +45,9 @@ RPC_APPLY_COMPONENTS = [
     ("sync", ("notes tab", "notes")),
     ("sync", ("method metadata", "last modified")),
 ]
+RPC_OPTIONAL_MISSING_COMPONENTS = {
+    ("results tab", "ultimate vector csv path"),
+}
 
 
 def _clean_text(value: Any) -> str:
@@ -436,6 +439,8 @@ def compare(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
 def send_sync_request(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
     paths = build_paths(req)
     os.makedirs(paths["rpc_methods_dir"], exist_ok=True)
+    stale_remote_deleted = _try_remove(paths["remote_path"])
+    stale_sync_status_deleted = _try_remove(paths["sync_status_path"])
     request_file = _write_request_file(req, DFM_FUNCTION_NAME, paths["remote_path"], paths["request_dir"])
     ok = wait_for_file(paths["remote_path"], timeout_sec=max(0.1, float(req.timeout_sec)))
     result = compare(req)
@@ -443,6 +448,8 @@ def send_sync_request(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         "request_file": request_file,
         "data_path": paths["remote_path"],
         "timeout_sec": req.timeout_sec,
+        "stale_remote_deleted": stale_remote_deleted,
+        "stale_sync_status_deleted": stale_sync_status_deleted,
     })
     if not ok:
         result["ok"] = False
@@ -595,7 +602,8 @@ def _apply_explicit_rpc_components(local_payload: Dict[str, Any], remote_payload
         local_has_value = _has_component(local_payload, path)
 
         if not remote_has_value:
-            missing_components.append(_component_label(path))
+            if path not in RPC_OPTIONAL_MISSING_COMPONENTS:
+                missing_components.append(_component_label(path))
             if local_has_value:
                 _set_component(payload, path, _get_component(local_payload, path))
             continue
@@ -646,6 +654,19 @@ def keep_local(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         "status": "kept_local",
         "message": "Kept local DFM JSON. Remote RPC JSON was removed." if remote_deleted else "Kept local DFM JSON. No remote RPC JSON was found to remove.",
         "remote_deleted": remote_deleted,
+        "paths": paths,
+    }
+
+
+def cleanup_tmp(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
+    paths = build_paths(req)
+    remote_deleted = _try_remove(paths["remote_path"])
+    sync_status_deleted = _try_remove(paths["sync_status_path"])
+    return {
+        "ok": True,
+        "status": "cleaned",
+        "remote_deleted": remote_deleted,
+        "sync_status_deleted": sync_status_deleted,
         "paths": paths,
     }
 

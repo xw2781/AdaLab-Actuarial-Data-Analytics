@@ -1048,6 +1048,16 @@ async function removeAssistantReadableRoot(index) {
   await saveAssistantReadableRoots(next);
 }
 
+async function openAssistantPromptGuide() {
+  if (!shell?.openAgentGuideTab) {
+    setStatus("ArcBot prompt guide is not available.", "error");
+    return;
+  }
+  closeAssistantSettingsPanel();
+  shell.openAgentGuideTab();
+  setStatus("Opened ArcBot prompt guide.");
+}
+
 function updateAssistantSettingsPanel() {
   const panel = $("aiAssistantSettingsPanel");
   if (!panel) return;
@@ -2659,6 +2669,10 @@ export function initAiAssistant() {
   });
   $("aiAssistantFolderAddBtn")?.addEventListener("click", () => {
     addAssistantReadableRoot();
+  });
+  $("aiAssistantPromptGuideBtn")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openAssistantPromptGuide();
   });
   $("aiAssistantSettingsModelSelect")?.addEventListener("change", (event) => {
     setAssistantModel(event.target?.value);

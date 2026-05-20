@@ -719,14 +719,28 @@
 
     /* ===== Resize handle ===== */
     .sc-resize-handle {
-      width: 4px;
+      width: 12px;
+      margin-left: -4px;
+      margin-right: -4px;
       cursor: col-resize;
-      background: transparent;
       flex-shrink: 0;
+      position: relative;
+      touch-action: none;
+    }
+    .sc-resize-handle::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 4px;
+      width: 4px;
+      background: transparent;
       transition: background 120ms ease;
     }
     .sc-resize-handle:hover,
-    .sc-resize-handle.active { background: #2563eb; }
+    .sc-resize-handle.active { background: transparent; }
+    .sc-resize-handle:hover::before,
+    .sc-resize-handle.active::before { background: #2563eb; }
 
     /* ===== Sidebar (icon strip + split panel) ===== */
     .sc-sidebar {
@@ -777,32 +791,6 @@
       opacity: 0.9;
     }
 
-    .sc-vars-api-resize-handle {
-      height: 6px;
-      cursor: row-resize;
-      background: #f8fafc;
-      border-top: 1px solid #edf1f5;
-      border-bottom: 1px solid #edf1f5;
-      flex-shrink: 0;
-      touch-action: none;
-    }
-    .sc-vars-api-resize-handle:hover,
-    .sc-vars-api-resize-handle.active { background: #dbeafe; }
-    .sc-vars-api-resize-handle.hidden { display: none; }
-    .sc-vars-api-resize-handle::before {
-      content: "";
-      display: block;
-      width: 28px;
-      height: 2px;
-      border-radius: 999px;
-      background: #9aa8bc;
-      margin: 1px auto 0;
-      opacity: 0.9;
-    }
-    .sc-panel-view.collapsed .sc-vars-api-resize-handle {
-      display: none;
-    }
-
     .sc-panel-slot.collapsed {
       flex: 0 0 auto;
       min-height: auto;
@@ -818,18 +806,15 @@
       box-sizing: border-box;
     }
     .sc-panel-view.collapsed .sc-toc-body,
-    .sc-panel-view.collapsed .sc-vars-body,
-    .sc-panel-view.collapsed .sc-api-section {
+    .sc-panel-view.collapsed .sc-vars-body {
       display: none;
     }
 
-    .sc-sidebar-content.dragging-split,
-    .sc-sidebar-content.dragging-api {
+    .sc-sidebar-content.dragging-split {
       cursor: row-resize;
       user-select: none;
     }
-    .sc-sidebar-content.dragging-split * ,
-    .sc-sidebar-content.dragging-api * {
+    .sc-sidebar-content.dragging-split * {
       user-select: none !important;
     }
 
@@ -838,41 +823,6 @@
       min-height: 0;
       overflow-y: auto;
       padding: 4px 0;
-    }
-    .sc-api-section {
-      border-top: 1px solid #f0f0f0;
-      flex: 0 0 180px;
-      min-height: 72px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .sc-api-section.collapsed {
-      flex: 0 0 auto;
-      min-height: 0;
-    }
-    .sc-api-header {
-      display: flex;
-      align-items: center;
-      padding: 6px 10px;
-      border-bottom: 1px solid #f0f0f0;
-      font-size: 11px;
-      font-weight: 600;
-      color: #666;
-      user-select: none;
-      flex-shrink: 0;
-    }
-    .sc-api-list {
-      display: block;
-      padding: 4px 10px 8px;
-      font-size: 11px;
-      line-height: 1.6;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-    }
-    .sc-api-section.collapsed .sc-api-list {
-      display: none;
     }
 
     /* Variables panel */
@@ -886,19 +836,40 @@
       color: #555;
       user-select: none;
       flex-shrink: 0;
-    }
-    .sc-panel-collapse {
-      margin-left: auto;
-      border: none;
-      background: none;
       cursor: pointer;
-      color: #999;
-      font-size: 14px;
-      padding: 0 4px;
-      width: 18px;
-      text-align: center;
     }
-    .sc-panel-collapse:hover { color: #333; }
+    .sc-panel-icon-btn {
+      width: 22px;
+      height: 20px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      flex: 0 0 auto;
+    }
+    .sc-panel-icon-btn:hover {
+      background: #eef2ff;
+      color: #2563eb;
+    }
+    .sc-panel-icon-btn.active {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    .sc-panel-icon-btn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .sc-toc-header .sc-panel-icon-btn { margin-left: auto; }
     /* Panel views (always visible inside split slots) */
     .sc-panel-view {
       display: flex;
@@ -919,6 +890,7 @@
       color: #555;
       user-select: none;
       flex-shrink: 0;
+      cursor: pointer;
     }
     .sc-toc-body {
       flex: 1;
@@ -986,6 +958,32 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .sc-toc-number {
+      flex: 0 0 auto;
+      min-width: 0;
+      max-width: 64px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 4px 2px 4px 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: #6b7280;
+      font-family: Consolas, "Courier New", monospace;
+      user-select: none;
+    }
+    .sc-toc-row.running .sc-toc-number {
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    .sc-markdown-heading-number {
+      display: inline-block;
+      margin-right: 0.45em;
+      color: #6b7280;
+      font-family: Consolas, "Courier New", monospace;
+      font-weight: 600;
+      white-space: nowrap;
     }
     .sc-toc-item:hover { background: #f0f7ff; color: #1d4ed8; }
     .sc-toc-item.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
@@ -1180,9 +1178,6 @@
       border-top: 1px solid #edf1f5;
       background: #fbfcfd;
     }
-
-    .sc-api-fn { color: #b45309; font-family: Consolas, monospace; font-size: 10.5px; }
-    .sc-api-desc { color: #888; margin-left: 4px; }
 
     /* Sidebar context menu */
     .sc-sidebar-ctxmenu {
@@ -1477,7 +1472,6 @@
         <button class="sc-btn" id="clearOutputBtn" title="Clear all outputs">Clear Output</button>
         <button class="sc-btn" id="shortcutsBtn" title="View and customize keyboard shortcuts">Keyboard Shortcuts</button>
         <span class="sc-spacer"></span>
-        <button class="sc-btn" id="toggleVarsBtn" title="Toggle variables panel">Variables</button>
         <span class="sc-status" id="statusText"></span>
       </div>
 
@@ -1506,7 +1500,16 @@
           <div class="sc-panel-view" id="tocView">
             <div class="sc-toc-header">
               Table of Contents
-              <button class="sc-panel-collapse" id="collapseTocBtn" title="Collapse TOC panel">-</button>
+              <button class="sc-panel-icon-btn" id="tocHeadingNumbersBtn" title="Show heading numbers from first heading" aria-pressed="false" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <text x="3" y="8" font-size="5.5" fill="currentColor" stroke="none" font-family="Arial, sans-serif">1</text>
+                  <text x="3" y="13" font-size="5.5" fill="currentColor" stroke="none" font-family="Arial, sans-serif">2</text>
+                  <text x="3" y="18" font-size="5.5" fill="currentColor" stroke="none" font-family="Arial, sans-serif">3</text>
+                  <path d="M9 7h11"></path>
+                  <path d="M9 12h11"></path>
+                  <path d="M9 17h11"></path>
+                </svg>
+              </button>
             </div>
             <div class="sc-toc-body" id="tocBody">
               <div class="sc-toc-empty">No headings yet.<br>Add markdown cells with # headers.</div>
@@ -1520,18 +1523,9 @@
           <div class="sc-panel-view" id="varsView">
             <div class="sc-vars-header">
               Variables
-              <button class="sc-panel-collapse" id="collapseVarsBtn" title="Collapse Variables panel">-</button>
             </div>
             <div class="sc-vars-body" id="varsBody">
               <div class="sc-var-empty">No variables yet.<br>Run a cell to see variables here.</div>
-            </div>
-            <div class="sc-vars-api-resize-handle" id="varsApiResizeHandle" title="Drag to resize Variables/API Reference"></div>
-            <div class="sc-api-section" id="apiSection">
-              <div class="sc-api-header">
-                API Reference
-                <button class="sc-panel-collapse" id="collapseApiBtn" title="Collapse API Reference panel">-</button>
-              </div>
-              <div class="sc-api-list" id="apiList"></div>
             </div>
           </div>
         </div>

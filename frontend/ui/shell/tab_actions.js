@@ -187,19 +187,59 @@ export function openBrowsingHistoryTab() {
   shell.saveState?.();
 }
 
-export function openScriptingTab(options = {}) {
-  const forceNew = !!options?.forceNew;
-  const existing = !forceNew ? shell.state.tabs.find(t => t.type === "scripting") : null;
+export function openAgentGuideTab() {
+  const existing = shell.state.tabs.find(t => t.type === "agent_guide");
   if (existing) {
     setActive(existing.id);
-    return;
+    return existing;
   }
-  const id = `sc_${shell.state.nextId++}`;
-  const scInst = `sc_${shell.state.nextId - 1}_${Date.now()}`;
-  shell.state.tabs.push({ id, title: "Untitled Notebook", type: "scripting", scInst, scFresh: true, iframe: null, layout: "docked" });
+  const id = `ag_${shell.state.nextId++}`;
+  const tab = {
+    id,
+    title: "ArcBot Prompt Guide",
+    type: "agent_guide",
+    iframe: null,
+    layout: "docked",
+  };
+  shell.state.tabs.push(tab);
   setDockedActive(id);
   shell.render?.();
   shell.saveState?.();
+  return tab;
+}
+
+function getFilenameFromPath(pathLike) {
+  const normalized = String(pathLike || "").replace(/\\/g, "/").trim();
+  if (!normalized) return "";
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+
+export function openScriptingTab(options = {}) {
+  const notebookPath = String(options?.notebookPath || options?.openPath || "").trim();
+  const forceNew = !!options?.forceNew || !!notebookPath;
+  const existing = !forceNew ? shell.state.tabs.find(t => t.type === "scripting") : null;
+  if (existing) {
+    setActive(existing.id);
+    return existing;
+  }
+  const id = `sc_${shell.state.nextId++}`;
+  const scInst = `sc_${shell.state.nextId - 1}_${Date.now()}`;
+  const tab = {
+    id,
+    title: getFilenameFromPath(notebookPath) || "Untitled Notebook",
+    type: "scripting",
+    scInst,
+    scFresh: true,
+    scOpenPath: notebookPath || undefined,
+    iframe: null,
+    layout: "docked",
+  };
+  shell.state.tabs.push(tab);
+  setDockedActive(id);
+  shell.render?.();
+  shell.saveState?.();
+  return tab;
 }
 
 function removeTabById(id) {

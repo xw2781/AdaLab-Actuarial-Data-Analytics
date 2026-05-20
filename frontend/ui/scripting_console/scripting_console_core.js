@@ -9,6 +9,7 @@ const scriptingSessionId = getOrCreateScriptingSessionId();
 const scriptingQueryParams = new URLSearchParams(window.location.search);
 const scriptingTabInstanceId = sanitizeStorageId(scriptingQueryParams.get("inst") || "");
 const forceFreshNotebook = scriptingQueryParams.get("fresh") === "1";
+const skipLastNotebookLoad = scriptingQueryParams.get("skipLast") === "1";
 const LEGACY_CELLS_STORAGE_KEY = "sc_cells";
 const CELLS_STORAGE_KEY = scriptingTabInstanceId
   ? `${LEGACY_CELLS_STORAGE_KEY}_${scriptingTabInstanceId}`
@@ -55,7 +56,6 @@ const stopBtn = document.getElementById("stopBtn");
 const restartBtn = document.getElementById("restartBtn");
 const clearOutputBtn = document.getElementById("clearOutputBtn");
 const shortcutsBtn = document.getElementById("shortcutsBtn");
-const toggleVarsBtn = document.getElementById("toggleVarsBtn");
 const notebookFileBanner = document.getElementById("notebookFileBanner");
 const notebookFileBannerMessage = document.getElementById("notebookFileBannerMessage");
 const reloadDiskNotebookBtn = document.getElementById("reloadDiskNotebookBtn");
@@ -69,16 +69,11 @@ const sidebarSplitHandle = document.getElementById("sidebarSplitHandle");
 const tocView = document.getElementById("tocView");
 const tocBody = document.getElementById("tocBody");
 const tocHeader = document.querySelector(".sc-toc-header");
+const tocHeadingNumbersBtn = document.getElementById("tocHeadingNumbersBtn");
 const varsView = document.getElementById("varsView");
 const varsHeader = document.querySelector(".sc-vars-header");
-const collapseTocBtn = document.getElementById("collapseTocBtn");
-const collapseVarsBtn = document.getElementById("collapseVarsBtn");
-const collapseApiBtn = document.getElementById("collapseApiBtn");
 const varsBody = document.getElementById("varsBody");
-const varsApiResizeHandle = document.getElementById("varsApiResizeHandle");
 const statusText = document.getElementById("statusText");
-const apiList = document.getElementById("apiList");
-const apiSection = document.getElementById("apiSection");
 const resizeHandle = document.getElementById("resizeHandle");
 const shortcutsOverlay = document.getElementById("shortcutsOverlay");
 const shortcutsCloseBtn = document.getElementById("shortcutsCloseBtn");
@@ -217,7 +212,8 @@ require(["vs/editor/editor.main"], function () {
 
   // New notebook tabs opened from Home card pass fresh=1 and should not restore prior drafts.
   const saved = forceFreshNotebook ? null : loadCellsFromStorage();
-  if (saved && saved.length > 0) {
+  const restoredDraft = Boolean(saved && saved.length > 0);
+  if (restoredDraft) {
     saved.forEach((cellState) => {
       const cell = addCell(cellState.source, null, "after", cellState.type, { recordUndo: false, persist: false });
       if (typeof applyImportedCellState === "function") applyImportedCellState(cell, cellState);
@@ -232,6 +228,9 @@ require(["vs/editor/editor.main"], function () {
   clearNotebookUndoHistory();
   if (typeof markNotebookSavedBaseline === "function") markNotebookSavedBaseline("", null);
   loadScriptingPreferences();
+  if (!restoredDraft && !skipLastNotebookLoad && typeof loadLastOpenedNotebookFromHost === "function") {
+    void loadLastOpenedNotebookFromHost();
+  }
 });
 
 

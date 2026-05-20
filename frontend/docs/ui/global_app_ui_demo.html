@@ -1,0 +1,2113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcRho Global App UI Style Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --font: Arial, "Segoe UI", "SegoeUI", Tahoma, sans-serif;
+      --text: #1f2933;
+      --muted: #65717d;
+      --line: #d8dde3;
+      --line-strong: #c5ccd6;
+      --surface: #ffffff;
+      --shell: #f2f2f2;
+      --panel: #f5f7f9;
+      --panel-2: #edf1f5;
+      --blue: #2b6df6;
+      --blue-soft: #e8f0ff;
+      --teal: #0f766e;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #be123c;
+      --shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background: #e9edf2;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .demoHeader {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid #cbd3de;
+      background: rgba(245, 247, 249, 0.96);
+      backdrop-filter: blur(12px);
+    }
+
+    .demoTitle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .demoLogo {
+      width: 30px;
+      height: 30px;
+      border: 1px solid #cfd6df;
+      border-radius: 7px;
+      background: #fff;
+      padding: 4px;
+    }
+
+    .demoTitle h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .demoTitle p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stylePicker {
+      display: inline-grid;
+      grid-auto-flow: column;
+      gap: 3px;
+      padding: 3px;
+      border: 1px solid #cdd5df;
+      border-radius: 8px;
+      background: #eef2f6;
+    }
+
+    .stylePicker button {
+      min-width: 112px;
+      height: 30px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #4b5563;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .stylePicker button.active {
+      background: #fff;
+      color: #1f2933;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+
+    .demoStage {
+      padding: 18px;
+    }
+
+    .styleView {
+      display: none;
+    }
+
+    .styleView.active {
+      display: block;
+      animation: viewIn 160ms ease both;
+    }
+
+    @keyframes viewIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .appFrame {
+      height: calc(100vh - 104px);
+      min-height: 660px;
+      border: 1px solid #bfc7d2;
+      background: var(--shell);
+      box-shadow: 0 20px 46px rgba(15, 23, 42, 0.16);
+      overflow: hidden;
+      display: grid;
+      color: var(--text);
+    }
+
+    .winTitlebar {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border-bottom: 1px solid #cfd4dc;
+      background: #e8ebef;
+      color: #27313d;
+      user-select: none;
+    }
+
+    .winMark {
+      width: 18px;
+      height: 18px;
+      border: 1px solid #cfd6df;
+      border-radius: 5px;
+      background: #fff;
+      padding: 2px;
+    }
+
+    .winTitle {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .winControls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .winButton,
+    .iconButton {
+      width: 26px;
+      height: 22px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid #c2c8d0;
+      border-radius: 4px;
+      background: #f7f8f9;
+      color: #374151;
+      padding: 0;
+    }
+
+    .winButton:hover,
+    .iconButton:hover {
+      background: #eef2f6;
+      border-color: #aeb8c5;
+    }
+
+    .iconButton svg,
+    .toolButton svg,
+    .navIcon,
+    .smallIcon {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+
+    .toolButton {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid #c7ced8;
+      border-radius: 5px;
+      background: #f7f8f9;
+      color: #2f3b4a;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .toolButton.primary {
+      border-color: #9bb9ea;
+      background: #e8f0ff;
+      color: #1f4fbf;
+    }
+
+    .toolButton:hover {
+      border-color: #aeb8c5;
+      background: #eef2f6;
+    }
+
+    .toolButton.primary:hover {
+      border-color: #7da2df;
+      background: #dceaff;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      border: 1px solid #d5dce6;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #506070;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #9ca3af;
+      box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.12);
+    }
+
+    .dot.blue {
+      background: var(--blue);
+      box-shadow: 0 0 0 3px rgba(43, 109, 246, 0.12);
+    }
+
+    .dot.green {
+      background: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+    }
+
+    .dot.amber {
+      background: #f59e0b;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+    }
+
+    .field,
+    .selectField,
+    textarea.field {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      color: #223247;
+      outline: none;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+
+    .field,
+    .selectField {
+      height: 30px;
+    }
+
+    textarea.field {
+      min-height: 76px;
+      resize: vertical;
+      padding: 8px;
+    }
+
+    .field:focus,
+    .selectField:focus,
+    textarea.field:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 20px;
+      border: 1px solid #9aa4b2;
+      border-radius: 999px;
+      background: #e1e5ea;
+      transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .switch.on {
+      border-color: #4f9865;
+      background: #15803d;
+      box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12);
+    }
+
+    .switch.on::after {
+      transform: translateX(20px);
+    }
+
+    .miniTable {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: 12px;
+    }
+
+    .miniTable th,
+    .miniTable td {
+      height: 31px;
+      border-bottom: 1px solid #e3e8ef;
+      padding: 0 9px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .miniTable th {
+      color: #5d6875;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f8fafc;
+    }
+
+    .miniTable tr:hover td {
+      background: #f5f8fc;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid #d8dde3;
+      border-radius: 7px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .metricLabel {
+      color: #65717d;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .metricValue {
+      margin-top: 6px;
+      color: #1f2933;
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metricTrend {
+      margin-top: 6px;
+      color: #526071;
+      font-size: 11px;
+    }
+
+    .progress {
+      height: 7px;
+      border-radius: 999px;
+      background: #e4e8ee;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #8fb3dd, #2b6df6);
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 50;
+      min-width: 240px;
+      max-width: 320px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fbfcfe;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+      padding: 10px 12px;
+      color: #263747;
+      font-weight: 700;
+    }
+
+    .toast.show {
+      display: flex;
+      animation: toastIn 190ms ease both;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .modalOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.18);
+    }
+
+    .modalOverlay.open {
+      display: flex;
+      animation: fadeIn 120ms ease both;
+    }
+
+    .modalBox {
+      width: min(430px, calc(100vw - 32px));
+      border: 1px solid #c7ced8;
+      border-radius: 8px;
+      background: #f7f8f9;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.22);
+      padding: 14px;
+      animation: popIn 160ms ease both;
+    }
+
+    .modalTitle {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .modalBody {
+      margin: 8px 0 14px;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .modalActions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .dragList {
+      display: grid;
+      gap: 7px;
+    }
+
+    .dragItem {
+      min-height: 34px;
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #d8dde3;
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 8px;
+      color: #334155;
+      cursor: grab;
+      touch-action: none;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .dragItem:hover {
+      border-color: #b8c2cc;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    .dragItem.dragging {
+      opacity: 0.72;
+      cursor: grabbing;
+      transform: scale(0.985);
+      box-shadow: var(--shadow);
+    }
+
+    .grab {
+      color: #9aa4b2;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    .dropZone {
+      min-height: 112px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 8px;
+      border: 1px dashed #aeb8c5;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #65717d;
+      text-align: center;
+      transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+    }
+
+    .dropZone.over {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+      color: #1f4fbf;
+    }
+
+    .dropZone .smallIcon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .demoLog {
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      color: #65717d;
+      font-size: 11px;
+    }
+
+    .workbench {
+      grid-template-rows: 30px 24px 1fr 24px;
+    }
+
+    .workbenchMenu {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 10px;
+      border-bottom: 1px solid #d5d9df;
+      background: #f2f2f2;
+    }
+
+    .menuButton {
+      height: 20px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: #333;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+
+    .menuButton:hover,
+    .menuButton.active {
+      background: #e4e8ed;
+    }
+
+    .workbenchBody {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 212px minmax(0, 1fr) 286px;
+    }
+
+    .leftNav {
+      min-width: 0;
+      border-right: 1px solid #d8dde3;
+      background: #edf1f5;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .brandBlock {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .brandInitial {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #cfd6df;
+      border-radius: 50%;
+      background: #eef2f6;
+      color: #526071;
+      font-weight: 800;
+    }
+
+    .brandName {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .brandSub {
+      color: #65717d;
+      font-size: 11px;
+    }
+
+    .navSection {
+      margin-top: 14px;
+    }
+
+    .navLabel {
+      margin: 0 8px 7px;
+      color: #697480;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .navItem {
+      min-height: 31px;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: #47515c;
+      padding: 0 8px;
+      font-weight: 700;
+    }
+
+    .navItem.active {
+      border-color: #d7dde4;
+      background: #fff;
+      color: #1f2933;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .navItem:hover {
+      background: #f8fafc;
+    }
+
+    .mainPane {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .tabsBar {
+      display: flex;
+      align-items: flex-end;
+      gap: 0;
+      min-height: 33px;
+      padding: 4px 8px 0;
+      background: #f2f2f2;
+    }
+
+    .appTab {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid #d0d0d0;
+      background: #f3f3f3;
+      color: #333;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+
+    .appTab.active {
+      border-color: #c8c8c8;
+      border-bottom-color: #fff;
+      background: #fff;
+      box-shadow: inset 0 2px 0 var(--blue);
+      font-weight: 800;
+      transform: translateY(1px);
+    }
+
+    .paneToolbar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-top: 1px solid #d8dde3;
+      border-bottom: 1px solid #d8dde3;
+      background: #fbfcfe;
+    }
+
+    .toolbarTitle {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .canvas {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .gridTwo {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #fbfcfe;
+      overflow: hidden;
+    }
+
+    .panelHeader {
+      min-height: 37px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #e3e8ef;
+      padding: 0 10px;
+      background: #f8fafc;
+      font-weight: 800;
+    }
+
+    .panelBody {
+      padding: 10px;
+    }
+
+    .metricsGrid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .rightInspector {
+      min-width: 0;
+      border-left: 1px solid #d8dde3;
+      background: #f4f5f6;
+      overflow: auto;
+    }
+
+    .inspectorHeader {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      min-height: 43px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid #d8dde3;
+      background: #eef2f6;
+      padding: 0 10px;
+      font-weight: 800;
+    }
+
+    .formGrid {
+      display: grid;
+      gap: 9px;
+    }
+
+    .formRow {
+      display: grid;
+      grid-template-columns: 90px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      color: #65717d;
+      font-size: 12px;
+    }
+
+    .statusBar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-top: 1px solid #d8dde3;
+      background: rgba(230, 230, 230, 0.5);
+      color: #65717d;
+      padding: 0 8px;
+      font-size: 11px;
+    }
+
+    .statusBar .spacer {
+      flex: 1 1 auto;
+    }
+
+    .atlas {
+      grid-template-rows: 30px 1fr 24px;
+    }
+
+    .atlasBody {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 64px 254px minmax(0, 1fr);
+      background: #fff;
+    }
+
+    .iconRail {
+      border-right: 1px solid #d8dde3;
+      background: #eef2f6;
+      padding: 10px 8px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      justify-items: center;
+    }
+
+    .railMark {
+      width: 36px;
+      height: 36px;
+      border: 1px solid #cfd6df;
+      border-radius: 8px;
+      background: #fff;
+      padding: 5px;
+    }
+
+    .railNav {
+      display: grid;
+      gap: 7px;
+      align-content: start;
+    }
+
+    .railBtn {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: #526071;
+    }
+
+    .railBtn.active,
+    .railBtn:hover {
+      border-color: #d7dde4;
+      background: #fff;
+      color: #1f4fbf;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    .railBtn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+    }
+
+    .atlasSidebar {
+      border-right: 1px solid #d8dde3;
+      background: #f8fafc;
+      overflow: auto;
+    }
+
+    .searchBlock {
+      padding: 12px;
+      border-bottom: 1px solid #e3e8ef;
+    }
+
+    .treeList {
+      padding: 8px;
+    }
+
+    .treeItem {
+      min-height: 30px;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 7px;
+      border-radius: 6px;
+      color: #526071;
+      padding: 0 8px;
+      font-weight: 700;
+    }
+
+    .treeItem.active,
+    .treeItem:hover {
+      background: #edf4ff;
+      color: #1f4fbf;
+    }
+
+    .atlasMain {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      background: #fff;
+    }
+
+    .commandStrip {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 52px;
+      border-bottom: 1px solid #d8dde3;
+      background: #fbfcfe;
+      padding: 9px 12px;
+    }
+
+    .commandBox {
+      height: 34px;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      color: #65717d;
+      padding: 0 10px;
+    }
+
+    .commandInput {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #223247;
+    }
+
+    .atlasWorkspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 32%);
+      overflow: hidden;
+    }
+
+    .board {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .boardHeader {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 12px;
+    }
+
+    .boardTitle {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .boardSub {
+      margin-top: 4px;
+      color: #65717d;
+      font-size: 12px;
+    }
+
+    .tileGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    .tile {
+      min-height: 118px;
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .tile:hover {
+      border-color: #b8c2cc;
+      box-shadow: var(--shadow);
+      transform: translateY(-1px);
+    }
+
+    .tileHead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .sidePanel {
+      border-left: 1px solid #d8dde3;
+      background: #f4f7fa;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeItem {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .timeLine {
+      position: relative;
+      display: grid;
+      justify-items: center;
+    }
+
+    .timeLine::before {
+      content: "";
+      position: absolute;
+      top: 16px;
+      bottom: -10px;
+      width: 1px;
+      background: #d8dde3;
+    }
+
+    .timeItem:last-child .timeLine::before {
+      display: none;
+    }
+
+    .timeDot {
+      width: 9px;
+      height: 9px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 3px rgba(43, 109, 246, 0.12);
+      z-index: 1;
+    }
+
+    .compactText {
+      color: #65717d;
+      font-size: 11px;
+    }
+
+    .studio {
+      grid-template-rows: 30px 1fr 24px;
+    }
+
+    .studioBody {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 286px minmax(0, 1fr);
+      background: #fff;
+    }
+
+    .studioSidebar {
+      min-height: 0;
+      border-right: 1px solid #d8dde3;
+      background: #f4f5f6;
+      overflow: auto;
+    }
+
+    .studioBrand {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid #d8dde3;
+      background: #eef2f6;
+    }
+
+    .sessionList {
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .sessionCard {
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+      cursor: pointer;
+      transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    }
+
+    .sessionCard:hover,
+    .sessionCard.active {
+      border-color: #abc1e7;
+      box-shadow: var(--shadow);
+      transform: translateY(-1px);
+    }
+
+    .sessionTitle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 800;
+      margin-bottom: 5px;
+    }
+
+    .studioMain {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      background: #fff;
+    }
+
+    .studioToolbar {
+      min-height: 47px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #d8dde3;
+      background: #fbfcfe;
+      padding: 8px 12px;
+    }
+
+    .studioCanvas {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 290px;
+      overflow: hidden;
+    }
+
+    .chatArea {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      background: #fff;
+    }
+
+    .messages {
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .message {
+      max-width: 720px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .message.user {
+      margin-left: auto;
+      justify-items: end;
+    }
+
+    .bubble {
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 10px 12px;
+      color: #263747;
+    }
+
+    .message.user .bubble {
+      border-color: #c3d4ef;
+      background: #eef5ff;
+    }
+
+    .workCard {
+      border: 1px solid #dce3ec;
+      border-radius: 8px;
+      background: #fbfcfe;
+      overflow: hidden;
+    }
+
+    .workCardHead {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid #e3e8ef;
+      background: #f8fafc;
+      padding: 0 10px;
+      font-weight: 800;
+    }
+
+    .workSteps {
+      padding: 9px 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      gap: 8px;
+      color: #526071;
+      font-size: 12px;
+    }
+
+    .stepIcon {
+      width: 18px;
+      height: 15px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #e4e8ee;
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .step.done .stepIcon {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .step.active .stepIcon {
+      background: #dbeafe;
+      color: #1d4ed8;
+      animation: pulse 1200ms ease infinite;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(43, 109, 246, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 0 5px rgba(43, 109, 246, 0);
+      }
+    }
+
+    .composer {
+      border-top: 1px solid #d8dde3;
+      background: #f8fafc;
+      padding: 10px;
+    }
+
+    .composerBox {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .composerBox textarea {
+      width: 100%;
+      min-height: 64px;
+      border: 0;
+      outline: 0;
+      resize: none;
+      padding: 10px;
+      color: #223247;
+    }
+
+    .composerActions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-top: 1px solid #e3e8ef;
+      padding: 7px;
+    }
+
+    .composerActions .spacer {
+      flex: 1 1 auto;
+    }
+
+    .contextPanel {
+      min-height: 0;
+      border-left: 1px solid #d8dde3;
+      background: #f4f7fa;
+      overflow: auto;
+    }
+
+    .chipRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #d5dce6;
+      border-radius: 999px;
+      background: #fff;
+      color: #526071;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .flowCard {
+      border: 1px solid #d8dde3;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .flowNodes {
+      display: grid;
+      gap: 8px;
+    }
+
+    .flowNode {
+      min-height: 34px;
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #d8dde3;
+      border-radius: 6px;
+      background: #fbfcfe;
+      padding: 0 8px;
+      color: #334155;
+    }
+
+    .flowNode.running {
+      border-color: #a9c1e8;
+      background: #f1f6ff;
+    }
+
+    .runLight {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #9ca3af;
+    }
+
+    .running .runLight {
+      background: var(--blue);
+      animation: pulse 1200ms ease infinite;
+    }
+
+    .splitDrag {
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      background: #e4e8ee;
+      cursor: ew-resize;
+      overflow: hidden;
+    }
+
+    .splitDrag span {
+      display: block;
+      width: 58%;
+      height: 100%;
+      background: #8fb3dd;
+      border-radius: inherit;
+      transition: width 120ms ease;
+    }
+
+    .splitDrag.dragging span {
+      background: var(--blue);
+    }
+
+    @media (max-width: 1080px) {
+      .demoHeader {
+        grid-template-columns: 1fr;
+      }
+
+      .stylePicker {
+        justify-self: start;
+        grid-auto-flow: row;
+        width: min(340px, 100%);
+      }
+
+      .stylePicker button {
+        width: 100%;
+      }
+
+      .appFrame {
+        height: auto;
+        min-height: 920px;
+      }
+
+      .workbenchBody,
+      .atlasBody,
+      .studioBody,
+      .studioCanvas,
+      .atlasWorkspace,
+      .gridTwo {
+        grid-template-columns: 1fr;
+      }
+
+      .rightInspector,
+      .sidePanel,
+      .contextPanel {
+        border-left: 0;
+        border-top: 1px solid #d8dde3;
+      }
+
+      .metricsGrid,
+      .tileGrid {
+        grid-template-columns: 1fr;
+      }
+
+      .iconRail {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="demoHeader">
+      <div class="demoTitle">
+        <img class="demoLogo" src="../../icons/icon_arc_nobg.svg" alt="">
+        <div>
+          <h1>ArcRho Global App UI Style Demo</h1>
+          <p>Three modern, minimal, clean directions using current ArcRho density, surfaces, controls, and motion.</p>
+        </div>
+      </div>
+      <nav class="stylePicker" aria-label="Style demos">
+        <button class="active" type="button" data-style-target="workbench">Workbench</button>
+        <button type="button" data-style-target="atlas">Atlas</button>
+        <button type="button" data-style-target="studio">Assistant Studio</button>
+      </nav>
+    </header>
+
+    <main class="demoStage">
+      <section class="styleView active" id="style-workbench" aria-label="Workbench style">
+        <div class="appFrame workbench">
+          <div class="winTitlebar">
+            <img class="winMark" src="../../icons/icon_arc_nobg.svg" alt="">
+            <div class="winTitle">ArcRho - Workbench Compact</div>
+            <div class="winControls" aria-hidden="true">
+              <button class="winButton" type="button">-</button>
+              <button class="winButton" type="button">[]</button>
+              <button class="winButton" type="button">x</button>
+            </div>
+          </div>
+          <div class="workbenchMenu">
+            <button class="menuButton active" type="button" data-toast="File menu opened">File</button>
+            <button class="menuButton" type="button" data-toast="Workflow menu opened">Workflow</button>
+            <button class="menuButton" type="button" data-toast="Dataset tools opened">Dataset</button>
+            <button class="menuButton" type="button" data-toast="Help menu opened">Help</button>
+          </div>
+          <div class="workbenchBody">
+            <aside class="leftNav">
+              <div class="brandBlock">
+                <div class="brandInitial">A</div>
+                <div>
+                  <div class="brandName">ArcRho</div>
+                  <div class="brandSub">Actuarial data workspace</div>
+                </div>
+              </div>
+              <div class="navSection">
+                <div class="navLabel">Launch</div>
+                <div class="navItem active">
+                  <svg class="navIcon" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>
+                  <span>Portfolio</span>
+                  <span class="pill">6</span>
+                </div>
+                <div class="navItem">
+                  <svg class="navIcon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"></ellipse><path d="M5 5v10c0 1.7 3.1 3 7 3s7-1.3 7-3V5"></path><path d="M5 10c0 1.7 3.1 3 7 3s7-1.3 7-3"></path></svg>
+                  <span>Datasets</span>
+                  <span></span>
+                </div>
+                <div class="navItem">
+                  <svg class="navIcon" viewBox="0 0 24 24"><path d="M4 18h16"></path><path d="M6 15l4-5 4 3 4-7"></path><circle cx="6" cy="15" r="1.2"></circle><circle cx="10" cy="10" r="1.2"></circle><circle cx="14" cy="13" r="1.2"></circle><circle cx="18" cy="6" r="1.2"></circle></svg>
+                  <span>DFM</span>
+                  <span></span>
+                </div>
+                <div class="navItem">
+                  <svg class="navIcon" viewBox="0 0 24 24"><rect x="3" y="4" width="6" height="5" rx="1.2"></rect><rect x="15" y="4" width="6" height="5" rx="1.2"></rect><rect x="9" y="15" width="6" height="5" rx="1.2"></rect><path d="M9 6.5h6"></path><path d="M6 9v3.5h6V15"></path><path d="M18 9v3.5h-6"></path></svg>
+                  <span>Workflows</span>
+                  <span></span>
+                </div>
+              </div>
+              <div class="navSection">
+                <div class="navLabel">Try Drag Sort</div>
+                <div class="dragList" data-drag-list>
+                  <div class="dragItem"><span class="grab">::</span><span>Incurred Loss</span><span class="pill">Base</span></div>
+                  <div class="dragItem"><span class="grab">::</span><span>Paid Loss</span><span class="pill">Alt</span></div>
+                  <div class="dragItem"><span class="grab">::</span><span>Case Reserve</span><span class="pill">View</span></div>
+                </div>
+                <div class="demoLog" data-demo-log>Drag rows to reorder.</div>
+              </div>
+            </aside>
+            <section class="mainPane">
+              <div class="tabsBar">
+                <div class="appTab active">Dataset Review <span>x</span></div>
+                <div class="appTab">DFM Method <span>x</span></div>
+                <div class="appTab">Workflow <span>x</span></div>
+              </div>
+              <div class="paneToolbar">
+                <div class="toolbarTitle">Dataset Review / Commercial Auto</div>
+                <button class="toolButton primary" type="button" data-toast="Run queued">
+                  <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+                  <span>Run</span>
+                </button>
+                <button class="toolButton" type="button" data-modal="workbenchModal">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a7 7 0 0 0-2.1-1.2L14 3h-4l-.4 2.7a7 7 0 0 0-2.1 1.2l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 2.1 1.2L10 21h4l.4-2.7a7 7 0 0 0 2.1-1.2l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"></path></svg>
+                  <span>Settings</span>
+                </button>
+                <button class="iconButton" type="button" title="Refresh" data-toast="Refresh complete">
+                  <svg viewBox="0 0 24 24"><path d="M20 6v5h-5"></path><path d="M4 18v-5h5"></path><path d="M18 9a7 7 0 0 0-11-3"></path><path d="M6 15a7 7 0 0 0 11 3"></path></svg>
+                </button>
+              </div>
+              <div class="canvas">
+                <div class="metricsGrid">
+                  <div class="metric"><div class="metricLabel">Rows</div><div class="metricValue">48.2k</div><div class="metricTrend">+2.1% from last refresh</div></div>
+                  <div class="metric"><div class="metricLabel">Completeness</div><div class="metricValue">97.4%</div><div class="metricTrend">4 warnings</div></div>
+                  <div class="metric"><div class="metricLabel">Runtime</div><div class="metricValue">18s</div><div class="metricTrend">Fast cache path</div></div>
+                </div>
+                <div class="gridTwo">
+                  <div class="panel">
+                    <div class="panelHeader">
+                      <span>Latest Rows</span>
+                      <span class="pill"><span class="dot green"></span>Validated</span>
+                    </div>
+                    <div class="panelBody" style="padding:0">
+                      <table class="miniTable">
+                        <thead><tr><th>AY</th><th>LOB</th><th>Measure</th><th>Status</th><th>Value</th></tr></thead>
+                        <tbody>
+                          <tr><td>2025</td><td>Auto</td><td>Paid</td><td>Loaded</td><td>12,482</td></tr>
+                          <tr><td>2025</td><td>Auto</td><td>Case</td><td>Loaded</td><td>8,322</td></tr>
+                          <tr><td>2024</td><td>GL</td><td>Reported</td><td>Review</td><td>6,914</td></tr>
+                          <tr><td>2023</td><td>Property</td><td>Paid</td><td>Loaded</td><td>9,118</td></tr>
+                          <tr><td>2022</td><td>Umbrella</td><td>Ultimate</td><td>Review</td><td>3,447</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panelHeader">Drop Target</div>
+                    <div class="panelBody">
+                      <div class="dropZone" data-drop-zone>
+                        <svg class="smallIcon" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                        <span>Drag a field here</span>
+                      </div>
+                      <div class="demoLog" data-drop-log>Drop target is ready.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <aside class="rightInspector">
+              <div class="inspectorHeader">
+                <span>Inspector</span>
+                <button class="iconButton" type="button" title="Close">
+                  <svg viewBox="0 0 24 24"><path d="M7 7l10 10"></path><path d="M17 7L7 17"></path></svg>
+                </button>
+              </div>
+              <div class="panelBody">
+                <div class="formGrid">
+                  <label class="formRow"><span>Project</span><input class="field" value="Commercial Auto"></label>
+                  <label class="formRow"><span>View</span><select class="selectField"><option>Dataset quality</option><option>DFM inputs</option></select></label>
+                  <label class="formRow"><span>Autosave</span><button class="switch on" type="button" aria-label="Autosave" data-switch></button></label>
+                  <label class="formRow"><span>Notes</span><textarea class="field">Focus on missing diagonals before factor selection.</textarea></label>
+                </div>
+              </div>
+            </aside>
+          </div>
+          <div class="statusBar">
+            <span>Status: Ready</span>
+            <span class="spacer"></span>
+            <span>Zoom 100%</span>
+            <span>10:42:18</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="styleView" id="style-atlas" aria-label="Atlas style">
+        <div class="appFrame atlas">
+          <div class="winTitlebar">
+            <img class="winMark" src="../../icons/icon_arc_nobg.svg" alt="">
+            <div class="winTitle">ArcRho - Atlas Navigation</div>
+            <span class="pill"><span class="dot blue"></span>Connected</span>
+          </div>
+          <div class="atlasBody">
+            <aside class="iconRail">
+              <img class="railMark" src="../../icons/icon_arc_nobg.svg" alt="">
+              <div class="railNav">
+                <button class="railBtn active" type="button" title="Home" data-toast="Home selected"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20H5V10.5z"></path><path d="M9 20v-6h6v6"></path></svg></button>
+                <button class="railBtn" type="button" title="Data" data-toast="Data selected"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"></ellipse><path d="M5 5v10c0 1.7 3.1 3 7 3s7-1.3 7-3V5"></path><path d="M5 10c0 1.7 3.1 3 7 3s7-1.3 7-3"></path></svg></button>
+                <button class="railBtn" type="button" title="DFM" data-toast="DFM selected"><svg viewBox="0 0 24 24"><path d="M4 18h16"></path><path d="M6 15l4-5 4 3 4-7"></path></svg></button>
+                <button class="railBtn" type="button" title="Workflow" data-toast="Workflow selected"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="6" height="5" rx="1.2"></rect><rect x="15" y="4" width="6" height="5" rx="1.2"></rect><rect x="9" y="15" width="6" height="5" rx="1.2"></rect><path d="M9 6.5h6"></path><path d="M6 9v3.5h6V15"></path><path d="M18 9v3.5h-6"></path></svg></button>
+              </div>
+              <button class="railBtn" type="button" title="Settings" data-modal="atlasModal"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a7 7 0 0 0-2.1-1.2L14 3h-4l-.4 2.7a7 7 0 0 0-2.1 1.2l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 2.1 1.2L10 21h4l.4-2.7a7 7 0 0 0 2.1-1.2l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"></path></svg></button>
+            </aside>
+            <aside class="atlasSidebar">
+              <div class="searchBlock">
+                <div class="brandBlock" style="margin-bottom:10px">
+                  <div class="brandInitial">A</div>
+                  <div>
+                    <div class="brandName">Atlas</div>
+                    <div class="brandSub">Global nav concept</div>
+                  </div>
+                </div>
+                <div class="commandBox">
+                  <svg class="smallIcon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="M16 16l4 4"></path></svg>
+                  <input class="commandInput" value="Search objects">
+                  <span class="pill">Ctrl K</span>
+                </div>
+              </div>
+              <div class="treeList">
+                <div class="navLabel">Project Tree</div>
+                <div class="treeItem active"><svg class="smallIcon" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg><span>Commercial Auto</span><span>18</span></div>
+                <div class="treeItem"><svg class="smallIcon" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg><span>Workers Comp</span><span>12</span></div>
+                <div class="treeItem"><svg class="smallIcon" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"></path></svg><span>Umbrella</span><span>9</span></div>
+                <div class="treeItem"><svg class="smallIcon" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg><span>Latest Dataset</span><span></span></div>
+                <div class="treeItem"><svg class="smallIcon" viewBox="0 0 24 24"><path d="M4 18h16"></path><path d="M6 15l4-5 4 3 4-7"></path></svg><span>Selected DFM</span><span></span></div>
+              </div>
+            </aside>
+            <section class="atlasMain">
+              <div class="commandStrip">
+                <div class="commandBox">
+                  <svg class="smallIcon" viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                  <input class="commandInput" value="Open dataset, run workflow, or ask ArcBot">
+                  <span class="pill">Command</span>
+                </div>
+                <div class="chipRow">
+                  <button class="toolButton primary" type="button" data-toast="New tab opened"><svg viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg><span>New</span></button>
+                  <button class="toolButton" type="button" data-toast="Pinned view updated"><svg viewBox="0 0 24 24"><path d="M12 17v5"></path><path d="M5 8h14l-2 9H7z"></path><path d="M8 8V4h8v4"></path></svg><span>Pin</span></button>
+                </div>
+              </div>
+              <div class="atlasWorkspace">
+                <div class="board">
+                  <div class="boardHeader">
+                    <div>
+                      <h2 class="boardTitle">Commercial Auto Workspace</h2>
+                      <div class="boardSub">A cleaner object-oriented global shell with a left icon rail, searchable tree, and wide task canvas.</div>
+                    </div>
+                    <span class="pill"><span class="dot green"></span>All systems ready</span>
+                  </div>
+                  <div class="tileGrid">
+                    <div class="tile">
+                      <div class="tileHead"><span class="dot blue"></span><span>Dataset Quality</span></div>
+                      <div class="progress"><span style="width:78%"></span></div>
+                      <p class="compactText">Interactive hover motion keeps the visual language quiet while still making click targets obvious.</p>
+                    </div>
+                    <div class="tile">
+                      <div class="tileHead"><span class="dot green"></span><span>Workflow Queue</span></div>
+                      <div class="dragList" data-drag-list>
+                        <div class="dragItem"><span class="grab">::</span><span>Refresh dataset</span><span class="pill">1</span></div>
+                        <div class="dragItem"><span class="grab">::</span><span>Build factors</span><span class="pill">2</span></div>
+                        <div class="dragItem"><span class="grab">::</span><span>Export workbook</span><span class="pill">3</span></div>
+                      </div>
+                    </div>
+                    <div class="tile">
+                      <div class="tileHead"><span class="dot amber"></span><span>Review Lane</span></div>
+                      <div class="dropZone" data-drop-zone>
+                        <svg class="smallIcon" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                        <span>Drop workflow rows here</span>
+                      </div>
+                    </div>
+                    <div class="tile">
+                      <div class="tileHead"><span class="dot"></span><span>Review Form</span></div>
+                      <div class="formGrid">
+                        <label class="formRow"><span>Scope</span><select class="selectField"><option>Current project</option><option>All projects</option></select></label>
+                        <label class="formRow"><span>Mode</span><select class="selectField"><option>Manual review</option><option>Auto refresh</option></select></label>
+                        <label class="formRow"><span>Notify</span><button class="switch" type="button" data-switch></button></label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <aside class="sidePanel">
+                  <div class="panelHeader">Activity</div>
+                  <div class="panelBody">
+                    <div class="timeline">
+                      <div class="timeItem"><div class="timeLine"><span class="timeDot"></span></div><div><strong>Dataset loaded</strong><div class="compactText">48,211 rows from shared cache.</div></div></div>
+                      <div class="timeItem"><div class="timeLine"><span class="timeDot"></span></div><div><strong>Factors refreshed</strong><div class="compactText">Development patterns rebuilt.</div></div></div>
+                      <div class="timeItem"><div class="timeLine"><span class="timeDot"></span></div><div><strong>Review pending</strong><div class="compactText">Two warnings need analyst action.</div></div></div>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+          </div>
+          <div class="statusBar"><span>Atlas concept: object-first navigation</span><span class="spacer"></span><span data-drop-log>Drag, drop, and click controls are active.</span></div>
+        </div>
+      </section>
+
+      <section class="styleView" id="style-studio" aria-label="Assistant Studio style">
+        <div class="appFrame studio">
+          <div class="winTitlebar">
+            <img class="winMark" src="../../icons/icon_arc_nobg.svg" alt="">
+            <div class="winTitle">ArcRho - Assistant Studio</div>
+            <span class="pill"><span class="dot amber"></span>Review mode</span>
+          </div>
+          <div class="studioBody">
+            <aside class="studioSidebar">
+              <div class="studioBrand">
+                <div class="brandInitial">A</div>
+                <div>
+                  <div class="brandName">Assistant Studio</div>
+                  <div class="brandSub">ArcBot-forward workspace</div>
+                </div>
+              </div>
+              <div class="sessionList">
+                <div class="sessionCard active" data-toast="Session selected">
+                  <div class="sessionTitle"><span>DFM Review</span><span class="pill">Now</span></div>
+                  <div class="compactText">Inspect latest factor selections and explain variance.</div>
+                </div>
+                <div class="sessionCard" data-toast="Session selected">
+                  <div class="sessionTitle"><span>Dataset Cleanup</span><span class="pill">10:28</span></div>
+                  <div class="compactText">Normalize project map labels and cache results.</div>
+                </div>
+                <div class="sessionCard" data-toast="Session selected">
+                  <div class="sessionTitle"><span>Workflow Export</span><span class="pill">Wed</span></div>
+                  <div class="compactText">Create a workbook and release-ready notes.</div>
+                </div>
+                <div class="panel">
+                  <div class="panelHeader">Motion Test</div>
+                  <div class="panelBody">
+                    <div class="splitDrag" data-split-drag><span></span></div>
+                    <div class="demoLog" data-demo-log>Drag slider to test resize feedback.</div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+            <section class="studioMain">
+              <div class="studioToolbar">
+                <div class="toolbarTitle">DFM Review Session</div>
+                <button class="toolButton primary" type="button" data-progress>
+                  <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+                  <span>Animate Work</span>
+                </button>
+                <button class="toolButton" type="button" data-modal="studioModal">
+                  <svg viewBox="0 0 24 24"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path></svg>
+                  <span>History</span>
+                </button>
+                <button class="iconButton" type="button" title="Settings" data-toast="Settings opened">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a7 7 0 0 0-2.1-1.2L14 3h-4l-.4 2.7a7 7 0 0 0-2.1 1.2l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 2.1 1.2L10 21h4l.4-2.7a7 7 0 0 0 2.1-1.2l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"></path></svg>
+                </button>
+              </div>
+              <div class="studioCanvas">
+                <div class="chatArea">
+                  <div class="messages">
+                    <div class="message">
+                      <div class="bubble">I checked the active DFM tab and found two selections that moved more than the current review threshold.</div>
+                    </div>
+                    <div class="message user">
+                      <div class="bubble">Show the supporting context and keep the current workbook untouched.</div>
+                    </div>
+                    <div class="message">
+                      <div class="workCard">
+                        <div class="workCardHead">
+                          <span>Work Plan</span>
+                          <span class="pill"><span class="dot blue"></span><span data-progress-label>Idle</span></span>
+                        </div>
+                        <div class="workSteps" data-work-steps>
+                          <div class="step done"><span class="stepIcon">OK</span><span>Read selected DFM tab context.</span></div>
+                          <div class="step active"><span class="stepIcon">2</span><span>Compare selected factors against prior version.</span></div>
+                          <div class="step"><span class="stepIcon">3</span><span>Draft concise review notes.</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <form class="composer">
+                    <div class="composerBox">
+                      <textarea aria-label="Composer">Ask ArcBot to review the selected method and cite only current tab context.</textarea>
+                      <div class="composerActions">
+                        <button class="toolButton" type="button" data-toast="Context attached"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg><span>Attach</span></button>
+                        <button class="toolButton" type="button" data-toast="App context toggled"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="M8 9h8"></path><path d="M8 13h5"></path></svg><span>App Context</span></button>
+                        <span class="spacer"></span>
+                        <button class="iconButton" type="button" title="Send" data-toast="Message queued"><svg viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+                <aside class="contextPanel">
+                  <div class="panelHeader">Current Context</div>
+                  <div class="panelBody">
+                    <div class="chipRow">
+                      <span class="chip">DFM tab</span>
+                      <span class="chip">Dataset</span>
+                      <span class="chip">Workbook path</span>
+                      <span class="chip">Review threshold</span>
+                    </div>
+                  </div>
+                  <div class="panelHeader">Workflow Preview</div>
+                  <div class="panelBody">
+                    <div class="flowCard">
+                      <div class="flowNodes">
+                        <div class="flowNode running"><span class="runLight"></span><span>Inspect</span><span class="pill">Running</span></div>
+                        <div class="flowNode"><span class="runLight"></span><span>Compare</span><span class="pill">Next</span></div>
+                        <div class="flowNode"><span class="runLight"></span><span>Summarize</span><span class="pill">Draft</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panelHeader">Drop Files</div>
+                  <div class="panelBody">
+                    <div class="dropZone" data-drop-zone>
+                      <svg class="smallIcon" viewBox="0 0 24 24"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                      <span>Drop review artifacts</span>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+          </div>
+          <div class="statusBar"><span>Assistant Studio concept: ArcBot as primary work surface</span><span class="spacer"></span><span>Context window: 18%</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modalOverlay" id="workbenchModal" role="dialog" aria-modal="true" aria-labelledby="workbenchModalTitle">
+    <div class="modalBox">
+      <h2 class="modalTitle" id="workbenchModalTitle">Workbench Settings</h2>
+      <div class="modalBody">This modal demonstrates ArcRho-style compact settings, restrained elevation, and short transition timing.</div>
+      <div class="modalActions">
+        <button class="toolButton" type="button" data-close-modal>Cancel</button>
+        <button class="toolButton primary" type="button" data-close-modal data-toast="Settings saved">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalOverlay" id="atlasModal" role="dialog" aria-modal="true" aria-labelledby="atlasModalTitle">
+    <div class="modalBox">
+      <h2 class="modalTitle" id="atlasModalTitle">Atlas Preferences</h2>
+      <div class="modalBody">Use this concept when global object navigation matters more than tab density.</div>
+      <div class="modalActions">
+        <button class="toolButton" type="button" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalOverlay" id="studioModal" role="dialog" aria-modal="true" aria-labelledby="studioModalTitle">
+    <div class="modalBox">
+      <h2 class="modalTitle" id="studioModalTitle">Session History</h2>
+      <div class="modalBody">Assistant Studio keeps chat, app context, and workflow preview visible without using a marketing-style layout.</div>
+      <div class="modalActions">
+        <button class="toolButton primary" type="button" data-close-modal>Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="dot blue"></span>
+    <span id="toastText">Action complete</span>
+  </div>
+
+  <script>
+    const toast = document.getElementById("toast");
+    const toastText = document.getElementById("toastText");
+    let toastTimer = null;
+
+    function showToast(message) {
+      toastText.textContent = message || "Action complete";
+      toast.classList.add("show");
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    document.querySelectorAll("[data-style-target]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.styleTarget;
+        document.querySelectorAll("[data-style-target]").forEach((item) => {
+          item.classList.toggle("active", item === button);
+        });
+        document.querySelectorAll(".styleView").forEach((view) => {
+          view.classList.toggle("active", view.id === `style-${target}`);
+        });
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      const toastButton = event.target.closest("[data-toast]");
+      if (toastButton) showToast(toastButton.dataset.toast);
+
+      const switchButton = event.target.closest("[data-switch]");
+      if (switchButton) {
+        switchButton.classList.toggle("on");
+        showToast(switchButton.classList.contains("on") ? "Switch enabled" : "Switch disabled");
+      }
+
+      const modalButton = event.target.closest("[data-modal]");
+      if (modalButton) {
+        document.getElementById(modalButton.dataset.modal)?.classList.add("open");
+      }
+
+      if (event.target.matches("[data-close-modal]") || event.target.classList.contains("modalOverlay")) {
+        event.target.closest(".modalOverlay")?.classList.remove("open");
+      }
+    });
+
+    let activeDrag = null;
+
+    document.querySelectorAll("[data-drag-list]").forEach((list) => {
+      list.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        const item = event.target.closest(".dragItem");
+        if (!item) return;
+        activeDrag = {
+          item,
+          list,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          moved: false,
+        };
+        item.setPointerCapture(event.pointerId);
+      });
+
+      list.addEventListener("pointermove", (event) => {
+        if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+        const distance = Math.hypot(event.clientX - activeDrag.startX, event.clientY - activeDrag.startY);
+        if (!activeDrag.moved && distance < 4) return;
+        activeDrag.moved = true;
+        activeDrag.item.classList.add("dragging");
+        event.preventDefault();
+
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const overZone = target?.closest("[data-drop-zone]");
+        document.querySelectorAll("[data-drop-zone].over").forEach((zone) => {
+          zone.classList.toggle("over", zone === overZone);
+        });
+        if (overZone) overZone.classList.add("over");
+
+        const overList = target?.closest("[data-drag-list]");
+        if (overList) {
+          const after = getDragAfterElement(overList, event.clientY, activeDrag.item);
+          if (after == null) {
+            overList.appendChild(activeDrag.item);
+          } else {
+            overList.insertBefore(activeDrag.item, after);
+          }
+        }
+      });
+
+      list.addEventListener("pointerup", finishPointerDrag);
+      list.addEventListener("pointercancel", finishPointerDrag);
+    });
+
+    function finishPointerDrag(event) {
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const overZone = target?.closest("[data-drop-zone]");
+      if (overZone && activeDrag.moved) {
+        applyDrop(overZone, activeDrag.item.textContent.trim());
+      } else if (activeDrag.moved) {
+        activeDrag.item.closest(".navSection, .tile, .panelBody")?.querySelector("[data-demo-log]")?.replaceChildren("Order updated.");
+      }
+      document.querySelectorAll("[data-drop-zone].over").forEach((zone) => zone.classList.remove("over"));
+      activeDrag.item.classList.remove("dragging");
+      activeDrag.item.releasePointerCapture(event.pointerId);
+      activeDrag = null;
+    }
+
+    function getDragAfterElement(container, y, draggedItem) {
+      const items = [...container.querySelectorAll(".dragItem")].filter((item) => item !== draggedItem);
+      return items.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset, element: child };
+        }
+        return closest;
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    function applyDrop(zone, label) {
+      zone.querySelector("span").textContent = label;
+      document.querySelectorAll("[data-drop-log]").forEach((log) => {
+        log.textContent = `Dropped: ${label}`;
+      });
+      showToast("Drop accepted");
+    }
+
+    document.querySelectorAll("[data-drop-zone]").forEach((zone) => {
+      zone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        zone.classList.add("over");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+      zone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        zone.classList.remove("over");
+        const label = event.dataTransfer.getData("text/plain") || "Dropped item";
+        applyDrop(zone, label);
+      });
+    });
+
+    document.querySelectorAll("[data-progress]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const steps = document.querySelector("[data-work-steps]");
+        const label = document.querySelector("[data-progress-label]");
+        if (!steps || !label) return;
+        label.textContent = "Running";
+        const stepItems = [...steps.querySelectorAll(".step")];
+        stepItems.forEach((step, index) => {
+          step.classList.remove("done", "active");
+          if (index === 0) step.classList.add("active");
+        });
+        stepItems.forEach((step, index) => {
+          window.setTimeout(() => {
+            stepItems.forEach((item, itemIndex) => {
+              item.classList.toggle("done", itemIndex < index);
+              item.classList.toggle("active", itemIndex === index);
+            });
+            if (index === stepItems.length - 1) {
+              window.setTimeout(() => {
+                stepItems.forEach((item) => item.classList.remove("active"));
+                stepItems.forEach((item) => item.classList.add("done"));
+                label.textContent = "Complete";
+                showToast("Work animation complete");
+              }, 620);
+            }
+          }, index * 620);
+        });
+      });
+    });
+
+    document.querySelectorAll("[data-split-drag]").forEach((slider) => {
+      const fill = slider.querySelector("span");
+      let active = false;
+      const update = (clientX) => {
+        const rect = slider.getBoundingClientRect();
+        const value = Math.max(12, Math.min(92, ((clientX - rect.left) / rect.width) * 100));
+        fill.style.width = `${value}%`;
+        slider.closest(".panelBody")?.querySelector("[data-demo-log]")?.replaceChildren(`Preview width ${Math.round(value)}%.`);
+      };
+      slider.addEventListener("pointerdown", (event) => {
+        active = true;
+        slider.classList.add("dragging");
+        slider.setPointerCapture(event.pointerId);
+        update(event.clientX);
+      });
+      slider.addEventListener("pointermove", (event) => {
+        if (active) update(event.clientX);
+      });
+      slider.addEventListener("pointerup", (event) => {
+        active = false;
+        slider.classList.remove("dragging");
+        slider.releasePointerCapture(event.pointerId);
+      });
+    });
+  </script>
+</body>
+</html>

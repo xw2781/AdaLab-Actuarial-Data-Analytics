@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "The Scripting Console sidebar resize handle is easier to grab without changing its visible width.",
+  "details": [
+    "The vertical sidebar handle now has a wider invisible pointer target while keeping the same visual rail."
+  ]
+}
