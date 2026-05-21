@@ -22,7 +22,13 @@ from .dataset_types import DatasetTypesSaveRequest
 from .table_summary import TableSummaryRefreshRequest
 from .audit_log import AuditLogWriteRequest
 from .workspace_paths import WorkspacePathsUpdateRequest
-from .scripting import ScriptRunRequest, ScriptDeleteVarRequest, ScriptNotebookSaveRequest, ScriptNotebookLoadRequest
+from .scripting import (
+    ScriptRunRequest,
+    ScriptDeleteVarRequest,
+    ScriptNotebookSaveRequest,
+    ScriptNotebookLoadRequest,
+    ScriptMacroRunRequest,
+)
 from .dfm_rpc_bridge import DfmRpcBridgeRequest, DfmRpcBridgeApplyRequest, DfmRpcBridgeUpdateRemoteRequest
 from .dfm_method_index import DfmMethodIndexRefreshRequest
 from .project_user_preferences import ProjectUserPreferencesUpdateRequest
@@ -47,6 +53,7 @@ __all__ = [
     "ScriptDeleteVarRequest",
     "ScriptNotebookSaveRequest",
     "ScriptNotebookLoadRequest",
+    "ScriptMacroRunRequest",
     "DfmRpcBridgeRequest",
     "DfmRpcBridgeApplyRequest",
     "DfmRpcBridgeUpdateRemoteRequest",

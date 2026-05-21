@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScriptRunRequest(BaseModel):
@@ -25,3 +25,8 @@ class ScriptNotebookLoadRequest(BaseModel):
 class ScriptInspectRequest(BaseModel):
     code: str
     cursor_pos: int
+
+
+class ScriptMacroRunRequest(BaseModel):
+    macro_id: str
+    active_context: Dict[str, Any] = Field(default_factory=dict)

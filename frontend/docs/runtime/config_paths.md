@@ -66,7 +66,7 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
 - Runtime globals in `app_server/config.py` are refreshed from config after `/workspace_paths` updates.
 - In-memory runtime caches that contain absolute workspace paths, including the app-server dataset registry, are cleared after `/workspace_paths` updates.
 - Dataset valid-value caches and the DFM root-path cache are cleared or replaced when the shell broadcasts a Server Connection update.
-- User-local fixed paths are also refreshed in `app_server/config.py`, including workflow export path (`~/Documents/ArcRho/workflows`) and scripting notebook path (`~/Documents/ArcRho/scripts`).
+- User-local fixed paths are also refreshed in `app_server/config.py`, including workflow export path (`~/Documents/ArcRho/workflows`) and scripting path (`~/Documents/ArcRho/scripts`) used for notebooks and editable macros.
 - ArcRhoTri dataset CSV files use `projects/<project>/data/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv`.
 - DFM local method files use `projects/<project>/data/<ReservingClassFolder>/DFM@<Name>.json`; within one project/reserving-class pair, the DFM `Name` is the sole local instance identity. DFM RPC Bridge remote responses use `data/tmp/<ReservingClassFolder>/DFM@<Name>.json`, while remote-update status files start with `SyncDFM@`.
 <!-- MANUAL:END -->
