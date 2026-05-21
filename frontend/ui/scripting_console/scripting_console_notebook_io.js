@@ -16,7 +16,12 @@ function getNotebookDisplayTitle() {
 function updateNotebookTitleUI() {
   const title = getNotebookDisplayTitle();
   try {
-    window.parent?.postMessage({ type: "arcrho:update-active-tab-title", title, inst: scriptingTabInstanceId }, "*");
+    window.parent?.postMessage({
+      type: "arcrho:update-active-tab-title",
+      title,
+      inst: scriptingTabInstanceId,
+      path: currentNotebookPath || "",
+    }, "*");
   } catch {}
 }
 
@@ -47,6 +52,10 @@ function isIpynbPath(pathLike) {
   return getNotebookExtension(pathLike).toLowerCase() === ".ipynb";
 }
 
+function isPythonScriptPath(pathLike) {
+  return getNotebookExtension(pathLike).toLowerCase() === ".py";
+}
+
 function isAbsoluteFilePath(pathLike) {
   const value = String(pathLike || "").trim();
   return /^[a-zA-Z]:[\\/]/.test(value) || value.startsWith("\\\\") || value.startsWith("/");
@@ -69,8 +78,8 @@ function normalizeNotebookRenameInput(rawName) {
   const dot = raw.lastIndexOf(".");
   const nextName = dot > 0 ? raw : `${raw}${currentExt}`;
   const nextExt = getNotebookExtension(nextName).toLowerCase();
-  if (nextExt !== ".ipynb" && nextExt !== ".arcnb") {
-    return { ok: false, error: "Notebook name must end with .ipynb or .arcnb." };
+  if (nextExt !== ".ipynb" && nextExt !== ".arcnb" && nextExt !== ".py") {
+    return { ok: false, error: "Notebook name must end with .ipynb, .arcnb, or .py." };
   }
   return { ok: true, name: nextName };
 }
@@ -240,6 +249,13 @@ function buildNotebookFileData() {
     nbformat: 4,
     nbformat_minor: 5,
   };
+}
+
+function buildPythonScriptText() {
+  return getNotebookSavePayload()
+    .map((cell) => sourceToText(cell.source))
+    .join("\n\n# %%\n\n")
+    .trimEnd() + "\n";
 }
 
 async function readNotebookDiskRevision(pathLike = currentNotebookPath) {
@@ -577,11 +593,24 @@ function extractPlainText(dataBundle) {
   return sourceToText(dataBundle["text/plain"]);
 }
 
+function normalizeImportedPngData(value) {
+  const text = sourceToText(value).replace(/\s+/g, "");
+  if (!text) return "";
+  return /^[A-Za-z0-9+/=]+$/.test(text) ? text : "";
+}
+
+function normalizeImportedHtml(value) {
+  const text = sourceToText(value).trim();
+  return text || "";
+}
+
 function convertImportedOutputs(outputs) {
   if (!Array.isArray(outputs)) return {};
   const stdout = [];
   const stderr = [];
   const errors = [];
+  const images = [];
+  const html = [];
   const unsupported = new Set();
 
   outputs.forEach((item) => {
@@ -607,11 +636,33 @@ function convertImportedOutputs(outputs) {
       return;
     }
     if (outputType === "execute_result" || outputType === "display_data") {
-      const text = extractPlainText(item.data);
+      let hasPngImage = false;
+      let htmlText = "";
+      if (item.data && typeof item.data === "object" && !Array.isArray(item.data) && Object.prototype.hasOwnProperty.call(item.data, "image/png")) {
+        const data = normalizeImportedPngData(item.data["image/png"]);
+        if (data) {
+          images.push({ mime: "image/png", data });
+          hasPngImage = true;
+        }
+      }
+      if (!hasPngImage && item.data && typeof item.data === "object" && !Array.isArray(item.data) && Object.prototype.hasOwnProperty.call(item.data, "text/html")) {
+        htmlText = normalizeImportedHtml(item.data["text/html"]);
+        if (htmlText) html.push(htmlText);
+      }
+      const text = hasPngImage || htmlText ? "" : extractPlainText(item.data);
       if (text) stdout.push(text);
       if (item.data && typeof item.data === "object" && !Array.isArray(item.data)) {
         Object.keys(item.data).forEach((mimeKey) => {
-          if (mimeKey !== "text/plain") unsupported.add(mimeKey);
+          if (mimeKey === "text/plain") return;
+          if (mimeKey === "text/html") {
+            if (!htmlText && !hasPngImage) unsupported.add(mimeKey);
+            return;
+          }
+          if (mimeKey === "image/png") {
+            if (!hasPngImage) unsupported.add(mimeKey);
+            return;
+          }
+          unsupported.add(mimeKey);
         });
       } else {
         unsupported.add(outputType);
@@ -625,6 +676,8 @@ function convertImportedOutputs(outputs) {
   if (stdout.length) result.stdout = stdout.join("");
   if (stderr.length) result.stderr = stderr.join("");
   if (errors.length) result.error = errors.join("\n");
+  if (images.length) result.images = images;
+  if (html.length) result.html = html;
   if (unsupported.size) {
     result.unsupported = Array.from(unsupported).sort();
     result.unsupported_message = `Imported output contains unsupported rich display types: ${result.unsupported.join(", ")}.`;
@@ -703,7 +756,32 @@ function applyLoadedNotebookCells(loadedCells, filename, options = {}) {
 
 async function reloadCurrentNotebookFromDisk({ reason = "manual" } = {}) {
   const hostApi = getNotebookHostApi();
-  if (!currentNotebookPath || typeof hostApi?.readJsonFile !== "function") return false;
+  if (!currentNotebookPath) return false;
+  if (isPythonScriptPath(currentNotebookPath)) {
+    if (typeof hostApi?.readTextFile !== "function") return false;
+    try {
+      const result = await hostApi.readTextFile({ path: currentNotebookPath });
+      if (!result?.ok) {
+        const msg = result?.error || `File not found: ${currentNotebookPath}`;
+        setNotebookDiskConflict(msg, "deleted");
+        return false;
+      }
+      applyLoadedNotebookCells([{ type: CELL_TYPES.CODE, source: result.text || "" }], currentNotebookPath, {
+        revision: result.revision || null,
+        recordUndo: reason !== "external",
+      });
+      const label = getNotebookFilenameFromPath(currentNotebookPath);
+      const msg = reason === "external" ? `Reloaded disk changes for ${label}` : `Reloaded ${label}`;
+      setStatus(msg);
+      postShellStatus(msg);
+      return true;
+    } catch {
+      setStatus("Reload failed");
+      postShellStatus("Reload failed");
+      return false;
+    }
+  }
+  if (typeof hostApi?.readJsonFile !== "function") return false;
   try {
     const result = await hostApi.readJsonFile({ path: currentNotebookPath });
     if (!result?.exists) {
@@ -740,7 +818,7 @@ async function openNotebookFromAnyFolder() {
     filePath = await hostApi.pickOpenFile({
       startDir,
       filters: [
-        { name: "Notebooks", extensions: ["ipynb", "arcnb"] },
+        { name: "Scripting Files", extensions: ["ipynb", "arcnb", "py"] },
         { name: "All Files", extensions: ["*"] },
       ],
     });
@@ -764,20 +842,34 @@ async function openNotebookFilePath(filePath, options = {}) {
     postShellStatus("Open failed");
     return false;
   }
-  if (extension !== ".ipynb" && extension !== ".arcnb") {
-    const msg = "Only .ipynb and .arcnb notebooks can be opened in Scripting Console.";
+  if (extension !== ".ipynb" && extension !== ".arcnb" && extension !== ".py") {
+    const msg = "Only .ipynb, .arcnb, and .py files can be opened in Scripting Console.";
     setStatus(msg);
     postShellStatus(msg);
     return false;
   }
-  if (!hostApi || typeof hostApi.readJsonFile !== "function") {
-    const msg = "Opening notebooks from disk requires the ArcRho desktop app.";
+  if (!hostApi || (extension === ".py" ? typeof hostApi.readTextFile !== "function" : typeof hostApi.readJsonFile !== "function")) {
+    const msg = "Opening scripting files from disk requires the ArcRho desktop app.";
     setStatus(msg);
     postShellStatus(msg);
     return false;
   }
 
   try {
+    if (extension === ".py") {
+      const result = await hostApi.readTextFile({ path: targetPath });
+      if (!result?.ok) {
+        const msg = result?.error || `File not found: ${targetPath}`;
+        setStatus(msg);
+        postShellStatus(msg);
+        return false;
+      }
+      const revision = await readNotebookDiskRevision(targetPath);
+      applyLoadedNotebookCells([{ type: CELL_TYPES.CODE, source: result.text || "" }], targetPath, { revision });
+      setStatus(`Opened ${getNotebookFilenameFromPath(targetPath)}`);
+      postShellStatus(`Opened ${targetPath}`);
+      return true;
+    }
     const result = await hostApi.readJsonFile({ path: targetPath });
     if (!result || !result.exists) {
       const msg = result?.error || `File not found: ${targetPath}`;
@@ -808,7 +900,9 @@ async function saveCurrentNotebookFile({ closeDialog = true, ignoreRevisionConfl
   }
 
   const hostApi = getNotebookHostApi();
-  if (typeof hostApi?.saveJsonFile !== "function") {
+  const pythonScript = isPythonScriptPath(currentNotebookPath || currentNotebookFilename);
+  const saveFnName = pythonScript ? "saveTextFile" : "saveJsonFile";
+  if (typeof hostApi?.[saveFnName] !== "function") {
     return saveNotebookViaApi(currentNotebookFilename, { closeDialog });
   }
 
@@ -830,11 +924,11 @@ async function saveCurrentNotebookFile({ closeDialog = true, ignoreRevisionConfl
   }
 
   try {
-    const result = await hostApi.saveJsonFile({
+    const result = await hostApi[saveFnName]({
       path: currentNotebookPath,
-      data: buildNotebookFileData(),
+      data: pythonScript ? buildPythonScriptText() : buildNotebookFileData(),
       filters: [
-        { name: "Notebooks", extensions: ["ipynb", "arcnb"] },
+        { name: "Scripting Files", extensions: ["ipynb", "arcnb", "py"] },
         { name: "All Files", extensions: ["*"] },
       ],
     });
@@ -854,7 +948,7 @@ async function saveCurrentNotebookFile({ closeDialog = true, ignoreRevisionConfl
     markNotebookSavedBaseline(savedPath, lastNotebookDiskRevision);
     const savedName = getNotebookFilenameFromPath(savedPath);
     const msg = source === "auto" ? `Auto-saved ${savedName}` : `Saved ${savedName}`;
-    rememberLastOpenedIpynbPath(savedPath);
+    if (!pythonScript) rememberLastOpenedIpynbPath(savedPath);
     setStatus(msg);
     postShellStatus(`${msg}${source === "auto" ? "" : ` (${savedPath})`}`);
     if (closeDialog) closeSaveNbDialog();

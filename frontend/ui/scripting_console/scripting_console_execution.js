@@ -295,6 +295,132 @@ function appendImportedOutputLine(container, className, text) {
   return true;
 }
 
+const IMPORTED_HTML_ALLOWED_TAGS = new Set([
+  "a", "abbr", "b", "blockquote", "br", "caption", "code", "col", "colgroup",
+  "div", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "li", "ol",
+  "p", "pre", "small", "span", "strong", "sub", "sup", "table", "tbody",
+  "td", "tfoot", "th", "thead", "tr", "ul",
+]);
+const IMPORTED_HTML_DROPPED_TAGS = new Set([
+  "script", "style", "template", "iframe", "object", "embed", "svg", "math",
+  "form", "input", "button", "select", "textarea", "link", "meta",
+]);
+
+function isSafeImportedHtmlUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text.startsWith("#")) return text;
+  try {
+    const parsed = new URL(text, window.location.href);
+    return ["http:", "https:", "mailto:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function copyImportedHtmlAttributes(source, target, tagName) {
+  const title = source.getAttribute("title");
+  if (title) target.setAttribute("title", title);
+
+  if (tagName === "a") {
+    const href = isSafeImportedHtmlUrl(source.getAttribute("href"));
+    if (href) {
+      target.setAttribute("href", href);
+      target.setAttribute("target", "_blank");
+      target.setAttribute("rel", "noopener noreferrer");
+    }
+  }
+
+  if (tagName === "td" || tagName === "th") {
+    ["rowspan", "colspan"].forEach((name) => {
+      const numeric = Number.parseInt(source.getAttribute(name) || "", 10);
+      if (Number.isInteger(numeric) && numeric > 0 && numeric <= 1000) {
+        target.setAttribute(name, String(numeric));
+      }
+    });
+    const align = String(source.getAttribute("align") || "").trim().toLowerCase();
+    if (["left", "center", "right", "justify"].includes(align)) {
+      target.setAttribute("align", align);
+    }
+  }
+}
+
+function sanitizeImportedHtml(rawHtml) {
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(String(rawHtml || ""), "text/html");
+
+  function sanitizeNode(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent || "");
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const tagName = node.tagName.toLowerCase();
+    if (IMPORTED_HTML_DROPPED_TAGS.has(tagName)) return null;
+
+    if (!IMPORTED_HTML_ALLOWED_TAGS.has(tagName)) {
+      const fragment = document.createDocumentFragment();
+      Array.from(node.childNodes).forEach((child) => {
+        const cleanChild = sanitizeNode(child);
+        if (cleanChild) fragment.appendChild(cleanChild);
+      });
+      return fragment;
+    }
+
+    const cleanNode = document.createElement(tagName);
+    copyImportedHtmlAttributes(node, cleanNode, tagName);
+    Array.from(node.childNodes).forEach((child) => {
+      const cleanChild = sanitizeNode(child);
+      if (cleanChild) cleanNode.appendChild(cleanChild);
+    });
+    return cleanNode;
+  }
+
+  const fragment = document.createDocumentFragment();
+  Array.from(parsed.body.childNodes).forEach((child) => {
+    const cleanChild = sanitizeNode(child);
+    if (cleanChild) fragment.appendChild(cleanChild);
+  });
+  return fragment;
+}
+
+function appendImportedHtml(container, htmlBlocks) {
+  if (!Array.isArray(htmlBlocks) || !htmlBlocks.length) return false;
+  let appended = false;
+  htmlBlocks.forEach((html) => {
+    const value = typeof html === "string" ? html : "";
+    if (!value.trim()) return;
+    const wrap = document.createElement("div");
+    wrap.className = "out-html";
+    wrap.appendChild(sanitizeImportedHtml(value));
+    if (!wrap.textContent.trim() && !wrap.querySelector("table, hr, br")) return;
+    container.appendChild(wrap);
+    appended = true;
+  });
+  return appended;
+}
+
+function appendImportedImages(container, images) {
+  if (!Array.isArray(images) || !images.length) return false;
+  let appended = false;
+  images.forEach((image) => {
+    if (!image || typeof image !== "object" || Array.isArray(image)) return;
+    const mime = String(image.mime || "").trim().toLowerCase();
+    const data = String(image.data || "").replace(/\s+/g, "");
+    if (mime !== "image/png" || !data || !/^[A-Za-z0-9+/=]+$/.test(data)) return;
+    const wrap = document.createElement("div");
+    wrap.className = "out-image";
+    const img = document.createElement("img");
+    img.src = `data:image/png;base64,${data}`;
+    img.alt = "Imported plot";
+    img.loading = "lazy";
+    wrap.appendChild(img);
+    container.appendChild(wrap);
+    appended = true;
+  });
+  return appended;
+}
+
 function applyImportedCellState(cell, loadedCell) {
   if (!cell || !loadedCell || typeof loadedCell !== "object") {
     return { hasUnsupported: false };
@@ -340,6 +466,8 @@ function applyImportedCellState(cell, loadedCell) {
 
   const importedError = typeof imported.error === "string" ? imported.error : "";
   hasOutput = appendImportedOutputLine(cell.outputEl, "out-error", importedError) || hasOutput;
+  hasOutput = appendImportedHtml(cell.outputEl, imported.html) || hasOutput;
+  hasOutput = appendImportedImages(cell.outputEl, imported.images) || hasOutput;
 
   const unsupported = Array.isArray(imported.unsupported)
     ? imported.unsupported.filter((item) => typeof item === "string" && item.trim())

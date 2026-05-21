@@ -1,0 +1,6 @@
+{
+  "type": "feature",
+  "area": "scripting",
+  "summary": "Rendered imported notebook HTML outputs in scripting console cells.",
+  "details": "Opening an imported .ipynb now shows sanitized text/html rich display output, including common table output, instead of reporting text/html as unsupported."
+}

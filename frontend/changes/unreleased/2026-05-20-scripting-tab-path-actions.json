@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Added scripting tab path actions and full-path hover tooltips.",
+  "details": [
+    "Right-clicking a saved scripting tab or floating scripting titlebar can open the file location or copy the file path.",
+    "Hovering over a saved scripting tab/titlebar shows the full file path in the shell tooltip."
+  ]
+}

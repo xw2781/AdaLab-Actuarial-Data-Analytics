@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Rendered imported notebook PNG plot outputs in Scripting Console.",
+  "details": [
+    "Imported .ipynb cells with image/png rich display data now show the saved plot image instead of reporting it as unsupported."
+  ]
+}

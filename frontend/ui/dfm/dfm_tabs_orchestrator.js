@@ -14,6 +14,7 @@ import {
   setCurrentDfmTab,
   getCurrentDfmTab,
   getDfmIsDirty,
+  markDfmDirty,
   notifyDfmEditState,
   buildRatioSavePath,
 } from "/ui/dfm/dfm_state.js";
@@ -46,6 +47,7 @@ import {
   saveRatioSelectionPattern,
   saveDfmTemplate,
   loadDfmTemplate,
+  applyDfmMethodPayload,
   buildDfmAssistantContextPayload,
   startDfmMethodFileWatcher,
   stopDfmMethodFileWatcher,
@@ -347,6 +349,32 @@ export function initDfmRatios() {
     }
     if (e?.data?.type === "arcrho:assistant-json-updated") {
       scheduleRatioSelectionLoad("assistant-edit");
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-apply-method-payload") {
+      const requestId = e.data.requestId || "";
+      const reply = (payload) => {
+        try {
+          window.parent.postMessage({
+            type: "arcrho:dfm-apply-method-payload-result",
+            requestId,
+            ...payload,
+          }, "*");
+        } catch {
+          // ignore stale shell messaging
+        }
+      };
+      applyDfmMethodPayload(e.data.payload, { markClean: false, reason: "macro" })
+        .then((applied) => {
+          if (applied?.ok) {
+            markDfmDirty();
+            postDfmStatus("Macro applied to active DFM.");
+            reply({ ok: true });
+          } else {
+            reply({ ok: false, error: "Could not apply macro result to DFM tab." });
+          }
+        })
+        .catch((err) => reply({ ok: false, error: String(err?.message || err || "Could not apply macro result.") }));
       return;
     }
     if (e?.data?.type === "arcrho:dfm-request-state") {
