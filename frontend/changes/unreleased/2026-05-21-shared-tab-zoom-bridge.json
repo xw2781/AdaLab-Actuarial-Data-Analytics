@@ -1,0 +1,6 @@
+{
+  "summary": "Tab zoom behavior is consistent across ArcRho pages.",
+  "details": [
+    "Moved feature-page Ctrl+wheel zoom relays into a shared zoom bridge and wired it into Dataset, DFM, Workflow, Project Settings, Project Instance, Browsing History, Agent Guide, and Scripting Console pages."
+  ]
+}

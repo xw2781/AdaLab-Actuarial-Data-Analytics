@@ -38,25 +38,11 @@ import {
   pushBrowsingHistoryEntry,
   normalizeBrowsingHistoryEntry,
 } from "/ui/shell/browsing_history.js";
+import "/ui/shared/zoom_bridge.js?v=20260521a";
 
-const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
-const ZOOM_MODE_KEY = "arcrho_zoom_mode";
 const FONT_STORAGE_KEY = "arcrho_app_font";
 const FORCE_REBUILD_KEY = "arcrho_force_rebuild_enabled";
 const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
-
-function applyZoomValue(v) {
-  try {
-    if (localStorage.getItem(ZOOM_MODE_KEY) === "host") return;
-  } catch {}
-  const z = Number(v);
-  if (!Number.isFinite(z)) return;
-  const root = document.documentElement;
-  const body = document.body;
-  const scale = Math.max(0.5, Math.min(2, z / 100));
-  if (root) root.style.zoom = String(scale);
-  if (body) body.style.zoom = String(scale);
-}
 
 function buildFontStack(font) {
   const raw = String(font || "").trim();
@@ -82,16 +68,6 @@ function loadAppFontFromStorage() {
   return "";
 }
 
-function loadZoomFromStorage() {
-  try {
-    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
-    if (!raw) return 100;
-    const v = Number(raw);
-    if (Number.isFinite(v) && v > 0) return v;
-  } catch {}
-  return 100;
-}
-
 function isForceRebuildEnabled() {
   try {
     return localStorage.getItem(FORCE_REBUILD_KEY) === "1";
@@ -100,7 +76,7 @@ function isForceRebuildEnabled() {
   }
 }
 
-applyZoomValue(loadZoomFromStorage());
+window.ArcRhoZoomBridge?.wirePageZoomBridge();
 applyAppFont(loadAppFontFromStorage());
 
 function notifyDatasetUpdated() {
@@ -108,9 +84,6 @@ function notifyDatasetUpdated() {
 }
 
 window.addEventListener("message", (e) => {
-  if (e?.data?.type === "arcrho:set-zoom") {
-    applyZoomValue(e.data.zoom);
-  }
   if (e?.data?.type === "arcrho:set-app-font") {
     applyAppFont(e.data.font);
   }
@@ -200,14 +173,6 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 }, { capture: true });
-
-document.addEventListener("wheel", (e) => {
-  if (!e.ctrlKey) return;
-  e.preventDefault();
-  e.stopPropagation();
-  e.stopImmediatePropagation();
-  window.parent.postMessage({ type: "arcrho:zoom", deltaY: e.deltaY }, "*");
-}, { capture: true, passive: false });
 
 // -----------------------------
 // Persist dataset across refresh

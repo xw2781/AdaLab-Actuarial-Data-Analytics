@@ -1,0 +1,6 @@
+{
+  "summary": "Scripting Console cell outputs can show more content before scrolling.",
+  "details": [
+    "Doubled the visible height of cell output contents so longer results are easier to inspect."
+  ]
+}

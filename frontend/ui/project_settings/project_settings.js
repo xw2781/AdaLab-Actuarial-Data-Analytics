@@ -6,44 +6,18 @@ import { AuditLogStore } from "/ui/project_settings/project_settings_audit.js?v=
 import { createFieldMappingFeature } from "/ui/project_settings/project_settings_field_mapping.js?v=20260315";
 import { createDatasetTypesFeature } from "/ui/project_settings/project_settings_dataset_types.js?v=2026040308";
 import { createReservingClassTypesFeature } from "/ui/project_settings/project_settings_reserving_class_types.js?v=2026050832";
+import "/ui/shared/zoom_bridge.js?v=20260521a";
 
 // ============ Zoom & Hotkey Handling ============
-const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
-const ZOOM_MODE_KEY = "arcrho_zoom_mode";
 const EXPANDED_FOLDERS_SESSION_KEY = "arcrho_project_settings_expanded_folders_v1";
 const SELECTED_PROJECT_SESSION_KEY = "arcrho_project_settings_selected_project_v1";
 const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
 const PROJECT_EXPLORER_PREF_SAVE_DEBOUNCE_MS = 400;
 
-function applyZoomValue(v) {
-  try {
-    if (localStorage.getItem(ZOOM_MODE_KEY) === "host") return;
-  } catch {}
-  const z = Number(v);
-  if (!Number.isFinite(z)) return;
-  const scale = Math.max(0.5, Math.min(2, z / 100));
-  document.documentElement.style.zoom = String(scale);
-  document.body.style.zoom = String(scale);
-}
-
-function loadZoomFromStorage() {
-  try {
-    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
-    if (!raw) return 100;
-    const v = Number(raw);
-    if (Number.isFinite(v) && v > 0) return v;
-  } catch {}
-  return 100;
-}
-
-applyZoomValue(loadZoomFromStorage());
+window.ArcRhoZoomBridge?.wirePageZoomBridge();
 
 window.addEventListener("message", (e) => {
   const msgType = String(e?.data?.type || "");
-  if (msgType === "arcrho:set-zoom") {
-    applyZoomValue(e.data.zoom);
-    return;
-  }
   if (msgType === "arcrho:project-settings-reserving-class-types-save-local") {
     handleShellReservingClassTypesLocalSave();
     return;
@@ -82,12 +56,6 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 }, { capture: true });
-
-document.addEventListener("wheel", (e) => {
-  if (!e.ctrlKey) return;
-  e.preventDefault();
-  window.parent.postMessage({ type: "arcrho:zoom", deltaY: e.deltaY }, "*");
-}, { capture: true, passive: false });
 
 // ============ State ============
 let projectData = null;       // Raw JSON data

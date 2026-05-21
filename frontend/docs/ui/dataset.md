@@ -11,7 +11,7 @@ Implementation details should stay in the generated entrypoint/key-file sections
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.dataset.entry_points -->
-- `ui/dataset/dataset_viewer.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260513a`, `/ui/dataset/dataset_shared.js`.
+- `ui/dataset/dataset_viewer.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260521a`, `/ui/dataset/dataset_shared.js`.
 
 Detected `fetch(...)` targets in key JS files:
 - `${config.API_BASE}/dataset/${dsId}/patch`
@@ -33,7 +33,6 @@ Detected `arcrho:*` message types in key JS files:
 - `arcrho:hotkey`
 - `arcrho:status`
 - `arcrho:update-active-tab-title`
-- `arcrho:zoom`
 <!-- AUTO-GEN:END -->
 
 ## Key Files

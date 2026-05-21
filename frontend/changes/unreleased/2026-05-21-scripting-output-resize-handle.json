@@ -1,0 +1,6 @@
+{
+  "summary": "Scripting Console cell outputs can be resized from the output corner.",
+  "details": [
+    "Added an invisible bottom-right drag target to each visible cell output so long results can be expanded or tightened per cell without showing a resize icon."
+  ]
+}

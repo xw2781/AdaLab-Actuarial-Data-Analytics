@@ -15,7 +15,7 @@ Frontend module map for page entrypoints, shell orchestration, and feature-speci
 | `ui/workflow/workflow.html` | 1 external script | - |
 | `ui/project_settings/project_settings.html` | 1 external script | - |
 | `ui/project_instance/project_instance.html` | 1 external script | - |
-| `ui/scripting_console/scripting_console.html` | 8 external scripts | - |
+| `ui/scripting_console/scripting_console.html` | 9 external scripts | - |
 <!-- AUTO-GEN:END -->
 
 ## Key Files

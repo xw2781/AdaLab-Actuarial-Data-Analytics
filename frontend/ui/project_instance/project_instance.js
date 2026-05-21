@@ -4,6 +4,7 @@ import {
   scheduleProjectUserPreferencesSave,
 } from "/ui/shared/project_user_preferences.js";
 import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_picker.js?v=20260517a";
+import "/ui/shared/zoom_bridge.js?v=20260521a";
 
 const qs = new URLSearchParams(window.location.search);
 const projectName = String(qs.get("project") || "").trim();
@@ -87,6 +88,7 @@ let activeDatasetWindow = null;
 let lastDatasetWindowShortcutCloseAt = 0;
 const hiddenWindows = new Map();
 const datasetWindows = new Map();
+let lastZoomDetail = null;
 const pageLoadingTasks = new Set();
 let hiddenTabsHoverCloseTimer = 0;
 let hiddenTabsMenuPinned = false;
@@ -109,6 +111,32 @@ let datasetTableFilterAnchor = null;
 let datasetTableColumnDragStarted = false;
 let datasetGroupContextId = "";
 let datasetTableMeasureCanvas = null;
+
+function postZoomToDatasetFrame(iframe, detail = lastZoomDetail) {
+  if (!iframe?.contentWindow || !detail) return;
+  try {
+    iframe.contentWindow.postMessage({
+      type: "arcrho:set-zoom",
+      zoom: detail.zoom,
+      statusBarHeight: detail.statusBarHeight,
+    }, "*");
+  } catch {
+    // ignore nested iframe zoom sync failures
+  }
+}
+
+function broadcastZoomToDatasetWindows(detail = lastZoomDetail) {
+  for (const frame of datasetWindows.values()) {
+    postZoomToDatasetFrame(frame?.querySelector?.("iframe"), detail);
+  }
+}
+
+window.ArcRhoZoomBridge?.wirePageZoomBridge({
+  onApplied: (detail) => {
+    lastZoomDetail = detail;
+    broadcastZoomToDatasetWindows(detail);
+  },
+});
 
 async function applyHostFrameCornerStyle() {
   let isWin11 = false;
@@ -2209,6 +2237,7 @@ function openDatasetWindow(datasetName) {
   iframe.addEventListener("load", () => {
     wireDatasetViewerWindowShortcuts(iframe, frame);
     lockDatasetViewerInputs(iframe, name);
+    postZoomToDatasetFrame(iframe);
     window.setTimeout(() => lockDatasetViewerInputs(iframe, name), 250);
   });
   body.appendChild(iframe);

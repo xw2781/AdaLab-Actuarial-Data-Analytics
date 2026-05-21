@@ -2,11 +2,14 @@ import {
   getBrowsingHistoryEntries,
   normalizeBrowsingHistoryEntry,
 } from "/ui/shell/browsing_history.js";
+import "/ui/shared/zoom_bridge.js?v=20260521a";
 
 const MAX_ENTRIES = 15;
 
 const listEl = document.getElementById("historyList");
 const emptyEl = document.getElementById("historyEmpty");
+
+window.ArcRhoZoomBridge?.wirePageZoomBridge();
 
 function formatTimestamp(ts) {
   const n = Number(ts || 0);

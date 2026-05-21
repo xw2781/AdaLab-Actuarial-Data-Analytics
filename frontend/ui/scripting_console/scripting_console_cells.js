@@ -92,6 +92,70 @@ function setCellOutputVisible(cell, visible) {
   }
 }
 
+function clampOutputHeight(height) {
+  return Math.max(96, Math.min(1600, Math.round(height)));
+}
+
+function getOutputResizeStartHeight(outputEl) {
+  const rectHeight = outputEl?.getBoundingClientRect?.().height || 0;
+  if (rectHeight > 0) return rectHeight;
+  const computed = window.getComputedStyle(outputEl);
+  const maxHeight = Number.parseFloat(computed.maxHeight);
+  if (Number.isFinite(maxHeight) && maxHeight > 0) return maxHeight;
+  return 600;
+}
+
+function setOutputResizeHeight(outputEl, handleEl, height) {
+  const nextHeight = clampOutputHeight(height);
+  outputEl.style.height = `${nextHeight}px`;
+  outputEl.style.maxHeight = `${nextHeight}px`;
+  handleEl?.setAttribute("aria-valuenow", String(nextHeight));
+}
+
+function bindCellOutputResize(outputEl, handleEl) {
+  if (!outputEl || !handleEl) return;
+  let state = null;
+
+  function finishResize(event) {
+    if (!state || event.pointerId !== state.pointerId) return;
+    try {
+      handleEl.releasePointerCapture(state.pointerId);
+    } catch {
+      // Pointer capture may already be gone if the window lost focus.
+    }
+    state = null;
+    document.body.classList.remove("sc-output-resizing");
+  }
+
+  handleEl.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    state = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: getOutputResizeStartHeight(outputEl),
+    };
+    handleEl.setPointerCapture(event.pointerId);
+    document.body.classList.add("sc-output-resizing");
+  });
+
+  handleEl.addEventListener("pointermove", (event) => {
+    if (!state || event.pointerId !== state.pointerId) return;
+    event.preventDefault();
+    setOutputResizeHeight(outputEl, handleEl, state.startHeight + event.clientY - state.startY);
+  });
+
+  handleEl.addEventListener("pointerup", finishResize);
+  handleEl.addEventListener("pointercancel", finishResize);
+  handleEl.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowDown" ? 1 : -1;
+    setOutputResizeHeight(outputEl, handleEl, getOutputResizeStartHeight(outputEl) + direction * 32);
+  });
+}
+
 function toggleCellOutputCollapse(cell) {
   if (!cell || !cell.bottomRowEl) return;
   const hasOutput = cell.outputEl?.classList.contains("visible");
@@ -676,6 +740,16 @@ function addCell(
   outputFrameEl.className = "sc-cell-output-frame";
   const outputEl = document.createElement("div");
   outputEl.className = "sc-cell-output";
+  const outputResizeHandleEl = document.createElement("div");
+  outputResizeHandleEl.className = "sc-cell-output-resize-handle";
+  outputResizeHandleEl.tabIndex = 0;
+  outputResizeHandleEl.setAttribute("role", "separator");
+  outputResizeHandleEl.setAttribute("aria-orientation", "vertical");
+  outputResizeHandleEl.setAttribute("aria-valuemin", "96");
+  outputResizeHandleEl.setAttribute("aria-valuemax", "1600");
+  outputResizeHandleEl.setAttribute("aria-label", "Resize cell output");
+  outputResizeHandleEl.title = "Drag to resize output";
+  bindCellOutputResize(outputEl, outputResizeHandleEl);
 
   const execTimeEl = document.createElement("div");
   execTimeEl.className = "sc-cell-exec-time";
@@ -687,6 +761,7 @@ function addCell(
   bottomRowEl.appendChild(outputSidePlaceholderEl);
   bottomRowEl.appendChild(collapsePreviewEl);
   outputFrameEl.appendChild(outputEl);
+  outputFrameEl.appendChild(outputResizeHandleEl);
   bottomRowEl.appendChild(outputFrameEl);
   bodyEl.appendChild(topRowEl);
   bodyEl.appendChild(bottomRowEl);
@@ -728,6 +803,7 @@ function addCell(
     execTimeEl,
     outputEl,
     outputFrameEl,
+    outputResizeHandleEl,
     labelEl: label,
     cellEl,
     runBtn,

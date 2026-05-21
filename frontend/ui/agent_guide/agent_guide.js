@@ -1,7 +1,11 @@
+import "/ui/shared/zoom_bridge.js?v=20260521a";
+
 const host = window.ADAHost || null;
 const navEl = document.getElementById("agNav");
 const contentEl = document.getElementById("agContent");
 const reloadBtn = document.getElementById("agReloadBtn");
+
+window.ArcRhoZoomBridge?.wirePageZoomBridge();
 
 function escapeHtml(value) {
   return String(value ?? "")

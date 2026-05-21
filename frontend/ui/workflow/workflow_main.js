@@ -2,6 +2,7 @@ import { openContextMenu } from "/ui/shared/menu_utils.js";
 import { openLazyReservingClassPicker } from "/ui/shared/reserving_class_lazy_picker.js";
 import { openProjectNameTreePicker } from "/ui/shared/project_name_tree_picker.js";
 import { loadProjectUserPreferences } from "/ui/shared/project_user_preferences.js";
+import "/ui/shared/zoom_bridge.js?v=20260521a";
 
 const stepsEl = document.getElementById("steps");
 const inspectorEl = document.getElementById("inspector");
@@ -63,9 +64,6 @@ const WF_SIDEBAR_COLLAPSED_KEY = `arcrho_workflow_sidebar_collapsed_v1::${instan
 const WF_LAST_PATH_KEY = `arcrho_workflow_last_path_v1::${instanceId}`;
 const WF_GLOBAL_CTRL_KEY = `arcrho_workflow_global_ctrl_v1::${instanceId}`;
 const WF_AUTOSAVE_MS = 60 * 1000;
-const ZOOM_STORAGE_KEY = "arcrho_ui_zoom_pct";
-const ZOOM_MODE_KEY = "arcrho_zoom_mode";
-const STATUSBAR_H_KEY = "arcrho_statusbar_h";
 const AUTOSAVE_KEY = "arcrho_autosave_enabled";
 const FONT_STORAGE_KEY = "arcrho_app_font";
 const LOCAL_PROJECT_PREFS_ENDPOINT = "/local-project/preferences";
@@ -155,64 +153,16 @@ function broadcastZoomToEmbeddedDatasets() {
   }
 }
 
-function applyZoomValue(v, statusBarHeight) {
-  try {
-    if (localStorage.getItem(ZOOM_MODE_KEY) === "host") {
-      const root = document.documentElement;
-      const safe = Number(statusBarHeight);
-      if (root && Number.isFinite(safe) && safe > 0) {
-        root.style.setProperty("--app-safe-bottom", `${safe}px`);
-      }
-      if (root) root.style.setProperty("--ui-zoom", "1");
-      return;
-    }
-  } catch {}
-  const z = Number(v);
-  if (!Number.isFinite(z)) return;
-  const root = document.documentElement;
-  const body = document.body;
-  const scale = Math.max(0.5, Math.min(2, z / 100));
-  if (root) root.style.zoom = String(scale);
-  if (body) body.style.zoom = String(scale);
-  if (root) {
-    root.style.setProperty("--ui-zoom", String(scale));
-    const safe = Number(statusBarHeight);
-    if (Number.isFinite(safe) && safe > 0) {
-      root.style.setProperty("--app-safe-bottom", `${safe / scale}px`);
-    }
-  }
-  lastZoomValue = z;
-  lastStatusBarHeight = Number.isFinite(statusBarHeight) ? Number(statusBarHeight) : lastStatusBarHeight;
-  broadcastZoomToEmbeddedDatasets();
-}
-
-function loadZoomFromStorage() {
-  try {
-    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
-    if (!raw) return 100;
-    const v = Number(raw);
-    if (Number.isFinite(v) && v > 0) return v;
-  } catch {}
-  return 100;
-}
-
-function loadStatusBarHeight() {
-  try {
-    const raw = localStorage.getItem(STATUSBAR_H_KEY);
-    const v = Number(raw);
-    if (Number.isFinite(v)) return v;
-  } catch {}
-  return 24;
-}
-
-applyZoomValue(loadZoomFromStorage(), loadStatusBarHeight());
+window.ArcRhoZoomBridge?.wirePageZoomBridge({
+  onApplied: ({ zoom, statusBarHeight }) => {
+    if (Number.isFinite(Number(zoom))) lastZoomValue = Number(zoom);
+    if (Number.isFinite(Number(statusBarHeight))) lastStatusBarHeight = Number(statusBarHeight);
+    broadcastZoomToEmbeddedDatasets();
+  },
+});
 applyAppFont(loadAppFontFromStorage());
 
 window.addEventListener("message", (e) => {
-  if (e?.data?.type === "arcrho:set-zoom") {
-    applyZoomValue(e.data.zoom, e.data.statusBarHeight);
-    return;
-  }
   if (e?.data?.type === "arcrho:set-app-font") {
     applyAppFont(e.data.font);
     return;
@@ -1905,14 +1855,6 @@ function shouldIgnoreWorkflowHotkey(e) {
 function wireWorkflowHotkeys() {
   if (window.__workflowHotkeysWired) return;
   window.__workflowHotkeysWired = true;
-
-  document.addEventListener("wheel", (e) => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    window.parent.postMessage({ type: "arcrho:zoom", deltaY: e.deltaY }, "*");
-  }, { capture: true, passive: false });
 
   window.addEventListener("keydown", (e) => {
     const key = (e.key || "").toLowerCase();

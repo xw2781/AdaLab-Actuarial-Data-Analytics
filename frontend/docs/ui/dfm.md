@@ -8,7 +8,7 @@ DFM Notes tab now reuses the shared `notes_editor_interactions.js` behavior laye
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.dfm.entry_points -->
-- `ui/dfm/dfm.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260513a`, `/ui/dfm/dfm_main.js?v=20260517a`.
+- `ui/dfm/dfm.html`: external scripts _none_; inline imports `/ui/dataset/dataset_main.js?v=20260521a`, `/ui/dfm/dfm_main.js?v=20260517a`.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/tri`
@@ -19,6 +19,7 @@ Detected `fetch(...)` targets in key JS files:
 
 Detected `arcrho:*` message types in key JS files:
 - `arcrho:assistant-context-result`
+- `arcrho:dfm-apply-method-payload-result`
 - `arcrho:dfm-settings`
 - `arcrho:dfm-tab-changed`
 - `arcrho:open-path`

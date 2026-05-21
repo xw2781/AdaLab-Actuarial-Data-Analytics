@@ -8,7 +8,7 @@ Source Data tab derives origin/development date boundary inputs from table summa
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_settings.entry_points -->
-- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260517d`; inline imports _none_.
+- `ui/project_settings/project_settings.html`: external scripts `/ui/project_settings/project_settings.js?v=20260521a`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/headers/cache/clear`
@@ -35,7 +35,6 @@ Detected `arcrho:*` message types in key JS files:
 - `arcrho:open-project-instance`
 - `arcrho:project-settings-ribbon-changed`
 - `arcrho:status`
-- `arcrho:zoom`
 <!-- AUTO-GEN:END -->
 
 ## Key Files

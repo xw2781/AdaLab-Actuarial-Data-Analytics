@@ -1,4 +1,6 @@
 
+window.ArcRhoZoomBridge?.wirePageZoomBridge();
+
 
 // ---------------------------------------------------------------------------
 // Resize handle (panels)

@@ -7,7 +7,7 @@ Workflow editor page and save/load orchestration.
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.workflow.entry_points -->
-- `ui/workflow/workflow.html`: external scripts `/ui/workflow/workflow_main.js?v=20260227`; inline imports _none_.
+- `ui/workflow/workflow.html`: external scripts `/ui/workflow/workflow_main.js?v=20260521a`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/projects`
@@ -35,7 +35,6 @@ Detected `arcrho:*` message types in key JS files:
 - `arcrho:workflow-global-changed`
 - `arcrho:workflow-import`
 - `arcrho:workflow-saved`
-- `arcrho:zoom`
 <!-- AUTO-GEN:END -->
 
 ## Key Files

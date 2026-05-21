@@ -433,6 +433,7 @@
     .sc-cell-output-frame {
       min-width: 0;
       background: #fafbfc;
+      position: relative;
     }
     .sc-cell.code .sc-cell-output-frame {
       flex: 1;
@@ -628,14 +629,91 @@
       line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 300px;
+      max-height: 530px;
       overflow-y: auto;
       user-select: text;
+      box-sizing: border-box;
     }
     .sc-cell-output.visible { display: block; }
+    .sc-cell-output-resize-handle {
+      display: none;
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: nwse-resize;
+      opacity: 0;
+      z-index: 1;
+      touch-action: none;
+      user-select: none;
+    }
+    .sc-cell.code .sc-cell-output-frame.visible .sc-cell-output-resize-handle {
+      display: block;
+    }
+    .sc-cell-output-resize-handle:hover,
+    .sc-cell-output-resize-handle:focus-visible,
+    .sc-output-resizing .sc-cell-output-resize-handle {
+      opacity: 0;
+      outline: none;
+    }
+    .sc-output-resizing {
+      cursor: nwse-resize;
+      user-select: none;
+    }
     .sc-cell-output .out-stdout { color: #1f2937; }
     .sc-cell-output .out-error  { color: #dc2626; }
     .sc-cell-output .out-note   { color: #6b7280; font-style: italic; }
+    .sc-cell-output .out-html {
+      margin: 6px 0;
+      color: #1f2937;
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: normal;
+      overflow: auto;
+    }
+    .sc-cell-output .out-html table {
+      border-collapse: collapse;
+      margin: 4px 0;
+      max-width: 100%;
+      background: #fff;
+    }
+    .sc-cell-output .out-html caption {
+      padding: 4px 6px;
+      color: #4b5563;
+      text-align: left;
+      font-weight: 600;
+    }
+    .sc-cell-output .out-html th,
+    .sc-cell-output .out-html td {
+      border: 1px solid #d1d5db;
+      padding: 4px 6px;
+      vertical-align: top;
+      text-align: right;
+    }
+    .sc-cell-output .out-html th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+    .sc-cell-output .out-html p { margin: 0 0 6px; }
+    .sc-cell-output .out-html pre {
+      white-space: pre-wrap;
+      font-family: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+    }
+    .sc-cell-output .out-image {
+      margin: 6px 0;
+      overflow: auto;
+    }
+    .sc-cell-output .out-image img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: #fff;
+    }
     .sc-markdown-render {
       font-family: "Segoe UI", Arial, sans-serif;
       font-size: var(--sc-markdown-base-font-size);
@@ -1669,12 +1747,13 @@
   </div>
 
   <script src="/ui/libs/monaco-editor/min/vs/loader.js"></script>
+  <script src="/ui/shared/zoom_bridge.js?v=20260521a"></script>
   <script src="/ui/scripting_console/scripting_console_core.js"></script>
   <script src="/ui/scripting_console/scripting_console_cells.js"></script>
   <script src="/ui/scripting_console/scripting_console_execution.js"></script>
   <script src="/ui/scripting_console/scripting_console_shortcuts.js"></script>
   <script src="/ui/scripting_console/scripting_console_panels.js"></script>
   <script src="/ui/scripting_console/scripting_console_notebook_io.js"></script>
-  <script src="/ui/scripting_console/scripting_console.js"></script>
+  <script src="/ui/scripting_console/scripting_console.js?v=20260521a"></script>
 </body>
 </html>

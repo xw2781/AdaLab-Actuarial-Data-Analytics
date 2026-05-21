@@ -7,7 +7,7 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260518a`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260521a`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
@@ -16,6 +16,9 @@ Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_hidden_paths`
 - `/reserving_class_hidden_paths?project_name=${encodeURIComponent(projectName)}`
 - `/reserving_class_types?project_name=${encodeURIComponent(projectName)}`
+
+Detected `arcrho:*` message types in key JS files:
+- `arcrho:set-zoom`
 <!-- AUTO-GEN:END -->
 
 ## Key Files
