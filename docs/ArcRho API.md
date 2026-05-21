@@ -78,7 +78,8 @@ The production-relevant DFM surface is much richer than simple JSON load/save. C
 - Ratio exclusions: `ex_hi`, `ex_lo`, `ex_LDF`, `ex_row`, `ex_AY`, `ex_COVID_AY`, `ex_diagonal`, `include_all_ratios`.
 - Average selection: `set_selected_estimate`, `set_user_value`, `set_custom_averages`.
 - Pattern copying: `set_ratio_patterns`, `set_average_formula_patterns`.
-- Tail and adjustment workflows: `set_tail_value`, `apply_adjustments`.
+- Tail workflows: `set_tail_value`.
+- High-level adjustment workflows should live as editable app macros under `Documents\ArcRho\scripts`.
 - Save workflow: `save`.
 
 The new package should not reproduce COM internals, Excel preview logic, or plotting behavior in phase one. It should, however, provide enough DFM editing primitives to migrate the common reserve-review scripts without forcing users to hand-edit raw JSON matrices.
@@ -97,7 +98,7 @@ dfm.clear()
 dfm.ex_COVID_AY()
 dfm.select_low(...)
 dfm.set_selected_estimate(...)
-dfm.apply_adjustments()
+# Run the app macro "Apply Growth Adjustments" when adjustment logic is needed.
 dfm.save()
 dfm.view()
 ```
@@ -123,7 +124,6 @@ Migration implications:
    - `set_user_ratio`
    - `copy_average_formula_patterns`
    - `set_tail_value`
-   - `apply_adjustments`
    - `save`
 3. The API should let users work by method name within a scoped reserving class, because most production scripts assume the project and reserving class are already selected.
 4. `view`, plotting, BF, Cape Cod, Result Selection, and full Vector/Triangle editing are important migration areas, but they can follow after the phase-one project/DFM package if the first API leaves clear extension points.
@@ -311,7 +311,6 @@ dfm.set_selected_average(label: str, dev_periods: int | Iterable[int] | str = "a
 dfm.set_user_ratio(value: float, dev_period: int, row_index: int | None = None) -> DfmMethod
 dfm.copy_average_formula_patterns(source: DfmMethod) -> DfmMethod
 dfm.set_tail_value(dev_period: int, values: Iterable[float], *, years: int | None = None, exclude: str | None = None) -> DfmMethod
-dfm.apply_adjustments(selection: str | None = None) -> DfmMethod
 ```
 
 These helpers should operate on ArcRho's grouped DFM JSON, not on ResQ COM objects.
@@ -450,7 +449,7 @@ Create or update a user-facing HTML guide with:
 7. Create a new DFM method from a minimal template.
 8. Save changes and rebuild the DFM index.
 9. Migrate representative reserve-review notebook snippets:
-   - `DFM(...).clear().set_selected_estimate(...).apply_adjustments().save()`
+   - `DFM(...).clear().set_selected_estimate(...).save()`, with high-level adjustment recipes handled by app macros.
    - high/low ratio exclusions.
    - copied average-formula patterns.
    - tail-value overrides.
