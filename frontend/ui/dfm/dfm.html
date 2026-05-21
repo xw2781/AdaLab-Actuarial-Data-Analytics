@@ -681,6 +681,16 @@
     #ratioWrap td.ratioSelectedCell {
       background: rgba(183, 227, 86, 0.374)
     }
+    #ratioWrap td.dfmTableSel,
+    #resultsWrap td.dfmTableSel {
+      background: rgb(148, 188, 248);
+      outline: none;
+    }
+    #ratioWrap td.dfmTableActive,
+    #resultsWrap td.dfmTableActive {
+      background: rgb(144, 170, 228);
+      outline: none;
+    }
     #ratioWrap td.dfmExternalJsonChanged {
       animation: dfmExternalJsonChangedFlash 2.4s ease-out 1;
       box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.55);
@@ -1233,10 +1243,6 @@
       appearance: none;
       background-image: none;
     }
-    #dfmRatioBasisInput::-webkit-calendar-picker-indicator {
-      display: none;
-      -webkit-appearance: none;
-    }
     .dfmResultsPickerWrap > .pathTreeBtn {
       position: absolute;
       right: 6px;
@@ -1511,7 +1517,7 @@
         <div class="dfmResultsControls">
           <label for="dfmRatioBasisInput">Ratio Basis</label>
           <div class="dfmResultsPickerWrap">
-            <input id="dfmRatioBasisInput" list="dfmRatioBasisList" placeholder="None" autocomplete="off" />
+            <input id="dfmRatioBasisInput" placeholder="None" autocomplete="off" />
             <button id="dfmRatioBasisBtn" type="button" class="pathTreeBtn" title="Browse dataset names" aria-label="Browse dataset names">...</button>
           </div>
           <label for="dfmUltimateRatioDecimalPlacesInput">Ultimate Ratio Decimals</label>
@@ -1530,7 +1536,6 @@
               <button class="dfmSpinBtn down" type="button" aria-label="Decrease"></button>
             </div>
           </div>
-          <datalist id="dfmRatioBasisList"></datalist>
           <span id="dfmRatioBasisStatus" class="dfmResultsBasisStatus" aria-live="polite"></span>
         </div>
         <div id="resultsWrap"></div>
@@ -1585,6 +1590,8 @@
   </div>
 
   <div id="dfmAvgMenu" class="dfmCtxMenu">
+    <button class="dfmCtxItem" data-action="copy-summary-value">Copy value</button>
+    <div class="dfmCtxSep"></div>
     <button class="dfmCtxItem" data-action="rename-average" data-label-only="1">Rename</button>
     <button class="dfmCtxItem" data-action="delete-average" data-label-only="1">Delete</button>
     <div class="dfmCtxSep" data-label-only="1"></div>
@@ -1593,6 +1600,8 @@
     <button class="dfmCtxItem" data-action="custom-average" data-label-only="1">Custom Average</button>
   </div>
   <div id="dfmRatioMenu" class="dfmCtxMenu">
+    <button class="dfmCtxItem" data-action="copy-ratio-value">Copy value</button>
+    <div class="dfmCtxSep"></div>
     <button class="dfmCtxItem" data-action="toggle-na-borders">Hide N/A Borders</button>
     <div class="dfmCtxSep"></div>
     <button class="dfmCtxItem" data-action="copy-ratio-patterns">Copy Ratio Patterns</button>
@@ -1695,10 +1704,6 @@
   <div id="ctxMenu" class="ctx-menu" style="display:none;">
     <div class="ctx-menu-inner">
       <button class="ctx-item" data-action="copy_value">Copy value</button>
-      <button class="ctx-item" data-action="copy_formula">Copy formula</button>
-      <div class="ctx-sep"></div>
-      <button class="ctx-item" data-action="clear">Clear</button>
-      <button class="ctx-item" data-action="select_all">Select all</button>
       <div class="ctx-sep"></div>
       <button class="ctx-item" data-action="export_data">Export data</button>
     </div>

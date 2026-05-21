@@ -797,7 +797,10 @@ function getMenu() {
   menu.id = MENU_ID;
   menu.className = "dfmDevelopedCurveMenu";
   menu.style.display = "none";
-  menu.innerHTML = '<button type="button" data-action="show-curve">Show Percentage Developed Curve</button>';
+  menu.innerHTML = `
+    <button type="button" data-action="copy-value">Copy value</button>
+    <button type="button" data-action="show-curve">Show Percentage Developed Curve</button>
+  `;
   document.body.appendChild(menu);
   document.addEventListener("mousedown", (event) => {
     if (!menu.contains(event.target)) menu.style.display = "none";
@@ -823,7 +826,9 @@ export function wirePercentDevelopedCurveMenu(selectedTable) {
     menu.addEventListener("click", (event) => {
       const btn = event.target?.closest?.("[data-action]");
       if (!btn) return;
-      if (btn.dataset.action === "show-curve" && menu.__selectedTable) {
+      if (btn.dataset.action === "copy-value" && typeof window.__arcRhoCopyActiveGridSelection === "function") {
+        void window.__arcRhoCopyActiveGridSelection();
+      } else if (btn.dataset.action === "show-curve" && menu.__selectedTable) {
         openPercentDevelopedCurveWindow(menu.__selectedTable);
       }
       menu.style.display = "none";

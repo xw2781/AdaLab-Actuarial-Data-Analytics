@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Fixed DFM ratio pattern apply validation for compact triangles.",
+  "details": [
+    "DFM Ratios now applies copied ratio patterns against the same compact row shape used when copying, so same-triangle patterns no longer fail because the displayed trailing Ult mask column is wider than the stored pattern."
+  ]
+}

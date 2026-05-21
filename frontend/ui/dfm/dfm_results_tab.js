@@ -6,6 +6,8 @@ DFM Results Tab - results table rendering and CSV export
 import { getDataset } from "/ui/shared/api.js";
 import { formatCellValue } from "/ui/dataset/dataset_render.js";
 import { openDatasetNamePicker } from "/ui/dataset/dataset_name_picker.js";
+import { openContextMenu } from "/ui/shared/menu_utils.js";
+import { wireSelectableTable } from "/ui/shared/table_selection.js";
 import {
   state,
   getEffectiveDevLabelsForModel,
@@ -22,6 +24,7 @@ import {
 } from "/ui/dfm/dfm_state.js";
 
 let ratioBasisControlsWired = false;
+let resultsCopyMenuWired = false;
 let ratioBasisOptionsLoadSeq = 0;
 let ratioBasisColumnLoadSeq = 0;
 let ratioBasisSelectedName = "";
@@ -43,6 +46,27 @@ let ratioBasisColumnState = {
   error: "",
 };
 
+function wireResultsCopyMenu() {
+  if (resultsCopyMenuWired) return;
+  resultsCopyMenuWired = true;
+  const menu = document.getElementById("ctxMenu");
+  if (!menu) return;
+  menu.addEventListener("click", async (event) => {
+    const btn = event.target?.closest?.(".ctx-item");
+    if (!btn) return;
+    if (btn.dataset.action === "copy_value" && typeof window.__arcRhoCopyActiveGridSelection === "function") {
+      await window.__arcRhoCopyActiveGridSelection();
+    }
+    menu.style.display = "none";
+  });
+  document.addEventListener("mousedown", (event) => {
+    if (!menu.contains(event.target)) menu.style.display = "none";
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") menu.style.display = "none";
+  });
+}
+
 function toText(value) {
   return String(value ?? "").trim();
 }
@@ -53,10 +77,6 @@ function normalizeKey(value) {
 
 function getRatioBasisInputEl() {
   return document.getElementById("dfmRatioBasisInput");
-}
-
-function getRatioBasisListEl() {
-  return document.getElementById("dfmRatioBasisList");
 }
 
 function getRatioBasisBtnEl() {
@@ -167,16 +187,7 @@ function extractRatioBasisDatasetOptions(data) {
   return out;
 }
 
-function renderRatioBasisDatalist(projectKey, options) {
-  const list = getRatioBasisListEl();
-  if (!list) return;
-  list.innerHTML = "";
-  for (const item of Array.isArray(options) ? options : []) {
-    const option = document.createElement("option");
-    option.value = item.name;
-    option.label = `${item.name} (${item.dataFormat})`;
-    list.appendChild(option);
-  }
+function markRatioBasisOptionsRendered(projectKey) {
   ratioBasisOptionsRenderedProjectKey = String(projectKey || "");
 }
 
@@ -184,14 +195,14 @@ async function ensureRatioBasisOptionsForCurrentProject(options = {}) {
   const projectName = getResolvedProjectName();
   const projectKey = normalizeKey(projectName);
   if (!projectKey) {
-    renderRatioBasisDatalist("", []);
+    markRatioBasisOptionsRendered("");
     return [];
   }
 
   if (!options?.forceReload && ratioBasisOptionsByProject.has(projectKey)) {
     const cached = ratioBasisOptionsByProject.get(projectKey) || [];
     if (ratioBasisOptionsRenderedProjectKey !== projectKey) {
-      renderRatioBasisDatalist(projectKey, cached);
+      markRatioBasisOptionsRendered(projectKey);
     }
     return cached;
   }
@@ -219,7 +230,7 @@ async function ensureRatioBasisOptionsForCurrentProject(options = {}) {
     ratioBasisOptionsByProject.set(projectKey, rows);
 
     if (seq === ratioBasisOptionsLoadSeq && normalizeKey(getResolvedProjectName()) === projectKey) {
-      renderRatioBasisDatalist(projectKey, rows);
+      markRatioBasisOptionsRendered(projectKey);
     }
     return rows;
   })();
@@ -797,6 +808,12 @@ export function renderResultsTable() {
   let ultimateTotalHasValue = false;
   let basisTotal = 0;
   let basisTotalHasValue = false;
+  const tagResultCell = (cell, row, col) => {
+    if (!cell) return cell;
+    cell.dataset.r = String(row);
+    cell.dataset.c = String(col);
+    return cell;
+  };
   for (let r = 0; r < origins.length; r++) {
     const tr = document.createElement("tr");
     const rowHead = document.createElement("th");
@@ -808,6 +825,11 @@ export function renderResultsTable() {
     const ultTd = document.createElement("td");
     const basisTd = ratioBasisActive ? document.createElement("td") : null;
     const ultRatioTd = ratioBasisActive ? document.createElement("td") : null;
+    tagResultCell(latestTd, r, 0);
+    tagResultCell(reserveTd, r, 1);
+    tagResultCell(ultTd, r, 2);
+    tagResultCell(basisTd, r, 3);
+    tagResultCell(ultRatioTd, r, 4);
     const maxCol = Math.min(devs.length - 1, (vals?.[r] || []).length - 1);
     const latest = getLatestRowValue(vals, mask, r, maxCol);
     const latestValue = latest?.value;
@@ -867,23 +889,28 @@ export function renderResultsTable() {
   totalTr.appendChild(totalHead);
 
   const latestTotalTd = document.createElement("td");
+  tagResultCell(latestTotalTd, origins.length, 0);
   latestTotalTd.textContent = latestTotalHasValue ? formatCellValue(latestTotal) : "";
   totalTr.appendChild(latestTotalTd);
 
   const reserveTotalTd = document.createElement("td");
+  tagResultCell(reserveTotalTd, origins.length, 1);
   reserveTotalTd.textContent = reserveTotalHasValue ? formatCellValue(reserveTotal) : "";
   totalTr.appendChild(reserveTotalTd);
 
   const ultimateTotalTd = document.createElement("td");
+  tagResultCell(ultimateTotalTd, origins.length, 2);
   ultimateTotalTd.textContent = ultimateTotalHasValue ? formatCellValue(ultimateTotal) : "";
   totalTr.appendChild(ultimateTotalTd);
 
   if (ratioBasisActive) {
     const basisTotalTd = document.createElement("td");
+    tagResultCell(basisTotalTd, origins.length, 3);
     basisTotalTd.textContent = basisTotalHasValue ? formatCellValue(basisTotal) : "";
     totalTr.appendChild(basisTotalTd);
 
     const totalUltRatioTd = document.createElement("td");
+    tagResultCell(totalUltRatioTd, origins.length, 4);
     const totalUltRatioValue =
       ultimateTotalHasValue && basisTotalHasValue && basisTotal !== 0
         ? (ultimateTotal / basisTotal)
@@ -895,4 +922,24 @@ export function renderResultsTable() {
 
   table.appendChild(tbody);
   wrap.appendChild(table);
+  wireResultsCopyMenu();
+  const selection = wireSelectableTable({
+    container: wrap,
+    selectedClass: "dfmTableSel",
+    activeClass: "dfmTableActive",
+    onContextMenu: (event, cell, api) => {
+      event.preventDefault();
+      window.__arcRhoCopyActiveGridSelection = api.copySelection;
+      const menu = document.getElementById("ctxMenu");
+      if (!menu) return;
+      openContextMenu(menu, {
+        anchorEl: cell,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offset: 8,
+        align: "top-left",
+      });
+    },
+  });
+  if (selection) window.__arcRhoCopyActiveGridSelection = selection.copySelection;
 }

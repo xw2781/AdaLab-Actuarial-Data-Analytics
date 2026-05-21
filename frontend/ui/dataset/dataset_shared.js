@@ -298,10 +298,6 @@ export function injectDatasetMarkup(container) {
   <div id="ctxMenu" class="ctx-menu" style="display:none;">
     <div class="ctx-menu-inner">
       <button class="ctx-item" data-action="copy_value">Copy value</button>
-      <button class="ctx-item" data-action="copy_formula">Copy formula</button>
-      <div class="ctx-sep"></div>
-      <button class="ctx-item" data-action="clear">Clear</button>
-      <button class="ctx-item" data-action="select_all">Select all</button>
       <div class="ctx-sep"></div>
       <button class="ctx-item" data-action="export_data">Export data</button>
     </div>

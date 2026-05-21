@@ -20,6 +20,7 @@ import {
 import {
   getExcelActiveSelection, readExcelCell, readExcelCellsBatch, openExcelWorkbook, excelWaitForEnter,
 } from "/ui/shared/api.js";
+import { wireSelectableTable } from "/ui/shared/table_selection.js";
 import { openDfmSummaryPlotWindow } from "/ui/dfm/dfm_summary_plot_window.js?v=20260514g";
 
 // =============================================================================
@@ -492,6 +493,7 @@ export function wireSummaryRowDrag(summaryBody) {
 }
 
 let avgMenuWired = false;
+let summaryCopySelection = null;
 
 function getAvgMenuEl() {
   return document.getElementById("dfmAvgMenu");
@@ -1885,6 +1887,14 @@ export function wireSummaryContextMenu(summaryTable) {
   if (!summaryTable || summaryTable.dataset.menuWired === "1") return;
   summaryTable.dataset.menuWired = "1";
   wireAvgModal();
+  summaryCopySelection = wireSelectableTable({
+    container: summaryTable,
+    rowKey: "copyR",
+    colKey: "copyC",
+    selectedClass: "dfmTableSel",
+    activeClass: "dfmTableActive",
+    canStartPointerSelection: (event) => !!(event.shiftKey || event.ctrlKey || event.metaKey),
+  }) || summaryCopySelection;
 
   summaryTable.addEventListener("contextmenu", (e) => {
     e.preventDefault();
@@ -1913,11 +1923,15 @@ export function wireSummaryContextMenu(summaryTable) {
   if (!avgMenuWired) {
     avgMenuWired = true;
     const menu = getAvgMenuEl();
-    menu?.addEventListener("click", (e) => {
+    menu?.addEventListener("click", async (e) => {
       const btn = e.target?.closest?.("[data-action]");
       if (!btn) return;
       const action = btn.dataset.action;
       hideAvgMenu();
+      if (action === "copy-summary-value") {
+        await summaryCopySelection?.copySelection?.();
+        return;
+      }
       if (action === "custom-average") {
         showAvgModal();
         return;
@@ -2294,6 +2308,7 @@ export function wireSummarySelection(summaryTable, selectedTable) {
     summaryTable.querySelectorAll("td.summaryCell.summaryActiveCell")
       .forEach((el) => el.classList.remove("summaryActiveCell"));
     cell.classList.add("summaryActiveCell");
+    summaryCopySelection?.selectCell?.(cell, false);
     summaryActiveCellState = { rowId, col };
     if (syncSelection) selectCell(cell);
     updateSummaryFormulaBarForCell(cell);

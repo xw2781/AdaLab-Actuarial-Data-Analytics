@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "dataset,dfm",
+  "audience": "user",
+  "summary": "Made table selection copy behavior consistent across Dataset and DFM tables.",
+  "details": [
+    "Dataset, DFM Ratios, DFM Ratios summary/selected rows, and DFM Results tables now support Copy value for selected cells and ranges, with rectangular ranges copied as tab-separated text and multiple separate ranges copying the top-left selected cell.",
+    "The shared table context menu no longer shows inactive Clear, Select all, or Copy formula actions."
+  ]
+}

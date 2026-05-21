@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Removed the native dropdown arrow from the DFM Results Ratio Basis input.",
+  "details": [
+    "The Ratio Basis field is now a plain typed input with the existing browse button as the explicit dataset picker."
+  ]
+}

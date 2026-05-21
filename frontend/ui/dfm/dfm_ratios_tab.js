@@ -18,6 +18,8 @@ import {
   saveNaBorders,
 } from "/ui/dfm/dfm_storage.js";
 import { renderResultsTable } from "/ui/dfm/dfm_results_tab.js";
+import { openContextMenu } from "/ui/shared/menu_utils.js";
+import { wireSelectableTable } from "/ui/shared/table_selection.js";
 import { wirePercentDevelopedCurveMenu } from "/ui/dfm/dfm_percent_developed_curve_window.js?v=20260514e";
 import {
   buildRatioSelectionPattern,
@@ -72,6 +74,9 @@ function getRatioMenuEl() {
   return document.getElementById("dfmRatioMenu");
 }
 
+let ratioTableSelection = null;
+let selectedRatioTableSelection = null;
+
 function updateRatioMenuLabel() {
   const menu = getRatioMenuEl();
   const btn = menu?.querySelector('[data-action="toggle-na-borders"]');
@@ -89,23 +94,35 @@ export function wireRatioContextMenu() {
   if (!wrap || wrap.dataset.ratioMenuWired === "1") return;
   wrap.dataset.ratioMenuWired = "1";
 
-  wrap.addEventListener("contextmenu", (e) => {
-    const table = e.target?.closest?.("table");
-    if (!table || !table.classList.contains("ratioMainTable")) return;
-    e.preventDefault();
-    const menu = getRatioMenuEl();
-    if (!menu) return;
-    updateRatioMenuLabel();
-    menu.style.display = "block";
-    menu.style.left = `${e.clientX}px`;
-    menu.style.top = `${e.clientY}px`;
+  ratioTableSelection = wireSelectableTable({
+    container: wrap,
+    selectedClass: "dfmTableSel",
+    activeClass: "dfmTableActive",
+    canStartPointerSelection: (event) => !!(event.shiftKey || event.ctrlKey || event.metaKey),
+    isSelectableCell: (cell) => !!cell.closest("table.ratioMainTable"),
+    onContextMenu: (event, cell, api) => {
+      event.preventDefault();
+      ratioTableSelection = api;
+      const menu = getRatioMenuEl();
+      if (!menu) return;
+      updateRatioMenuLabel();
+      openContextMenu(menu, {
+        anchorEl: cell,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offset: 8,
+        align: "top-left",
+      });
+    },
   });
 
   const menu = getRatioMenuEl();
-  menu?.addEventListener("click", (e) => {
+  menu?.addEventListener("click", async (e) => {
     const btn = e.target?.closest?.("[data-action]");
     if (!btn) return;
-    if (btn.dataset.action === "toggle-na-borders") {
+    if (btn.dataset.action === "copy-ratio-value") {
+      await ratioTableSelection?.copySelection?.();
+    } else if (btn.dataset.action === "toggle-na-borders") {
       setShowNaBorders(!getShowNaBorders());
       saveNaBorders(getShowNaBorders());
       applyNaBorderVisibility();
@@ -125,6 +142,18 @@ function copyRatioPatterns() {
     return;
   }
   localStorage.setItem("dfmRatioPatterns", JSON.stringify(pattern));
+}
+
+function getCompactRatioPatternShape(pattern) {
+  if (!Array.isArray(pattern)) return null;
+  let cols = 0;
+  const rowLengths = [];
+  for (const row of pattern) {
+    if (!Array.isArray(row)) return null;
+    cols = Math.max(cols, row.length);
+    rowLengths.push(row.length);
+  }
+  return { rows: pattern.length, cols, rowLengths };
 }
 
 function applyRatioPatternsFromClipboard() {
@@ -151,22 +180,30 @@ function applyRatioPatternsFromClipboard() {
   }
   const origins = model.origin_labels || [];
   const devs = getEffectiveDevLabelsForModel(model);
-  const ratioLabels = getRatioHeaderLabels(devs);
   const expectedRows = origins.length;
-  const expectedCols = ratioLabels.length;
-  const storedRows = pattern.length;
-  const storedCols = pattern[0]?.length || 0;
-  if (storedRows !== expectedRows || storedCols !== expectedCols) {
-    alert(`Invalid triangle size. Stored pattern is ${storedRows}x${storedCols}, but current triangle is ${expectedRows}x${expectedCols}.`);
+  const expectedShape = getCompactRatioPatternShape(buildRatioSelectionPattern());
+  const storedShape = getCompactRatioPatternShape(pattern);
+  if (!storedShape || !expectedShape) {
+    alert("Invalid stored ratio patterns.");
+    return;
+  }
+  const sameCompactShape =
+    storedShape.rows === expectedRows &&
+    storedShape.rows === expectedShape.rows &&
+    storedShape.cols === expectedShape.cols &&
+    storedShape.rowLengths.every((len, idx) => len === expectedShape.rowLengths[idx]);
+  if (!sameCompactShape) {
+    alert(`Invalid triangle size. Stored pattern is ${storedShape.rows}x${storedShape.cols}, but current compact triangle is ${expectedShape.rows}x${expectedShape.cols}.`);
     return;
   }
   const activeCols = getActiveRatioCols(model);
+  const ratioColCount = Math.max(0, devs.length - 1);
   if (activeCols.length > 0) {
     const colSet = new Set(activeCols);
     for (let r = 0; r < expectedRows; r++) {
       const row = Array.isArray(pattern[r]) ? pattern[r] : [];
       for (const c of colSet) {
-        if (c >= expectedCols) continue;
+        if (c >= ratioColCount) continue;
         const key = `${r},${c}`;
         if (row[c] === 1) {
           ratioStrikeSet.add(key);
@@ -416,7 +453,7 @@ export function renderRatioTable() {
   const summaryBody = document.createElement("tbody");
   const summaryRows = buildSummaryRows();
 
-  summaryRows.forEach((rowCfg) => {
+  summaryRows.forEach((rowCfg, rowIndex) => {
     const tr = document.createElement("tr");
     tr.dataset.rowId = rowCfg.id;
     const th = document.createElement("th");
@@ -431,6 +468,8 @@ export function renderRatioTable() {
       td.dataset.r = rowCfg.id;
       td.dataset.c = String(c);
       td.dataset.col = String(c);
+      td.dataset.copyR = String(rowIndex);
+      td.dataset.copyC = String(c);
       td.style.textAlign = "right";
       ratioStrikeSet.delete(`${rowCfg.id},${c}`);
       tr.appendChild(td);
@@ -500,6 +539,8 @@ export function renderRatioTable() {
   for (let c = 0; c < ratioLabels.length; c++) {
     const td = document.createElement("td");
     td.dataset.col = String(c);
+    td.dataset.copyR = "0";
+    td.dataset.copyC = String(c);
     td.style.textAlign = "right";
     selectedRow.appendChild(td);
   }
@@ -512,6 +553,8 @@ export function renderRatioTable() {
   for (let c = 0; c < ratioLabels.length; c++) {
     const td = document.createElement("td");
     td.dataset.col = String(c);
+    td.dataset.copyR = "1";
+    td.dataset.copyC = String(c);
     td.style.textAlign = "right";
     cumulativeRow.appendChild(td);
   }
@@ -524,6 +567,8 @@ export function renderRatioTable() {
   for (let c = 0; c < ratioLabels.length; c++) {
     const td = document.createElement("td");
     td.dataset.col = String(c);
+    td.dataset.copyR = "2";
+    td.dataset.copyC = String(c);
     td.style.textAlign = "right";
     developedRow.appendChild(td);
   }
@@ -538,6 +583,17 @@ export function renderRatioTable() {
   wireSummaryRowDrag(summaryBody);
   wireSummaryContextMenu(summaryTable);
   wirePercentDevelopedCurveMenu(selectedTable);
+  selectedRatioTableSelection = wireSelectableTable({
+    container: selectedTable,
+    rowKey: "copyR",
+    colKey: "copyC",
+    selectedClass: "dfmTableSel",
+    activeClass: "dfmTableActive",
+    onContextMenu: (_event, _cell, api) => {
+      selectedRatioTableSelection = api;
+      window.__arcRhoCopyActiveGridSelection = api.copySelection;
+    },
+  }) || selectedRatioTableSelection;
 
   requestAnimationFrame(() => {
     const headerCells = table.querySelectorAll("thead th");
@@ -599,8 +655,11 @@ export function wireRatioStrikeToggle() {
 
   wrap.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return;
     const cell = e.target?.closest?.("td.ratioCell");
-    if (!cell || cell.classList.contains("na") || cell.classList.contains("ratioPlaceholder")) return;
+    if (!cell) return;
+    ratioTableSelection?.selectCell?.(cell, false);
+    if (cell.classList.contains("na") || cell.classList.contains("ratioPlaceholder")) return;
     if (!isDataRow(cell.dataset.r)) return;
     if (cell.dataset.r === "sum") return;
     e.preventDefault();

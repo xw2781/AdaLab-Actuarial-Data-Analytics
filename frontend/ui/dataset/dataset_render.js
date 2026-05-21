@@ -1,7 +1,7 @@
 // Rendering only: read state.model + state.showBlanks and produce DOM.
 
 import { state } from "/ui/shared/state.js";
-import { $ , logLine } from "/ui/shared/dom.js";
+import { $ } from "/ui/shared/dom.js";
 import { openContextMenu } from "/ui/shared/menu_utils.js";
 import { renderChart as renderChartCanvas, setupChartHover } from "/ui/dataset/dataset_chart.js";
 
@@ -84,13 +84,13 @@ function ensureCtxMenuWired() {
   const menu = document.getElementById("ctxMenu");
   if (!menu) return;
 
-  // Click menu item (no real action yet)
-  menu.addEventListener("click", (e) => {
+  menu.addEventListener("click", async (e) => {
     const btn = e.target.closest(".ctx-item");
     if (!btn) return;
     const action = btn.dataset.action || "";
-    // Placeholder only
-    logLine(`Context menu: ${action}`);
+    if (action === "copy_value" && typeof window.__arcRhoCopyActiveGridSelection === "function") {
+      await window.__arcRhoCopyActiveGridSelection();
+    }
     hideCtxMenu();
   });
 
@@ -296,6 +296,9 @@ export function renderTable() {
         // Optional: right click also selects the cell
         state.activeCell = { r, c };
         renderActiveCellUI();
+        if (typeof window.__arcRhoDatasetCopyActiveGridSelection === "function") {
+          window.__arcRhoCopyActiveGridSelection = window.__arcRhoDatasetCopyActiveGridSelection;
+        }
 
         showCtxMenu(td, e.clientX, e.clientY);
       });

@@ -1,3 +1,5 @@
+import { getTopLeftRangeCell, writeTextToClipboard } from "/ui/shared/table_selection.js";
+
 export function wireDatasetGridInteractions(deps) {
   const { state, renderTable, renderActiveCellUI } = deps;
 
@@ -201,27 +203,20 @@ export function wireDatasetGridInteractions(deps) {
   }
 
   async function copyActiveRangeToClipboard() {
-    const ranges = state.selRanges || [];
-    if (!ranges.length) return;
-
-    // Copy the most recent rectangle (Excel-like for our UI)
-    const range = ranges[ranges.length - 1];
-    const tsv = buildTsvFromRange(range);
-    if (!tsv) return;
-
-    try {
-      await navigator.clipboard.writeText(tsv);
-    } catch {
-      // fallback for older browsers
-      const ta = document.createElement("textarea");
-      ta.value = tsv;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
+    const ranges = Array.isArray(state.selRanges) ? state.selRanges : [];
+    let text = "";
+    if (ranges.length === 1) {
+      text = buildTsvFromRange(ranges[0]);
+    } else if (ranges.length > 1) {
+      const cell = getTopLeftRangeCell(ranges);
+      const value = cell ? state.model?.values?.[cell.r]?.[cell.c] : "";
+      text = value == null ? "" : String(value);
+    } else if (state.activeCell) {
+      const { r, c } = state.activeCell;
+      const value = state.model?.values?.[r]?.[c];
+      text = value == null ? "" : String(value);
     }
+    await writeTextToClipboard(text);
   }
 
   function getTableRowStepPx(wrap) {
@@ -362,6 +357,8 @@ export function wireDatasetGridInteractions(deps) {
     // state containers
     if (!Array.isArray(state.selRanges)) state.selRanges = [];
     state.dragSel = null;    // {anchor:{r,c}, cur:{r,c}, append:boolean}
+    window.__arcRhoDatasetCopyActiveGridSelection = copyActiveRangeToClipboard;
+    window.__arcRhoCopyActiveGridSelection = copyActiveRangeToClipboard;
 
     const wrap = document.getElementById("tableWrap");
     if (!wrap) return;
@@ -388,6 +385,7 @@ export function wireDatasetGridInteractions(deps) {
 
       const rc = rcFromTd(td);
       if (!rc) return;
+      window.__arcRhoCopyActiveGridSelection = copyActiveRangeToClipboard;
 
       // Toggle: click the already-active cell to deselect
       if (state.activeCell && state.activeCell.r === rc.r && state.activeCell.c === rc.c) {
@@ -454,6 +452,7 @@ export function wireDatasetGridInteractions(deps) {
       const r = Number(th.dataset.r);
       const model = state.model;
       if (!model) return;
+      window.__arcRhoCopyActiveGridSelection = copyActiveRangeToClipboard;
       const vals = Array.isArray(model.values) ? model.values : [];
       let maxCols = 0;
       for (const row of vals) {
@@ -489,6 +488,7 @@ export function wireDatasetGridInteractions(deps) {
       const c = Number(th.dataset.c);
       const model = state.model;
       if (!model) return;
+      window.__arcRhoCopyActiveGridSelection = copyActiveRangeToClipboard;
       const maxR = (model.origin_labels?.length || 0) - 1;
       if (maxR < 0) return;
 
@@ -520,6 +520,7 @@ export function wireDatasetGridInteractions(deps) {
       if (!isCopy) return;
 
       if (!state.selRanges || !state.selRanges.length) return;
+      if (window.__arcRhoCopyActiveGridSelection !== copyActiveRangeToClipboard) return;
 
       e.preventDefault();
       copyActiveRangeToClipboard();
@@ -528,5 +529,6 @@ export function wireDatasetGridInteractions(deps) {
 
   return {
     applySelectionFromState,
+    copyActiveRangeToClipboard,
   };
 }
