@@ -2349,11 +2349,13 @@ function startBackend() {
     const appShell = path.join(APP_ROOT, "app_shell.py");
     const cmd = [appShell, "--host", HOST, "--port", String(PORT)];
     const args = ["-u", cmd[0], ...cmd.slice(1)];
+    const backendConsoleMode = String(env.ARCRHO_BACKEND_CONSOLE || "").trim().toLowerCase();
+    const backendStdio = backendConsoleMode === "same" ? "inherit" : "ignore";
     serverProc = spawn(PYTHON_EXE, args, {
       cwd: APP_ROOT,
       env,
-      stdio: "ignore",
-      windowsHide: true,
+      stdio: backendStdio,
+      windowsHide: backendConsoleMode !== "same",
     });
   }
 
@@ -2733,6 +2735,20 @@ ipcMain.handle("open-path", async (_event, payload) => {
     const openErr = await shell.openPath(targetPath);
     if (openErr) return { ok: false, error: preferredError ? `${preferredError}; ${String(openErr)}` : String(openErr) };
     return { ok: true, opener: "default" };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("show-item-in-folder", async (_event, payload) => {
+  const targetPath = String(payload?.path || "").trim();
+  if (!targetPath) return { ok: false, error: "Empty path." };
+  try {
+    if (!fs.existsSync(targetPath)) {
+      return { ok: false, error: `Path not found: ${targetPath}` };
+    }
+    shell.showItemInFolder(targetPath);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }

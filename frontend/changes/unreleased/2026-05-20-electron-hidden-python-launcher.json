@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "electron",
+  "audience": "user",
+  "summary": "Added a Windows launcher that starts ArcRho without showing the Python backend console window.",
+  "details": [
+    "The new launcher uses pythonw.exe after checking the backend dependencies so users can start the Electron app without an extra Python CLI window."
+  ]
+}

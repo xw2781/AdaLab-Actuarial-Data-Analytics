@@ -29,7 +29,7 @@ if not exist "node_modules" (
 )
 
 for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss"') do set "ARCRHO_UI_VERSION=%%i"
-set "ARCRHO_BACKEND_CONSOLE=same"
+set "ARCRHO_BACKEND_CONSOLE=hidden"
 
 if not defined PYTHON_EXE (
   for /f "usebackq delims=" %%i in (`py -3.10 -c "import sys; print(sys.executable)" 2^>nul`) do set "PYTHON_EXE=%%i"
@@ -46,5 +46,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
-"%PYTHON_EXE%" electron_shell.py
+set "PYTHONW_EXE=%PYTHON_EXE%"
+for /f "usebackq delims=" %%i in (`"%PYTHON_EXE%" -c "from pathlib import Path; import sys; p=Path(sys.executable); q=p.with_name('pythonw.exe'); print(q if q.exists() else p)" 2^>nul`) do set "PYTHONW_EXE=%%i"
+
+set "PYTHON_EXE=%PYTHONW_EXE%"
+start "" "%PYTHONW_EXE%" "%~dp0electron_shell.py"
 endlocal

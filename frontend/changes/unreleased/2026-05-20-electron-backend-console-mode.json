@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "electron",
+  "audience": "user",
+  "summary": "Made development launchers control whether backend logs share the main console or stay hidden.",
+  "details": [
+    "The standard Electron launcher now keeps npm and Python backend output in one command window, while the no-window launcher keeps the backend console hidden."
+  ]
+}

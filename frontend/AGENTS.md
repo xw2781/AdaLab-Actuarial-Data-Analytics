@@ -45,6 +45,9 @@ When code and docs conflict:
 3. Contract documents under `docs/contracts/` and `docs/architecture/`.
 4. Generated inventories under `docs/generated/`.
 
+## CSS Editing Safety
+For CSS edits, patch with selector-level context and inspect the diff before reporting success.
+
 ## Change Safety
 Before modifying code, stop and double-check with the user if any of the following are detected:
 1. The request is unclear or missing important implementation details.

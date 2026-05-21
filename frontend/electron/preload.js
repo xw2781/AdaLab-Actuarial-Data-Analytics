@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld("ADAHost", {
   saveScriptingShortcuts: (bindings) => invoke("scripting-shortcuts-save", { bindings }),
   pickOpenFile: (payload) => invoke("pick-open-file", payload),
   openPath: (payload) => invoke("open-path", payload),
+  showItemInFolder: (payload) => invoke("show-item-in-folder", payload),
   codexAssistantStatus: () => invoke("codex-assistant-status"),
   codexAssistantInstall: () => invoke("codex-assistant-install"),
   codexAssistantLogin: () => invoke("codex-assistant-login"),

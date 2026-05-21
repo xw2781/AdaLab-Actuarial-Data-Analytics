@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "electron",
+  "audience": "user",
+  "summary": "Made the Windows Electron launcher choose the Python runtime with the app server dependencies before starting ArcRho.",
+  "details": [
+    "The launcher now prefers Python 3.10 when available and shows a clear dependency message if the selected Python cannot start the backend service."
+  ]
+}

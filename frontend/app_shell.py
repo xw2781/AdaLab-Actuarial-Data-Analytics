@@ -55,8 +55,11 @@ def ensure_env_defaults(env: dict[str, str]) -> dict[str, str]:
 def run_supervisor(host: str, port: int, reload: bool) -> None:
   env = ensure_env_defaults(os.environ)
   cmd = build_cmd(host, port, reload)
+  console_mode = env.get("ARCRHO_BACKEND_CONSOLE", "").strip().lower()
   if os.name == "nt":
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NEW_CONSOLE
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+    if console_mode not in {"same", "hidden"}:
+      creationflags |= subprocess.CREATE_NEW_CONSOLE
   else:
     creationflags = 0
 
