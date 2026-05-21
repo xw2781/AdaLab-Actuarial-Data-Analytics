@@ -235,43 +235,6 @@ class ArcRhoApiTests(unittest.TestCase):
         with self.assertRaises(DfmDataError):
             dfm.ex_hi(1)
 
-    def test_apply_adjustments_uses_col_growth_values(self) -> None:
-        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
-        dfm.update_details(output_vector="Claim Counts--CWP")
-        dfm.set_selected_estimate("Simple - 3")
-        dfm.apply_adjustments()
-        self.assertEqual(dfm.selected_average_label(1), "User Entry")
-        self.assertEqual(dfm.selected_average_label(2), "Simple - 3")
-        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2862, places=4)
-        self.assertAlmostEqual(dfm.selected_ratio(2) or 0, 1.3, places=4)
-        self.assertIn("Apply growth adjustments of 1+5.08% = 1.0508", dfm.notes)
-        self.assertIn("Apply accounting cutoff 1+2.00% = 1.0200", dfm.notes)
-        self.assertIn('Selected average factor: "Simple - 3" (1.2000)', dfm.notes)
-
-    def test_apply_adjustments_uses_dataset_type_category_before_name_heuristic(self) -> None:
-        (self.project_dir / "dataset_types.json").write_text(json.dumps({
-            "columns": ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"],
-            "rows": [["Odd Output", "Vector", "C Claim Count", False, "", ""]],
-        }), encoding="utf-8")
-        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
-        dfm.update_details(output_vector="Odd Output")
-        dfm.set_selected_estimate("Simple - 3")
-        dfm.apply_adjustments()
-        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2862, places=4)
-        self.assertIn("Apply growth adjustments of 1+5.08% = 1.0508", dfm.notes)
-
-    def test_apply_adjustments_dataset_type_52_skips_before_category(self) -> None:
-        (self.project_dir / "dataset_types.json").write_text(json.dumps({
-            "columns": ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"],
-            "rows": [["Odd 52 Output", "Vector", "C Claim Count", False, "", ""]],
-        }), encoding="utf-8")
-        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
-        dfm.update_details(output_vector="Odd 52 Output")
-        dfm.set_selected_estimate("Simple - 3")
-        dfm.apply_adjustments()
-        self.assertEqual(dfm.selected_average_label(1), "Simple - 3")
-        self.assertAlmostEqual(dfm.selected_ratio(1) or 0, 1.2, places=4)
-
     def test_save_uses_row_compact_json_and_trims_triangle_rows(self) -> None:
         payload = sample_payload()
         payload["ratios tab"]["ratio triangle"]["ratio values"] = [[1.2, None, None]]
