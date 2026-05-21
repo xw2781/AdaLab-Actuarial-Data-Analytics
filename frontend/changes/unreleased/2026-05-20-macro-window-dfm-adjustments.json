@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Added a Macro menubar window for editable Python macros stored under Documents\\ArcRho\\scripts.",
+  "details": [
+    "The first seeded macro applies DFM growth adjustments to the active DFM tab and can be edited in the Scripting Console.",
+    "Scripting Console tabs can now open and save .py script files."
+  ]
+}

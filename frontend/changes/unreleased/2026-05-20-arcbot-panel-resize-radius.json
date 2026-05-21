@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Aligned ArcBot panel corners with shell radius settings and expanded resize hit areas.",
+  "details": [
+    "The ArcBot chat panel now uses the shared floating-window radius variable and can be resized from every edge and corner without showing a resize icon."
+  ]
+}

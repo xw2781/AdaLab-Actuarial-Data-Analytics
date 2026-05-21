@@ -1,5 +1,5 @@
 import { $, shell } from "./shell_context.js?v=20260510a";
-import { FLOAT_VERTICAL_RETURN_THRESHOLD_PX, FLOAT_VERTICAL_THRESHOLD_PX, isFloatingTab } from "./floating_tabs.js?v=20260510a";
+import { FLOAT_VERTICAL_RETURN_THRESHOLD_PX, FLOAT_VERTICAL_THRESHOLD_PX, isFloatingTab } from "./floating_tabs.js?v=20260520b";
 
 let draggedTabId = null;
 let dragEl = null;
@@ -23,8 +23,123 @@ let plusMenuEl = null;
 let tabCtxId = null;
 let tabStripWired = false;
 const DRAG_THRESHOLD_PX = 6;
+const SCRIPTING_PATH_ACTIONS = new Set(["open-file-location", "copy-file-path"]);
+const SCRIPTING_PATH_TOOLTIP_DELAY_MS = 2000;
 
 export function isTabStripDragging() { return isDragging; }
+
+function getScriptingFilePath(tab) {
+  if (!tab || tab.type !== "scripting") return "";
+  return String(tab.scPath || tab.scOpenPath || "").trim();
+}
+
+function getParentDirectory(pathLike) {
+  const raw = String(pathLike || "").trim();
+  if (!raw) return "";
+  const slash = Math.max(raw.lastIndexOf("\\"), raw.lastIndexOf("/"));
+  return slash >= 0 ? raw.slice(0, slash) : "";
+}
+
+function attachScriptingPathTooltip(el, tab) {
+  const path = getScriptingFilePath(tab);
+  if (!el || !path) return;
+  let hoverTimer = null;
+  let hoverPointer = { x: 0, y: 0 };
+  let visible = false;
+
+  const clear = () => {
+    if (hoverTimer) window.clearTimeout(hoverTimer);
+    hoverTimer = null;
+  };
+  const hide = () => {
+    clear();
+    visible = false;
+    shell.hideGlobalTooltip?.();
+  };
+  const schedule = (event) => {
+    hoverPointer = { x: event.clientX, y: event.clientY };
+    if (isDragging || hoverTimer || visible) return;
+    hoverTimer = window.setTimeout(() => {
+      hoverTimer = null;
+      if (isDragging) return;
+      visible = true;
+      shell.showGlobalTooltip?.(path, hoverPointer.x + 12, hoverPointer.y + 18);
+    }, SCRIPTING_PATH_TOOLTIP_DELAY_MS);
+  };
+
+  el.addEventListener("pointerenter", schedule);
+  el.addEventListener("pointermove", hide);
+  el.addEventListener("pointerleave", hide);
+  el.addEventListener("pointerdown", hide);
+  el.addEventListener("contextmenu", hide);
+}
+
+async function copyTextToClipboard(text) {
+  const value = String(text || "");
+  if (!value) return false;
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    textarea.remove();
+    return ok;
+  }
+}
+
+async function openScriptingFileLocation(tab) {
+  const filePath = getScriptingFilePath(tab);
+  if (!filePath) {
+    shell.updateStatusBar?.("No saved file path for this scripting tab.", { tone: "warning" });
+    return;
+  }
+  const host = shell.getHostApi?.();
+  if (host?.showItemInFolder) {
+    try {
+      const result = await host.showItemInFolder({ path: filePath });
+      if (result?.ok) {
+        shell.updateStatusBar?.(`Opened file location: ${filePath}`);
+        return;
+      }
+      shell.updateStatusBar?.(`Could not open file location: ${result?.error || filePath}`, { tone: "error" });
+      return;
+    } catch (err) {
+      shell.updateStatusBar?.(`Could not open file location: ${String(err?.message || err)}`, { tone: "error" });
+      return;
+    }
+  }
+  const folder = getParentDirectory(filePath);
+  if (host?.openPath && folder) {
+    try {
+      const result = await host.openPath({ path: folder });
+      shell.updateStatusBar?.(result?.ok ? `Opened folder: ${folder}` : `Could not open folder: ${result?.error || folder}`, { tone: result?.ok ? "" : "error" });
+      return;
+    } catch (err) {
+      shell.updateStatusBar?.(`Could not open folder: ${String(err?.message || err)}`, { tone: "error" });
+      return;
+    }
+  }
+  shell.updateStatusBar?.("Open File Location requires the desktop app host.", { tone: "error" });
+}
+
+async function copyScriptingFilePath(tab) {
+  const filePath = getScriptingFilePath(tab);
+  if (!filePath) {
+    shell.updateStatusBar?.("No saved file path for this scripting tab.", { tone: "warning" });
+    return;
+  }
+  const ok = await copyTextToClipboard(filePath);
+  shell.updateStatusBar?.(ok ? `Copied file path: ${filePath}` : "Could not copy file path.", { tone: ok ? "" : "error" });
+}
 
 function lockTabsOverflowDuringDrag() {
   const host = $("tabs");
@@ -374,6 +489,7 @@ export function renderTabs() {
     const el = document.createElement("div");
     el.className = "tab" + (t.id === shell.state.activeId ? " active" : "");
     el.setAttribute("data-tab-id", t.id);
+    attachScriptingPathTooltip(el, t);
     el.addEventListener("click", () => { if (!isDragging) shell.setActive?.(t.id); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); openTabCtxMenu(t.id, e.clientX, e.clientY); });
     if (t.id !== "home") {
@@ -454,13 +570,16 @@ function positionTabCtxMenu(x, y) {
   tabCtxMenu.style.top = `${Math.max(pad, Math.min(y, maxY))}px`;
 }
 
-function openTabCtxMenu(tabId, x, y) {
+export function openTabCtxMenu(tabId, x, y) {
   if (!tabCtxMenu) return;
   tabCtxId = tabId;
   const tab = shell.state.tabs.find(t => t.id === tabId);
+  const scriptingPath = getScriptingFilePath(tab);
   tabCtxMenu.querySelectorAll(".tabCtxItem").forEach((el) => {
     const action = el.getAttribute("data-action");
-    const disabled = tabId === "home" || (action === "rename" && tab?.type !== "scripting");
+    const disabled = tabId === "home" ||
+      (action === "rename" && tab?.type !== "scripting") ||
+      (SCRIPTING_PATH_ACTIONS.has(action) && !scriptingPath);
     el.classList.toggle("disabled", disabled);
   });
   tabCtxMenu.classList.add("open");
@@ -500,7 +619,9 @@ export function initTabStrip() {
     if (action === "rename") {
       const tab = shell.state.tabs.find(t => t.id === id);
       requestScriptingNotebookRename(tab);
-    } else if (action === "close") shell.closeTab?.(id);
+    } else if (action === "open-file-location") openScriptingFileLocation(shell.state.tabs.find(t => t.id === id));
+    else if (action === "copy-file-path") copyScriptingFilePath(shell.state.tabs.find(t => t.id === id));
+    else if (action === "close") shell.closeTab?.(id);
     else if (action === "close-others") shell.closeTabsExcept?.([id]);
     else if (action === "close-all") shell.closeTabsExcept?.([]);
   });

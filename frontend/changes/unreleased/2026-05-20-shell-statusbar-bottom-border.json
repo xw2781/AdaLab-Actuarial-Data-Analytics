@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Refined the main app shell frame border styling.",
+  "details": [
+    "Windows 10 now uses a single-layer square shell frame border with a light blue color that leans slightly purple."
+  ]
+}

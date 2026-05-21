@@ -232,6 +232,7 @@ export function openScriptingTab(options = {}) {
     scInst,
     scFresh: true,
     scOpenPath: notebookPath || undefined,
+    scPath: notebookPath || undefined,
     iframe: null,
     layout: "docked",
   };

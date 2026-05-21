@@ -2226,45 +2226,62 @@ function applyPanelPosition(panel, left, top) {
 }
 
 function initAssistantResize(panel) {
-  const handle = $("aiAssistantResizeHandle");
-  if (!handle) return;
+  const handles = Array.from(document.querySelectorAll(".aiAssistantResizeHandle"));
+  if (!handles.length) return;
   applyPanelSize(panel);
   let resizeState = null;
 
-  handle.addEventListener("pointerdown", (event) => {
+  const startResize = (event) => {
     if (event.button !== 0) return;
+    const handle = event.currentTarget;
     const rect = panel.getBoundingClientRect();
     resizeState = {
       pointerId: event.pointerId,
+      edge: String(handle?.dataset?.resizeEdge || "se"),
       startX: event.clientX,
       startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
       width: rect.width,
       height: rect.height,
     };
     try { handle.setPointerCapture(event.pointerId); } catch {}
     event.preventDefault();
-  });
+  };
 
-  handle.addEventListener("pointermove", (event) => {
+  const moveResize = (event) => {
     if (!resizeState || resizeState.pointerId !== event.pointerId) return;
-    const next = clampPanelSize(
-      resizeState.width + event.clientX - resizeState.startX,
-      resizeState.height + event.clientY - resizeState.startY,
-    );
+    const dx = event.clientX - resizeState.startX;
+    const dy = event.clientY - resizeState.startY;
+    const edge = resizeState.edge;
+    let width = resizeState.width;
+    let height = resizeState.height;
+    let left = resizeState.left;
+    let top = resizeState.top;
+    if (edge.includes("e")) width = resizeState.width + dx;
+    if (edge.includes("w")) width = resizeState.width - dx;
+    if (edge.includes("s")) height = resizeState.height + dy;
+    if (edge.includes("n")) height = resizeState.height - dy;
+    const next = clampPanelSize(width, height);
+    if (edge.includes("w")) left = resizeState.left + resizeState.width - next.width;
+    if (edge.includes("n")) top = resizeState.top + resizeState.height - next.height;
     applyPanelSize(panel, next);
-    const rect = panel.getBoundingClientRect();
-    applyPanelPosition(panel, rect.left, rect.top);
-  });
+    applyPanelPosition(panel, left, top);
+  };
 
   const stopResize = (event) => {
     if (!resizeState || resizeState.pointerId !== event.pointerId) return;
-    try { handle.releasePointerCapture(event.pointerId); } catch {}
+    try { event.currentTarget?.releasePointerCapture?.(event.pointerId); } catch {}
     savePanelSize(panel);
     resizeState = null;
   };
 
-  handle.addEventListener("pointerup", stopResize);
-  handle.addEventListener("pointercancel", stopResize);
+  handles.forEach((handle) => {
+    handle.addEventListener("pointerdown", startResize);
+    handle.addEventListener("pointermove", moveResize);
+    handle.addEventListener("pointerup", stopResize);
+    handle.addEventListener("pointercancel", stopResize);
+  });
 }
 
 function initAssistantDrag(panel) {

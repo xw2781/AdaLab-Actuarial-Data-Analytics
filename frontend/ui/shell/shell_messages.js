@@ -206,6 +206,10 @@ export function initShellMessages() {
     )) || shell.state.tabs.find(t => t.id === shell.state.activeId);
     if (!tab || tab.type === "home" || tab.type === "workflow" || tab.type === "project_settings" || tab.type === "project_instance" || tab.type === "browsing_history") return;
     tab.title = title;
+    if (tab.type === "scripting") {
+      const path = String(msg.path || "").trim();
+      if (path) tab.scPath = path;
+    }
     shell.render?.();
     shell.saveState?.();
   });

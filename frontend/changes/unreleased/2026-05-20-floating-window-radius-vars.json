@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "Centralized floating window corner radius styling for Windows 10 and Windows 11.",
+  "details": [
+    "Floating tab windows, previews, titlebars, and floating iframes now use shared radius variables, with a 4px Windows 10 radius and a larger Windows 11-style radius."
+  ]
+}

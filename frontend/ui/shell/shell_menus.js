@@ -1,5 +1,6 @@
 import { shell } from "./shell_context.js?v=20260510a";
 import { isAiAssistantLauncherVisible, toggleAiAssistantLauncherVisible } from "./ai_assistant.js?v=20260515a";
+import { openMacroWindow } from "./shell_macros.js?v=20260520c";
 
 const fileMenuBtn = document.querySelector('.menu[data-menu="file"]');
 const fileMenuDropdown = document.getElementById("fileMenuDropdown");
@@ -259,6 +260,7 @@ export function initShellMenus() {
     if (!btn) return;
     const type = btn.getAttribute("data-menu") || "";
     if (type === "about") { closeAllShellMenus(); openAboutDialog(); return; }
+    if (type === "macro") { closeAllShellMenus(); openMacroWindow(); return; }
     if (!shellMenuToggles[type]) { closeAllShellMenus(); return; }
     e.stopPropagation();
     openShellMenu(type);

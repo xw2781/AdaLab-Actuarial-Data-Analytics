@@ -12,6 +12,7 @@ export const FLOAT_DEFAULT_ASPECT_W = 16;
 export const FLOAT_DEFAULT_ASPECT_H = 10;
 export const FLOAT_DOCK_TARGET_EXIT_PAD_PX = 8;
 export const FLOAT_DOCK_TARGET_TRIGGER_OFFSET_PX = Math.round(FLOAT_TITLEBAR_H / 2);
+const SCRIPTING_PATH_TOOLTIP_DELAY_MS = 2000;
 
 export function isFloatingTab(tab) {
   return !!tab && tab.layout === "floating" && tab.id !== "home";
@@ -40,9 +41,12 @@ export function createFloatingTabsController(deps) {
     getContentElement,
     getFloatingHost,
     getState,
+    hideGlobalTooltip,
+    openTabContextMenu,
     render,
     saveState,
     setActive,
+    showGlobalTooltip,
   } = deps;
 
   let floatPreviewEl = null;
@@ -100,6 +104,40 @@ export function createFloatingTabsController(deps) {
     const x = (clientX - hostRect.left) - width / 2;
     const y = (clientY - hostRect.top) - 18;
     return clampFloatRect({ x, y, width, height });
+  }
+
+  function getScriptingFilePath(tab) {
+    if (!tab || tab.type !== "scripting") return "";
+    return String(tab.scPath || tab.scOpenPath || "").trim();
+  }
+
+  function createFloatingTabPathTooltipHandlers(tab) {
+    const filePath = getScriptingFilePath(tab);
+    let hoverTimer = null;
+    let visible = false;
+    let hoverPointer = { x: 0, y: 0 };
+
+    const clear = () => {
+      if (hoverTimer) window.clearTimeout(hoverTimer);
+      hoverTimer = null;
+    };
+    const hide = () => {
+      clear();
+      visible = false;
+      hideGlobalTooltip?.();
+    };
+    const schedule = (event) => {
+      if (!filePath) return;
+      hoverPointer = { x: event.clientX, y: event.clientY };
+      if (hoverTimer || visible) return;
+      hoverTimer = window.setTimeout(() => {
+        hoverTimer = null;
+        visible = true;
+        showGlobalTooltip?.(filePath, hoverPointer.x + 12, hoverPointer.y + 18);
+      }, SCRIPTING_PATH_TOOLTIP_DELAY_MS);
+    };
+
+    return { schedule, hide };
   }
 
   function rememberUserFloatSize(rect) {
@@ -630,11 +668,24 @@ export function createFloatingTabsController(deps) {
         `;
         frame.addEventListener("pointerdown", () => setActive(tab.id));
         const titlebar = frame.querySelector(".floatingTabTitlebar");
+        const pathTooltip = createFloatingTabPathTooltipHandlers(tab);
         titlebar?.addEventListener("pointerdown", (e) => {
           if (e.target?.closest?.("button")) return;
+          pathTooltip?.hide?.();
           e.stopPropagation();
           setActive(tab.id);
           startFloatingMove(tab.id, e);
+        });
+        titlebar?.addEventListener("pointerenter", (e) => pathTooltip?.schedule?.(e));
+        titlebar?.addEventListener("pointermove", () => pathTooltip?.hide?.());
+        titlebar?.addEventListener("pointerleave", () => pathTooltip?.hide?.());
+        titlebar?.addEventListener("contextmenu", (e) => {
+          if (e.target?.closest?.("button")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          pathTooltip?.hide?.();
+          setActive(tab.id);
+          openTabContextMenu?.(tab.id, e.clientX, e.clientY);
         });
         titlebar?.addEventListener("dblclick", (e) => {
           if (e.target?.closest?.("button")) return;
