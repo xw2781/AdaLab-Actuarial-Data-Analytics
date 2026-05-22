@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Made the Macro window resizable from all edges and corners.",
+  "details": [
+    "The Macro window now remembers its resized width and height while keeping the panel constrained inside the app viewport."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Added demo macro examples with placeholder descriptions to the Macro window.",
+  "details": [
+    "Demo entries appear alongside real user macros and are disabled for run/edit actions so they are clearly examples."
+  ]
+}

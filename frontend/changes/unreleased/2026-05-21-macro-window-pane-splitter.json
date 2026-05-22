@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Added a draggable splitter between the Macro window list and description panes.",
+  "details": [
+    "Users can adjust how much vertical space the macro list and selected macro description use, with the split remembered across sessions."
+  ]
+}

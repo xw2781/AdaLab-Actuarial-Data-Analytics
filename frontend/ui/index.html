@@ -2495,7 +2495,7 @@
       z-index: 2;
       border-bottom: none;
       margin-bottom: 0;
-      transform: translateY(-0.8px);
+      transform: translateY(-0.9px);
       box-shadow: inset 0 2px 0 #2b6df6;
     }
     .tab.active::after {
@@ -3299,6 +3299,8 @@
       min-width: 8px;
     }
     .macroIconBtn {
+      position: relative;
+      z-index: 3;
       width: 24px;
       height: 24px;
       border: none;
@@ -3327,6 +3329,57 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+    .macroResizeHandle {
+      position: absolute;
+      z-index: 2;
+      pointer-events: auto;
+      background: transparent;
+    }
+    .macroResizeN,
+    .macroResizeS {
+      left: 18px;
+      right: 18px;
+      height: 8px;
+      cursor: ns-resize;
+    }
+    .macroResizeN { top: 0; }
+    .macroResizeS { bottom: 0; }
+    .macroResizeE,
+    .macroResizeW {
+      top: 18px;
+      bottom: 18px;
+      width: 8px;
+      cursor: ew-resize;
+    }
+    .macroResizeE { right: 0; }
+    .macroResizeW { left: 0; }
+    .macroResizeNw,
+    .macroResizeNe,
+    .macroResizeSw,
+    .macroResizeSe {
+      width: 18px;
+      height: 18px;
+    }
+    .macroResizeNw {
+      left: 0;
+      top: 0;
+      cursor: nwse-resize;
+    }
+    .macroResizeNe {
+      right: 0;
+      top: 0;
+      cursor: nesw-resize;
+    }
+    .macroResizeSw {
+      left: 0;
+      bottom: 0;
+      cursor: nesw-resize;
+    }
+    .macroResizeSe {
+      right: 0;
+      bottom: 0;
+      cursor: nwse-resize;
+    }
     .macroBody {
       flex: 1 1 auto;
       min-height: 0;
@@ -3339,8 +3392,8 @@
       flex: 1 1 auto;
       min-height: 0;
       display: grid;
-      grid-template-rows: minmax(120px, 1fr) minmax(92px, 0.72fr);
-      gap: 8px;
+      grid-template-rows: minmax(100px, 1fr) 8px minmax(76px, 0.72fr);
+      gap: 6px;
     }
     .macroList {
       min-height: 0;
@@ -3349,8 +3402,42 @@
       border-radius: 4px;
       background: #fbfdff;
     }
+    .macroSplitHandle {
+      position: relative;
+      min-height: 8px;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      cursor: ns-resize;
+      outline: none;
+    }
+    .macroSplitHandle::before {
+      content: "";
+      position: absolute;
+      left: 38%;
+      right: 38%;
+      top: 3px;
+      height: 2px;
+      border-radius: 2px;
+      background: #c3ccd8;
+    }
+    .macroSplitHandle:hover,
+    .macroSplitHandle:focus-visible {
+      background: #e8edf4;
+    }
+    .macroSplitHandle:hover::before,
+    .macroSplitHandle:focus-visible::before {
+      background: #6b87b6;
+    }
+    body.macroSplitResizeActive,
+    body.macroSplitResizeActive * {
+      cursor: ns-resize !important;
+      user-select: none;
+    }
     .macroListItem {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
       width: 100%;
       padding: 9px 10px;
       border: 0;
@@ -3361,6 +3448,21 @@
       cursor: pointer;
       font: inherit;
     }
+    .macroListItemName {
+      display: block;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .macroListItemDescription {
+      display: -webkit-box;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.3;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
     .macroListItem:hover { background: #eef6ff; }
     .macroListItem:focus-visible {
       outline: 2px solid #93c5fd;
@@ -3369,7 +3471,22 @@
     .macroListItem.active {
       background: #dbeafe;
       color: #12315f;
-      font-weight: 600;
+    }
+    .macroListItem.active .macroListItemDescription {
+      color: #38577c;
+    }
+    .macroListItem.demo .macroListItemName::after {
+      content: "Demo";
+      display: inline-flex;
+      margin-left: 6px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #eef2ff;
+      color: #475569;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.2;
+      vertical-align: 1px;
     }
     .macroEmpty {
       padding: 16px;
@@ -3850,6 +3967,14 @@
   </div>
 
   <section id="macroWindow" class="host-nodrag" role="dialog" aria-label="Macros">
+    <div class="macroResizeHandle macroResizeNw" data-resize-edge="nw" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeN" data-resize-edge="n" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeNe" data-resize-edge="ne" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeE" data-resize-edge="e" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeSe" data-resize-edge="se" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeS" data-resize-edge="s" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeSw" data-resize-edge="sw" aria-hidden="true"></div>
+    <div class="macroResizeHandle macroResizeW" data-resize-edge="w" aria-hidden="true"></div>
     <div id="macroHeader" class="macroHeader">
       <span class="macroHeaderTitle">Macros</span>
       <span class="macroHeaderSpacer" aria-hidden="true"></span>
@@ -3877,6 +4002,7 @@
     <div class="macroBody">
       <div class="macroContent">
         <div id="macroList" class="macroList" role="listbox" aria-label="Available macros"></div>
+        <div id="macroSplitHandle" class="macroSplitHandle" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize macro list and description sections" title="Drag to resize sections"></div>
         <div id="macroDescription" class="macroDescription">Select a macro to view its description.</div>
       </div>
       <div class="macroFooter">
