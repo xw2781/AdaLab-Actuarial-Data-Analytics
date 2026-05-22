@@ -24,6 +24,8 @@ const els = {
   hiddenTabsLabel: document.getElementById("hiddenTabsLabel"),
   hiddenTabsMenu: document.getElementById("hiddenTabsMenu"),
   hiddenDropBanner: document.getElementById("hiddenDropBanner"),
+  cachedDatasetToggle: document.getElementById("cachedDatasetToggle"),
+  cachedDatasetStatus: document.getElementById("cachedDatasetStatus"),
   pageLoadingOverlay: document.getElementById("pageLoadingOverlay"),
   pageLoadingTitle: document.getElementById("pageLoadingTitle"),
   pageLoadingMessage: document.getElementById("pageLoadingMessage"),
@@ -106,6 +108,14 @@ const datasetTableView = {
     dir: "asc",
   },
 };
+const cachedDatasetFilter = {
+  enabled: false,
+  loading: false,
+  loadedPath: "",
+  names: new Set(),
+  error: "",
+  requestSeq: 0,
+};
 let datasetTableFilterColumn = "";
 let datasetTableFilterAnchor = null;
 let datasetTableColumnDragStarted = false;
@@ -170,8 +180,135 @@ function normalizePath(value) {
     .join("\\");
 }
 
+function sanitizeDatasetFileName(value, fallback = "Dataset") {
+  const text = String(value ?? "").trim()
+    .replace(/[\\/:*?"<>|\x00-\x1f]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || fallback;
+}
+
+function getCachedDatasetKey(value) {
+  return sanitizeDatasetFileName(value, "").toLowerCase();
+}
+
 function setStatus(text, isError = false) {
   if (isError) console.warn(toText(text));
+}
+
+function syncCachedDatasetToolbar() {
+  const btn = els.cachedDatasetToggle;
+  if (btn) {
+    btn.classList.toggle("active", cachedDatasetFilter.enabled);
+    btn.setAttribute("aria-pressed", cachedDatasetFilter.enabled ? "true" : "false");
+    btn.disabled = cachedDatasetFilter.loading;
+    if (cachedDatasetFilter.enabled) {
+      btn.title = "Show all datasets";
+    } else {
+      btn.title = "Show only datasets with cached CSV or JSON files";
+    }
+  }
+  if (!els.cachedDatasetStatus) return;
+  if (!cachedDatasetFilter.enabled) {
+    els.cachedDatasetStatus.textContent = "";
+    return;
+  }
+  if (!selectedPath) {
+    els.cachedDatasetStatus.textContent = "Select a path to filter cached datasets";
+    return;
+  }
+  if (cachedDatasetFilter.loading) {
+    els.cachedDatasetStatus.textContent = "Checking cached datasets...";
+    return;
+  }
+  if (cachedDatasetFilter.error) {
+    els.cachedDatasetStatus.textContent = "Cached dataset check failed";
+    return;
+  }
+  const count = cachedDatasetFilter.names.size;
+  els.cachedDatasetStatus.textContent = count === 1 ? "1 cached dataset" : `${count} cached datasets`;
+}
+
+function shouldUseCachedDatasetFilter() {
+  return (
+    cachedDatasetFilter.enabled
+    && !cachedDatasetFilter.loading
+    && !cachedDatasetFilter.error
+    && selectedPath
+    && normalizePath(cachedDatasetFilter.loadedPath).toLowerCase() === normalizePath(selectedPath).toLowerCase()
+  );
+}
+
+function isDatasetRecordCached(record) {
+  if (!shouldUseCachedDatasetFilter()) return true;
+  const key = getCachedDatasetKey(record?.datasetName || getDatasetName(record?.row));
+  return !!key && cachedDatasetFilter.names.has(key);
+}
+
+async function loadCachedDatasetFilterForSelectedPath() {
+  const path = normalizePath(selectedPath);
+  const seq = cachedDatasetFilter.requestSeq + 1;
+  cachedDatasetFilter.requestSeq = seq;
+  cachedDatasetFilter.error = "";
+  cachedDatasetFilter.names = new Set();
+  cachedDatasetFilter.loadedPath = path;
+
+  if (!cachedDatasetFilter.enabled || !projectName || !path) {
+    cachedDatasetFilter.loading = false;
+    syncCachedDatasetToolbar();
+    renderDatasetTable();
+    return;
+  }
+
+  cachedDatasetFilter.loading = true;
+  syncCachedDatasetToolbar();
+  renderDatasetTable();
+
+  try {
+    const url = new URL("/datasets/cached", window.location.origin);
+    url.searchParams.set("project_name", projectName);
+    url.searchParams.set("reserving_class", path);
+    const resp = await fetch(url.toString());
+    const payload = await resp.json().catch(() => ({}));
+    if (seq !== cachedDatasetFilter.requestSeq) return;
+    if (!resp.ok || payload?.ok === false) {
+      throw new Error(payload?.detail || `Cached dataset lookup failed (${resp.status})`);
+    }
+    const names = Array.isArray(payload?.dataset_names) ? payload.dataset_names : [];
+    cachedDatasetFilter.names = new Set(
+      names.map((name) => getCachedDatasetKey(name)).filter(Boolean)
+    );
+    cachedDatasetFilter.loadedPath = path;
+    cachedDatasetFilter.error = "";
+  } catch (err) {
+    if (seq !== cachedDatasetFilter.requestSeq) return;
+    cachedDatasetFilter.names = new Set();
+    cachedDatasetFilter.error = toText(err?.message) || "Cached dataset lookup failed.";
+    setStatus(cachedDatasetFilter.error, true);
+  } finally {
+    if (seq !== cachedDatasetFilter.requestSeq) return;
+    cachedDatasetFilter.loading = false;
+    syncCachedDatasetToolbar();
+    renderDatasetTable();
+  }
+}
+
+function setCachedDatasetFilterEnabled(enabled) {
+  const next = !!enabled;
+  if (cachedDatasetFilter.enabled === next) return;
+  cachedDatasetFilter.enabled = next;
+  closeDatasetTableFilterPopover();
+  if (next) {
+    void loadCachedDatasetFilterForSelectedPath();
+    return;
+  }
+  cachedDatasetFilter.loading = false;
+  cachedDatasetFilter.error = "";
+  cachedDatasetFilter.names = new Set();
+  cachedDatasetFilter.loadedPath = "";
+  cachedDatasetFilter.requestSeq += 1;
+  syncCachedDatasetToolbar();
+  renderDatasetTable();
 }
 
 function saveLastSelectedPath(path) {
@@ -804,7 +941,8 @@ function autoFitInitialDatasetTableWidths(rows = datasetRows) {
 function buildDatasetTableRenderContext() {
   const records = datasetRows
     .map((row, rowIndex) => buildDatasetRecord(row, rowIndex))
-    .filter((record) => record.datasetName);
+    .filter((record) => record.datasetName)
+    .filter(isDatasetRecordCached);
   const optionsByKey = new Map();
   const selectionsByKey = new Map();
 
@@ -956,7 +1094,7 @@ function setDatasetTableColumnWidth(key, width) {
 
 function getDatasetTableRecords(context) {
   const records = Array.isArray(context?.records) ? context.records : datasetRows.map((row, rowIndex) => buildDatasetRecord(row, rowIndex));
-  return records.filter((item) => item.datasetName && rowMatchesDatasetTableFilters(item, context));
+  return records.filter((item) => item.datasetName && isDatasetRecordCached(item) && rowMatchesDatasetTableFilters(item, context));
 }
 
 function createDatasetTableHeaderCell(col, colIndex, context = null) {
@@ -1181,7 +1319,9 @@ function createDatasetTable(records, context = null) {
     const td = document.createElement("td");
     td.className = "pi-table-empty";
     td.colSpan = columns.length;
-    td.textContent = "No rows for selected filters.";
+    td.textContent = cachedDatasetFilter.enabled
+      ? "No cached datasets match the selected table filters."
+      : "No rows for selected filters.";
     tr.appendChild(td);
     tbody.appendChild(tr);
   } else {
@@ -1258,6 +1398,34 @@ function renderDatasetTable() {
     els.datasetTableSurface.innerHTML = "";
     setEmptyTable("No dataset types are defined for this project.");
     return;
+  }
+  if (cachedDatasetFilter.enabled) {
+    if (!selectedPath) {
+      els.datasetTableSurface.innerHTML = "";
+      setEmptyTable("Select a reserving class path to show cached datasets.");
+      return;
+    }
+    if (cachedDatasetFilter.loading) {
+      els.datasetTableSurface.innerHTML = "";
+      setEmptyTable("Loading cached dataset list...");
+      return;
+    }
+    if (cachedDatasetFilter.error) {
+      els.datasetTableSurface.innerHTML = "";
+      setEmptyTable(cachedDatasetFilter.error);
+      return;
+    }
+    if (!shouldUseCachedDatasetFilter()) {
+      void loadCachedDatasetFilterForSelectedPath();
+      els.datasetTableSurface.innerHTML = "";
+      setEmptyTable("Loading cached dataset list...");
+      return;
+    }
+    if (cachedDatasetFilter.names.size === 0) {
+      els.datasetTableSurface.innerHTML = "";
+      setEmptyTable("No cached CSV or JSON dataset files found for selected path.");
+      return;
+    }
   }
 
   const context = buildDatasetTableRenderContext();
@@ -1510,6 +1678,11 @@ function setSelectedPath(path, options = {}) {
   if (els.selectedPathText) {
     els.selectedPathText.textContent = selectedPath || "Select a reserving class path.";
     els.selectedPathText.title = selectedPath;
+  }
+  if (cachedDatasetFilter.enabled) {
+    void loadCachedDatasetFilterForSelectedPath();
+  } else {
+    syncCachedDatasetToolbar();
   }
   renderDatasetTable();
   if (options?.persist !== false) saveLastSelectedPath(selectedPath);
@@ -2311,6 +2484,15 @@ function initHiddenTabsArea() {
   });
 }
 
+function initCachedDatasetToolbar() {
+  if (!els.cachedDatasetToggle || els.cachedDatasetToggle.dataset.wired === "1") return;
+  els.cachedDatasetToggle.dataset.wired = "1";
+  syncCachedDatasetToolbar();
+  els.cachedDatasetToggle.addEventListener("click", () => {
+    setCachedDatasetFilterEnabled(!cachedDatasetFilter.enabled);
+  });
+}
+
 function initDatasetWindowShortcuts() {
   if (document.body.dataset.piWindowShortcutsWired === "1") return;
   document.body.dataset.piWindowShortcutsWired = "1";
@@ -2331,6 +2513,7 @@ window.addEventListener("message", (event) => {
 async function boot() {
   await applyHostFrameCornerStyle();
   initHiddenTabsArea();
+  initCachedDatasetToolbar();
   initLeftPanelResizer();
   initDatasetTableInteractions();
   initDatasetWindowShortcuts();

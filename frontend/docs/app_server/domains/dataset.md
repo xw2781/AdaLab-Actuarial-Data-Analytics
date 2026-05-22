@@ -16,6 +16,7 @@ Also handles dataset Notes persistence files under each project `data` folder.
 | `GET` | `/dataset/{ds_id}/diagonal` | `get_diagonal` | `str` | - | `dataset_service.get_diagonal` |
 | `POST` | `/dataset/{ds_id}/patch` | `patch_dataset` | `PatchRequest` | [`app_server/schemas/dataset.py`](../../../app_server/schemas/dataset.py) | `dataset_service.patch_dataset` |
 | `GET` | `/datasets` | `list_datasets` | - | - | `dataset_service.list_datasets` |
+| `GET` | `/datasets/cached` | `list_cached_dataset_names` | `str` | - | `dataset_service.list_cached_dataset_names` |
 <!-- AUTO-GEN:END -->
 
 ## Key Files
@@ -30,6 +31,7 @@ Also handles dataset Notes persistence files under each project `data` folder.
 <!-- MANUAL:BEGIN -->
 - Called by dataset/DFM frontend flows via `shared/api.js`.
 - Exposes Notes load/save endpoints for project-scoped dataset notes persistence.
+- Exposes a project/path cached dataset lookup for Project Instance; the server resolves `project_name` plus selected reserving-class path to the exact `projects/<project>/data/<ReservingClassFolder>` folder and returns dataset names inferred from `.csv` and `.json` cache files.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
@@ -37,6 +39,7 @@ Also handles dataset Notes persistence files under each project `data` folder.
 - Uses in-memory dataset map and patch payloads.
 - ArcRhoTri CSV request targets are `projects/<project>/data/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv` such as `Claim Counts--CWP@12@12.csv`; the reserving-class path is a single caret-sanitized folder name and is not repeated in the CSV filename.
 - Persists dataset Notes as JSON files in `projects/<project>/data/<ReservingClassFolder>/ArcRhoTriNotes@<DatasetName>.json`.
+- Cached dataset lookup is read-only and scans only the selected reserving-class folder, matching `.csv` and `.json` filenames back to dataset-name candidates after applying the same server-side folder/file sanitizers used by runtime cache writes.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

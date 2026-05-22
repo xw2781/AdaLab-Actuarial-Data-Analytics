@@ -565,6 +565,65 @@
       overflow: hidden;
       background: #fff;
     }
+    .dataset_toolbar {
+      height: 30px;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      border-bottom: 1px solid var(--border);
+      background: #fbfcff;
+    }
+    .dataset-toolbar-btn {
+      width: 24px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #667085;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+    }
+    .dataset-toolbar-btn:hover {
+      border-color: #c9d7ef;
+      background: #f1f6ff;
+      color: #2458b8;
+    }
+    .dataset-toolbar-btn.active {
+      border-color: #7ea6ef;
+      background: #e9f2ff;
+      color: #1f4e99;
+      box-shadow: inset 0 0 0 1px rgba(47, 111, 236, 0.08);
+    }
+    .dataset-toolbar-btn:disabled {
+      color: #b1bac8;
+      cursor: default;
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .dataset-toolbar-btn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .dataset-toolbar-status {
+      min-width: 0;
+      color: #667085;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .pi-table-wrap {
       flex: 1 1 auto;
       min-height: 0;
@@ -1268,6 +1327,15 @@
       </section>
       <div class="pi-left-resizer" id="leftPanelResizer" role="separator" aria-label="Resize reserving class panel" aria-orientation="vertical" aria-valuemin="0" aria-valuenow="0" tabindex="0"></div>
       <section class="pi-right" aria-label="Project datasets">
+        <div class="dataset_toolbar" id="datasetToolbar" aria-label="Dataset table tools">
+          <button class="dataset-toolbar-btn" id="cachedDatasetToggle" type="button" aria-pressed="false" title="Show only datasets with cached CSV or JSON files">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"></path>
+              <circle cx="12" cy="12" r="2.8"></circle>
+            </svg>
+          </button>
+          <div class="dataset-toolbar-status" id="cachedDatasetStatus" aria-live="polite"></div>
+        </div>
         <div class="pi-table-wrap" id="datasetTableWrap">
           <div class="pi-table-surface" id="datasetTableSurface"></div>
         </div>

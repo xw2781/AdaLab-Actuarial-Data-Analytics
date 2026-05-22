@@ -19,6 +19,11 @@ def list_datasets() -> List[Dict[str, Any]]:
     return dataset_service.list_datasets()
 
 
+@router.get("/datasets/cached")
+def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[str, Any]:
+    return dataset_service.list_cached_dataset_names(project_name, reserving_class)
+
+
 @router.get("/dataset/{ds_id}")
 def get_dataset(ds_id: str, start_year: int = 2016) -> Dict[str, Any]:
     result = dataset_service.get_dataset(ds_id, start_year=start_year)

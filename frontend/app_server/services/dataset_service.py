@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -59,6 +59,85 @@ def list_datasets() -> List[Dict[str, Any]]:
             "mtime": st.st_mtime,
         })
     return out
+
+
+def _add_cached_dataset_name(names: Set[str], value: Any) -> None:
+    text = str(value if value is not None else "").strip()
+    if text:
+        names.add(text)
+
+
+def _cached_dataset_names_from_file(filename: str) -> Set[str]:
+    stem, ext = os.path.splitext(str(filename or ""))
+    ext_l = ext.lower()
+    names: Set[str] = set()
+    if ext_l == ".csv":
+        _add_cached_dataset_name(names, stem)
+        parts = stem.split("@")
+        if len(parts) >= 3 and parts[-1].strip() and parts[-2].strip():
+            _add_cached_dataset_name(names, "@".join(parts[:-2]))
+        return names
+    if ext_l != ".json":
+        return names
+
+    for prefix in ("ArcRhoTriNotes@", "DFM@"):
+        if stem.startswith(prefix):
+            _add_cached_dataset_name(names, stem[len(prefix):])
+            return names
+    _add_cached_dataset_name(names, stem)
+    return names
+
+
+def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[str, Any]:
+    project = str(project_name if project_name is not None else "").strip()
+    rc = str(reserving_class if reserving_class is not None else "").strip()
+    if not project or not rc:
+        raise HTTPException(400, "project_name and reserving_class are required.")
+
+    try:
+        data_dir = config.get_project_data_dir(project)
+    except ValueError as err:
+        raise HTTPException(404, str(err))
+
+    rc_folder = sanitize_reserving_class_folder(rc)
+    folder_path = os.path.join(data_dir, rc_folder)
+    if not os.path.isdir(folder_path):
+        return {
+            "ok": True,
+            "exists": False,
+            "project_name": project,
+            "reserving_class": rc,
+            "folder_path": folder_path,
+            "dataset_names": [],
+            "files": [],
+        }
+
+    names: Set[str] = set()
+    files: List[str] = []
+    try:
+        with os.scandir(folder_path) as it:
+            for entry in it:
+                if not entry.is_file():
+                    continue
+                ext = os.path.splitext(entry.name)[1].lower()
+                if ext not in {".csv", ".json"}:
+                    continue
+                files.append(entry.name)
+                names.update(_cached_dataset_names_from_file(entry.name))
+    except PermissionError:
+        raise HTTPException(423, "Cached dataset folder is locked or inaccessible.")
+    except OSError as err:
+        raise HTTPException(500, f"Failed to read cached dataset folder: {str(err)}")
+
+    return {
+        "ok": True,
+        "exists": True,
+        "project_name": project,
+        "reserving_class": rc,
+        "folder_path": folder_path,
+        "dataset_names": sorted(names, key=lambda item: item.lower()),
+        "files": sorted(files, key=lambda item: item.lower()),
+    }
 
 
 def get_dataset(ds_id: str, start_year: int = 2016) -> Dict[str, Any]:
