@@ -1,5 +1,6 @@
 
 import os
+import sys
 import stat
 from datetime import datetime
 import json
@@ -8,6 +9,7 @@ from typing import Any
 
 
 PROJECT_ROOT_NAMES = ("ArcRho Server", "ArcRho", "ADAS")
+DEFAULT_DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server")).expanduser()
 
 COMPONENTS = {
     "engine": {
@@ -22,6 +24,14 @@ COMPONENTS = {
         "dirs": ("arcrho_launcher", "ArcRho Launcher", "ADAS Shell"),
         "apps": ("ArcRho Launcher", "ADAS Shell"),
     },
+    "bridge": {
+        "dirs": ("arcrho_bridge",),
+        "apps": ("ArcRho Bridge",),
+    },
+    "bridge_worker": {
+        "dirs": ("arcrho_bridge_worker",),
+        "apps": ("ArcRho Bridge Worker",),
+    },
 }
 
 COMPONENT_ALIASES = {
@@ -34,24 +44,69 @@ COMPONENT_ALIASES = {
     "orchestrator": "orchestrator",
     "shell": "launcher",
     "launcher": "launcher",
+    "bridge": "bridge",
+    "rpc_bridge": "bridge",
+    "bridge_worker": "bridge_worker",
+    "rpc_bridge_worker": "bridge_worker",
 }
+
+
+def _configured_root() -> Path | None:
+    configured_root = os.environ.get("ARCRHO_ROOT") or os.environ.get("ADAS_ROOT")
+    if configured_root:
+        return Path(configured_root).expanduser()
+    return None
+
+
+def _frozen_root_candidates() -> list[Path]:
+    if not getattr(sys, "frozen", False):
+        return []
+
+    exe_dir = Path(sys.executable).resolve().parent
+    candidates = [exe_dir]
+
+    # One-file layout: <root>\apps\<App>.exe
+    if exe_dir.name.lower() == "apps":
+        candidates.append(exe_dir.parent)
+
+    # One-dir layout: <root>\apps\<App>\<App>.exe
+    if exe_dir.parent.name.lower() == "apps":
+        candidates.append(exe_dir.parent.parent)
+
+    return candidates
 
 
 def find_project_root(start_path: Path, root_name: str | tuple[str, ...] = PROJECT_ROOT_NAMES) -> Path:
     root_names = (root_name,) if isinstance(root_name, str) else root_name
     root_names_lower = {name.lower() for name in root_names}
-    current = start_path.resolve()
-    for candidate in (current, *current.parents):
-        if candidate.name.lower() in root_names_lower:
-            return candidate
-        if (
-            (candidate / "core" / "utils.py").exists()
-            and (
-                (candidate / "config" / "config.json").exists()
-                or (candidate / "core" / "config.json").exists()
-            )
-        ):
-            return candidate
+    starts = []
+
+    configured_root = _configured_root()
+    if configured_root:
+        starts.append(configured_root)
+
+    starts.extend(_frozen_root_candidates())
+    starts.append(DEFAULT_DEPLOY_ROOT)
+    starts.append(start_path)
+
+    seen = set()
+    for start in starts:
+        current = start.resolve()
+        if current in seen:
+            continue
+        seen.add(current)
+
+        for candidate in (current, *current.parents):
+            if candidate.name.lower() in root_names_lower:
+                return candidate
+            if (
+                (candidate / "core" / "utils.py").exists()
+                and (
+                    (candidate / "config" / "config.json").exists()
+                    or (candidate / "core" / "config.json").exists()
+                )
+            ):
+                return candidate
     names = ", ".join(root_names)
     raise RuntimeError(f'Could not find parent folder named one of [{names}] from: {start_path}')
 
@@ -77,9 +132,9 @@ CONFIG_PATH = resolve_config_path()
 
 
 def get_project_root() -> Path:
-    configured_root = os.environ.get("ARCRHO_ROOT") or os.environ.get("ADAS_ROOT")
+    configured_root = _configured_root()
     if configured_root:
-        return Path(configured_root).expanduser().resolve()
+        return configured_root.resolve()
     return PROJECT_ROOT
 
 
@@ -113,7 +168,17 @@ def resolve_existing_path(*paths: str | os.PathLike) -> Path:
 
 def resolve_app_dir(role: str) -> Path:
     root = get_project_root()
-    candidates = [root / "core" / name for name in component_dir_candidates(role)]
+    candidates = []
+    for name in component_app_candidates(role):
+        candidates.append(root / "apps" / name)
+    for name in component_dir_candidates(role):
+        candidates.extend(
+            (
+                root / "core" / name,
+                root / "data-engine" / "src" / name,
+                root / "src" / name,
+            )
+        )
     return resolve_existing_path(*candidates)
 
 
@@ -133,13 +198,26 @@ def resolve_app_exe(role: str) -> Path:
     root = get_project_root()
     app_dir = resolve_app_dir(role)
     component_dir_name = component_dir_candidates(role)[0]
+    app_names = component_app_candidates(role)
     candidates = [
-        root / "builds" / component_dir_name / "dist" / app_name / f"{app_name}.exe"
-        for app_name in component_app_candidates(role)
+        root / "apps" / app_name / f"{app_name}.exe"
+        for app_name in app_names
     ]
     candidates.extend(
+        root / "apps" / f"{app_name}.exe"
+        for app_name in app_names
+    )
+    candidates.extend(
+        root / "builds" / component_dir_name / "dist" / f"{app_name}.exe"
+        for app_name in app_names
+    )
+    candidates.extend(
+        root / "builds" / component_dir_name / "dist" / app_name / f"{app_name}.exe"
+        for app_name in app_names
+    )
+    candidates.extend(
         app_dir / "dist" / app_name / f"{app_name}.exe"
-        for app_name in component_app_candidates(role)
+        for app_name in app_names
     )
     return resolve_existing_path(*candidates)
 
@@ -156,6 +234,8 @@ CONFIG_KEY_ALIASES = {
     "apps.agent.": "apps.engine.",
     "apps.orchestrator.": "apps.master.",
     "apps.master.": "apps.orchestrator.",
+    "apps.bridge_worker.": "apps.rpc_bridge_worker.",
+    "apps.rpc_bridge_worker.": "apps.bridge_worker.",
 }
 
 

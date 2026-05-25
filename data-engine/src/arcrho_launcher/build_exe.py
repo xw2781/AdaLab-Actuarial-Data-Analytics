@@ -2,15 +2,23 @@ import subprocess
 from pathlib import Path
 import sys
 import shutil
+import os
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SOURCE_ROOT = BASE_DIR.parent
+for path in (PROJECT_ROOT, SOURCE_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from core.utils import component_app_name, resolve_existing_path
+try:
+    from core.utils import component_app_name, resolve_existing_path
+except ModuleNotFoundError:
+    from utils import component_app_name, resolve_existing_path
 
 BUILD_ROOT = PROJECT_ROOT / "builds" / BASE_DIR.name
+DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
+APPS_DIR = DEPLOY_ROOT / "apps"
 VENV_PYTHON = PROJECT_ROOT / "venvs" / BASE_DIR.name / "Scripts" / "python.exe"
 REQ_FILE = BASE_DIR / "requirements.txt"
 
@@ -18,19 +26,15 @@ ENTRY_PY = BASE_DIR / "main.py"
 APP_NAME = component_app_name("launcher")
 ICON = resolve_existing_path(
     PROJECT_ROOT / "library" / "icon" / "ArcRho Launcher.ico",
+    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Launcher.ico",
+    PROJECT_ROOT / "assets" / "icons" / "ArcRho Launcher.ico",
     BASE_DIR / "ArcRho Launcher.ico",
     BASE_DIR / "ArcRho Shell.ico",
     BASE_DIR / "ADAS Shell.ico",
 )
 
-DIST_DIR = BUILD_ROOT / "dist"
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
-
-try:
-    shutil.rmtree(DIST_DIR)
-except:
-    pass
 
 try:
     shutil.rmtree(BUILD_DIR)
@@ -76,17 +80,21 @@ def install_requirements():
 
 
 def build_exe():
+    APPS_DIR.mkdir(parents=True, exist_ok=True)
     cmd = [
         VENV_PYTHON,
         "-m", "PyInstaller",
         "--specpath", SPEC_DIR,
         "--noconfirm",   
+        "--onedir",
+        "--paths", SOURCE_ROOT,
+        "--hidden-import", "utils",
         f"--icon={ICON}",
         "--add-data", f"{ICON};.",
         # "--noconsole",
         "--clean",
         "--name", APP_NAME,
-        "--distpath", DIST_DIR,
+        "--distpath", APPS_DIR,
         "--workpath", BUILD_DIR,
         ENTRY_PY,
     ]
@@ -102,7 +110,7 @@ def main():
     install_requirements()
     build_exe()
 
-    exe_path = DIST_DIR / APP_NAME / f"{APP_NAME}.exe"
+    exe_path = APPS_DIR / APP_NAME / f"{APP_NAME}.exe"
     print("\nBuild finished!")
     print(f"EXE location: {exe_path}")
 

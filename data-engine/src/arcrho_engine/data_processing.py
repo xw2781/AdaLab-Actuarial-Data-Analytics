@@ -8,27 +8,59 @@ from pathlib import Path
 from threading import Lock
 from datetime import date, datetime
 
-# Resolve product root from __file__: engine module -> engine app -> core -> project root
-_PRODUCT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _PRODUCT_ROOT not in sys.path:
-    sys.path.insert(0, _PRODUCT_ROOT)
+# Resolve packaged, deployed src layout, and repo src layout.
+_MODULE_ROOT = Path(__file__).resolve().parent
+_SOURCE_ROOT = _MODULE_ROOT.parent
+_PRODUCT_ROOT = _SOURCE_ROOT.parent
+_BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", _MODULE_ROOT)).resolve()
+_EXE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+_DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
+
+if "ARCRHO_ROOT" not in os.environ and "ADAS_ROOT" not in os.environ:
+    if _EXE_DIR and _EXE_DIR.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent)
+    elif _EXE_DIR and _EXE_DIR.parent.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent.parent)
+    elif not getattr(sys, "frozen", False):
+        os.environ["ARCRHO_ROOT"] = str(_DEPLOY_ROOT)
+
+for _path in (_PRODUCT_ROOT, _SOURCE_ROOT, _BUNDLE_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 import pandas as pd
-from core.utils import (
-    function_brand,
-    get_project_root,
-    is_vector_function,
-    resolve_app_path,
-)
-from core.arcrho_engine.general_utils import (
-    DLOOKUP,
-    _generate_period_range,
-    _parse_date_to_yyyymm,
-    get_current_time,
-    split_formula,
-    split_formula_opts,
-    write_lists_to_csv,
-)
+try:
+    from core.utils import (
+        function_brand,
+        get_project_root,
+        is_vector_function,
+        resolve_app_path,
+    )
+    from core.arcrho_engine.general_utils import (
+        DLOOKUP,
+        _generate_period_range,
+        _parse_date_to_yyyymm,
+        get_current_time,
+        split_formula,
+        split_formula_opts,
+        write_lists_to_csv,
+    )
+except ModuleNotFoundError:
+    from utils import (
+        function_brand,
+        get_project_root,
+        is_vector_function,
+        resolve_app_path,
+    )
+    from arcrho_engine.general_utils import (
+        DLOOKUP,
+        _generate_period_range,
+        _parse_date_to_yyyymm,
+        get_current_time,
+        split_formula,
+        split_formula_opts,
+        write_lists_to_csv,
+    )
 
 debug_mode = 0
 device_name = os.environ.get("COMPUTERNAME")
@@ -404,7 +436,7 @@ def _get_dataset_info(arg):
 
     df = _get_df(project_name)
 
-    # Set user-defined dataset name to actual SQL table column names.
+    # Set user defined name (ResQ) to actual SQL table col names
     df_info = PROJECT_CONFIG[project_name]['Dataset Types']
     
     if dataset_name in df_info['Name'].values:

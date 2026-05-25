@@ -2,44 +2,38 @@ import subprocess
 from pathlib import Path
 import sys
 import shutil
+import os
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SOURCE_ROOT = BASE_DIR.parent
+for path in (SOURCE_ROOT,):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from core.utils import component_app_name, resolve_existing_path
+from utils import component_app_name
 
 BUILD_ROOT = PROJECT_ROOT / "builds" / BASE_DIR.name
+DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
+APPS_DIR = DEPLOY_ROOT / "apps"
 VENV_PYTHON = PROJECT_ROOT / "venvs" / BASE_DIR.name / "Scripts" / "python.exe"
 REQ_FILE = BASE_DIR / "requirements.txt"
 
 ENTRY_PY = BASE_DIR / "main.py"
 APP_NAME = component_app_name("engine")
-ICON = resolve_existing_path(
-    PROJECT_ROOT / "library" / "icon" / "ArcRho Engine.ico",
-    PROJECT_ROOT / "library" / "icon" / "ArcRhoV4.ico",
-    PROJECT_ROOT / "library" / "icon" / "ADASV4.ico",
-)
+ICON = PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Engine.ico"
 
-DIST_DIR = BUILD_ROOT / "dist"
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
+DIST_DIR = BUILD_ROOT / "dist"
+STAGED_APP_DIR = DIST_DIR / APP_NAME
+DEPLOY_APP_DIR = APPS_DIR / APP_NAME
 
-try:
-    shutil.rmtree(DIST_DIR)
-except:
-    pass
-
-try:
-    shutil.rmtree(BUILD_DIR)
-except:
-    pass
-
-try:
-    shutil.rmtree(SPEC_DIR)
-except:
-    pass
+for path in (BUILD_DIR, SPEC_DIR, DIST_DIR):
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
 
 def run(cmd, check=True):
     print("\n>>>", " ".join(map(str, cmd)))
@@ -79,6 +73,9 @@ def build_exe():
         "-m", "PyInstaller",
         "--specpath", SPEC_DIR,
         "--noconfirm",   
+        "--onedir",
+        "--paths", SOURCE_ROOT,
+        "--hidden-import", "utils",
         f"--icon={ICON}",
         "--add-data", f"{ICON};.",
         "--noconsole",
@@ -94,13 +91,45 @@ def build_exe():
     run(cmd)
 
 
+def deploy_exe():
+    if not STAGED_APP_DIR.exists():
+        raise FileNotFoundError(f"Built app not found: {STAGED_APP_DIR}")
+
+    APPS_DIR.mkdir(parents=True, exist_ok=True)
+    temp_app_dir = APPS_DIR / f".{APP_NAME}.new"
+    backup_app_dir = APPS_DIR / f".{APP_NAME}.old"
+
+    for path in (temp_app_dir, backup_app_dir):
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            pass
+
+    shutil.copytree(STAGED_APP_DIR, temp_app_dir)
+
+    try:
+        if DEPLOY_APP_DIR.exists():
+            DEPLOY_APP_DIR.rename(backup_app_dir)
+        temp_app_dir.rename(DEPLOY_APP_DIR)
+    except Exception:
+        if backup_app_dir.exists() and not DEPLOY_APP_DIR.exists():
+            backup_app_dir.rename(DEPLOY_APP_DIR)
+        raise
+
+    try:
+        shutil.rmtree(backup_app_dir)
+    except FileNotFoundError:
+        pass
+
+
 def main():
     ensure_venv()
     ensure_venv_python()
     install_requirements()
     build_exe()
+    deploy_exe()
 
-    print("\nBuild finished!")
+    print(f"\nBuild finished: {DEPLOY_APP_DIR / f'{APP_NAME}.exe'}")
 
 
 if __name__ == "__main__":

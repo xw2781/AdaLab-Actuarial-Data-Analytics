@@ -7,11 +7,29 @@ from pathlib import Path
 from typing import Optional
 import subprocess
 
-_PRODUCT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _PRODUCT_ROOT not in sys.path:
-    sys.path.insert(0, _PRODUCT_ROOT)
+_MODULE_ROOT = Path(__file__).resolve().parent
+_SOURCE_ROOT = _MODULE_ROOT.parent
+_PRODUCT_ROOT = _SOURCE_ROOT.parent
+_BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", _MODULE_ROOT)).resolve()
+_EXE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+_DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
 
-from core.utils import component_app_name, resolve_app_exe
+if "ARCRHO_ROOT" not in os.environ:
+    if _EXE_DIR and _EXE_DIR.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent)
+    elif _EXE_DIR and _EXE_DIR.parent.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent.parent)
+    elif not getattr(sys, "frozen", False):
+        os.environ["ARCRHO_ROOT"] = str(_DEPLOY_ROOT)
+
+for _path in (_PRODUCT_ROOT, _SOURCE_ROOT, _BUNDLE_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+try:
+    from src.utils import component_app_name, resolve_app_exe
+except ModuleNotFoundError:
+    from utils import component_app_name, resolve_app_exe
 
 
 def remove_startup_shortcut(shortcut_name: str) -> Optional[Path]:
@@ -99,24 +117,29 @@ def install_startup_shortcut(
     return lnk_path
 
 
-removed_lnk = remove_startup_shortcut("ADAS Shell")
-if removed_lnk:
-    print("\n> Removed old startup shortcut:", removed_lnk); time.sleep(0.5)
+def main():
+    removed_lnk = remove_startup_shortcut("ADAS Shell")
+    if removed_lnk:
+        print("\n> Removed old startup shortcut:", removed_lnk); time.sleep(0.5)
 
-lnk = install_startup_shortcut(
-    resolve_app_exe("launcher"),
-    shortcut_name=component_app_name("launcher"),
-    args="--silent",
-    description=f"Launch {component_app_name('launcher')} at login",
-)
+    lnk = install_startup_shortcut(
+        resolve_app_exe("launcher"),
+        shortcut_name=component_app_name("launcher"),
+        args="--silent",
+        description=f"Launch {component_app_name('launcher')} at login",
+    )
 
-print("\n> Shortcut created:", lnk); time.sleep(0.5)
+    print("\n> Shortcut created:", lnk); time.sleep(0.5)
 
-print('\n> Start Applications ...')
+    print('\n> Start Applications ...')
 
-os.startfile(str(resolve_app_exe("orchestrator")))
-os.startfile(r"E:\ArcRho\Excel Add-ins\URA master\dist\URA master.exe")
+    os.startfile(str(resolve_app_exe("orchestrator")))
+    os.startfile(str(resolve_app_exe("bridge")))
+    os.startfile(r"E:\ResQ\Excel Add-ins\URA master\dist\URA master.exe")
 
-print('\n> Done'); time.sleep(2)
+    print('\n> Done'); time.sleep(2)
 
-sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+    sys.exit(0)

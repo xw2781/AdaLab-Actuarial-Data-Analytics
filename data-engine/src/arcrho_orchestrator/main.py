@@ -8,12 +8,30 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
-# Resolve product root from __file__: main.py -> orchestrator app -> core -> project root
-_PRODUCT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _PRODUCT_ROOT not in sys.path:
-    sys.path.insert(0, _PRODUCT_ROOT)
+# Resolve packaged, deployed src layout, and repo src layout.
+_MODULE_ROOT = Path(__file__).resolve().parent
+_SOURCE_ROOT = _MODULE_ROOT.parent
+_PRODUCT_ROOT = _SOURCE_ROOT.parent
+_BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", _MODULE_ROOT)).resolve()
+_EXE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+_DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
 
-from core.utils import *
+if "ARCRHO_ROOT" not in os.environ:
+    if _EXE_DIR and _EXE_DIR.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent)
+    elif _EXE_DIR and _EXE_DIR.parent.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent.parent)
+    elif not getattr(sys, "frozen", False):
+        os.environ["ARCRHO_ROOT"] = str(_DEPLOY_ROOT)
+
+for _path in (_PRODUCT_ROOT, _SOURCE_ROOT, _BUNDLE_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+try:
+    from src.utils import *
+except ModuleNotFoundError:
+    from utils import *
 
 engine_instance_path = str(resolve_app_path("engine", "instances"))
 orchestrator_instance_path = str(resolve_app_path("orchestrator", "instances"))
@@ -116,39 +134,44 @@ def safe_remove(file_path, attempts=5, delay=0.1):
     return False
 
 
-current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-write_json(id_path, {'Server': orchestrator_id, 'Last seen': current_time})
+def main():
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    write_json(id_path, {'Server': orchestrator_id, 'Last seen': current_time})
 
-time.sleep(1)
+    time.sleep(1)
 
-while True:
-    try:
-        if not os.path.exists(id_path):
-            break
-        
-        if get_config_value('apps.orchestrator.kill_all'):
-            safe_remove(id_path)
-            break
+    while True:
+        try:
+            if not os.path.exists(id_path):
+                break
 
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-        # Update Status
-        arg_1 = read_json(id_path)
-        arg_1['Last seen'] = current_time
-        write_json(id_path, arg_1)
+            if get_config_value('apps.orchestrator.kill_all'):
+                safe_remove(id_path)
+                break
 
-        remove_old_instances(engine_instance_path)
-        remove_old_instances(orchestrator_instance_path)
-        remove_old_instances(str(get_project_root() / "requests"), 5*60)
-      
-        while get_config_value('apps.orchestrator.auto_create_workers') \
-          and get_config_value('apps.engine.kill_all') == False \
-          and file_counts(engine_instance_path) < get_config_value('apps.orchestrator.max_workers'):
-            exe = resolve_app_exe("engine")
-            subprocess.Popen([str(exe)], close_fds=True)
-            time.sleep(3)
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    except Exception as e:
-        print(e)
-        
-    time.sleep(15)
+            # Update Status
+            arg_1 = read_json(id_path)
+            arg_1['Last seen'] = current_time
+            write_json(id_path, arg_1)
+
+            remove_old_instances(engine_instance_path)
+            remove_old_instances(orchestrator_instance_path)
+            remove_old_instances(str(get_project_root() / "requests"), 5*60)
+
+            while get_config_value('apps.orchestrator.auto_create_workers') \
+              and get_config_value('apps.engine.kill_all') == False \
+              and file_counts(engine_instance_path) < get_config_value('apps.orchestrator.max_workers'):
+                exe = resolve_app_exe("engine")
+                subprocess.Popen([str(exe)], close_fds=True)
+                time.sleep(3)
+
+        except Exception as e:
+            print(e)
+
+        time.sleep(15)
+
+
+if __name__ == "__main__":
+    main()

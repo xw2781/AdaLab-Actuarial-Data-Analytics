@@ -4,13 +4,20 @@ import sys
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SOURCE_ROOT = BASE_DIR.parent
+for path in (PROJECT_ROOT, SOURCE_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from core.utils import resolve_existing_path
+try:
+    from core.utils import resolve_existing_path
+except ModuleNotFoundError:
+    from utils import resolve_existing_path
 
 png_path = resolve_existing_path(
     PROJECT_ROOT / "library" / "icon" / "ArcRho Orchestrator.png",
+    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Orchestrator.png",
+    PROJECT_ROOT / "assets" / "icons" / "ArcRho Orchestrator.png",
     PROJECT_ROOT / "library" / "icon" / "ArcRho_icon_v2.png",
     PROJECT_ROOT / "library" / "icon" / "ADAS_icon_v2.png",
 )

@@ -223,13 +223,25 @@ def read_json(json_file, retries=50, delay=0.02):
     raise PermissionError(f"Cannot open {json_file}")
 
 
-def write_json(json_file, arg):
-    os.makedirs(os.path.dirname(json_file), exist_ok=True)
-    tmp_file = f"{json_file}.{uuid.uuid4()}.tmp"
-    with open(tmp_file, mode="w", encoding="utf-8") as file:
-        json.dump(arg, file, indent=2)
-        file.write("\n")
-    os.replace(tmp_file, json_file)
+def write_json(json_file, arg, retries=5, delay=0.1):
+    for _ in range(retries):
+        tmp_file = f"{json_file}.{uuid.uuid4()}.tmp"
+        try:
+            os.makedirs(os.path.dirname(json_file), exist_ok=True)
+            with open(tmp_file, mode="w", encoding="utf-8") as file:
+                json.dump(arg, file, indent=2)
+                file.write("\n")
+            os.replace(tmp_file, json_file)
+            return True
+        except PermissionError:
+            try:
+                if os.path.exists(tmp_file):
+                    os.remove(tmp_file)
+            except PermissionError:
+                pass
+            time.sleep(delay)
+
+    return False
 
 
 def time_diff(time_str_1, time_str_2='Current Time'):

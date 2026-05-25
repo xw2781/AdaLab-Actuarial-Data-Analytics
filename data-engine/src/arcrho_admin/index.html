@@ -18,9 +18,13 @@
     }
 
     .app {
+      box-sizing: border-box;
+      min-height: 100vh;
       max-width: 1500px;
       margin: 0 auto;
       padding: 24px;
+      display: flex;
+      flex-direction: column;
     }
 
     header {
@@ -57,6 +61,8 @@
       grid-template-columns: minmax(280px, 340px) minmax(900px, 1fr);
       gap: 18px;
       align-items: start;
+      flex: 1;
+      min-height: 0;
     }
 
     section {
@@ -80,6 +86,20 @@
       padding: 14px 16px 16px;
     }
 
+    .instances-panel {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .instances-panel .section-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
     .field {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -91,6 +111,12 @@
 
     .field:last-child {
       border-bottom: 0;
+    }
+
+    .panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 12px;
     }
 
     label {
@@ -186,7 +212,9 @@
     }
 
     .table-wrap {
-      overflow-x: auto;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
     }
 
     th, td {
@@ -315,6 +343,9 @@
               <label for="root">Project Root</label>
               <input id="root" class="root" type="text" data-path="root">
             </div>
+            <div class="panel-actions">
+              <button id="resetConfig">Reset</button>
+            </div>
           </div>
         </section>
 
@@ -345,9 +376,23 @@
             </div>
           </div>
         </section>
+
+        <section style="margin-top: 18px;">
+          <h2>Bridge</h2>
+          <div class="section-body">
+            <div class="field">
+              <label for="bridgeKillAll">Stop Bridge</label>
+              <span class="switch"><input id="bridgeKillAll" type="checkbox" data-path="apps.bridge.kill_all"></span>
+            </div>
+            <div class="field">
+              <label for="bridgeWorkerKillAll">Stop Bridge Worker</label>
+              <span class="switch"><input id="bridgeWorkerKillAll" type="checkbox" data-path="apps.bridge_worker.kill_all"></span>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <section>
+      <section class="instances-panel">
         <h2>Live Instances</h2>
         <div class="section-body">
           <div class="toolbar">
@@ -411,6 +456,19 @@
           <path d="M10.8 7.2l-3.6 8.3M13.2 7.2l3.6 8.3M8.7 18h6.6" fill="none" stroke="#7c3aed" stroke-width="1.7" stroke-linecap="round"></path>
         </svg>
       `,
+      bridge: `
+        <svg class="role-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 7.5h14M5 16.5h14" fill="none" stroke="#0f766e" stroke-width="1.8" stroke-linecap="round"></path>
+          <circle cx="7" cy="7.5" r="2.4" fill="#0f766e"></circle>
+          <circle cx="17" cy="16.5" r="2.4" fill="#0f766e"></circle>
+        </svg>
+      `,
+      bridge_worker: `
+        <svg class="role-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="#0f766e" stroke-width="1.7"></rect>
+          <path d="M9 12h6M12 9v6" fill="none" stroke="#0f766e" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+      `,
     };
 
     function setStatus(text, isError = false) {
@@ -434,15 +492,19 @@
     async function loadConfig() {
       try {
         const data = await api("/api/config");
-        configPathEl.textContent = data.path;
-        for (const input of document.querySelectorAll("[data-path]")) {
-          const value = getNestedValue(data.config, input.dataset.path);
-          if (input.type === "checkbox") input.checked = Boolean(value);
-          else input.value = value ?? "";
-        }
+        renderConfig(data);
         setStatus("Config loaded");
       } catch (err) {
         setStatus("Config load failed", true);
+      }
+    }
+
+    function renderConfig(data) {
+      configPathEl.textContent = data.path;
+      for (const input of document.querySelectorAll("[data-path]")) {
+        const value = getNestedValue(data.config, input.dataset.path);
+        if (input.type === "checkbox") input.checked = Boolean(value);
+        else input.value = value ?? "";
       }
     }
 
@@ -602,6 +664,19 @@
       }
     }
 
+    function closeAdminPage() {
+      window.close();
+      document.body.innerHTML = "<main class=\"app\"><section><h1>ArcRho Admin Control Closed</h1></section></main>";
+    }
+
+    async function checkAdminServer() {
+      try {
+        await api("/api/health");
+      } catch (err) {
+        closeAdminPage();
+      }
+    }
+
     for (const input of document.querySelectorAll("[data-path]")) {
       input.addEventListener("input", () => queueSave(input));
       input.addEventListener("change", () => queueSave(input));
@@ -621,14 +696,26 @@
       });
     }
     document.getElementById("openConfigFolder").addEventListener("click", () => api("/api/open-config-folder", {method: "POST"}));
+    document.getElementById("resetConfig").addEventListener("click", async () => {
+      if (!confirm("Reset Admin Control settings to default mode?")) return;
+      try {
+        const data = await api("/api/reset-config", {method: "POST"});
+        renderConfig(data);
+        setStatus("Defaults restored");
+      } catch (err) {
+        setStatus("Reset failed", true);
+      }
+    });
     document.getElementById("shutdownServer").addEventListener("click", async () => {
       await api("/api/shutdown", {method: "POST"});
       setStatus("Admin server closed");
+      setTimeout(closeAdminPage, 200);
     });
 
     loadConfig();
     loadInstances();
     setInterval(loadInstances, 5000);
+    setInterval(checkAdminServer, 2000);
   </script>
 </body>
 </html>

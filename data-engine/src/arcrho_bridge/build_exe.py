@@ -1,8 +1,8 @@
-import subprocess
-from pathlib import Path
-import sys
 import shutil
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent.parent
@@ -23,27 +23,25 @@ VENV_PYTHON = PROJECT_ROOT / "venvs" / BASE_DIR.name / "Scripts" / "python.exe"
 REQ_FILE = BASE_DIR / "requirements.txt"
 
 ENTRY_PY = BASE_DIR / "main.py"
-APP_NAME = component_app_name("orchestrator")
+APP_NAME = component_app_name("bridge")
 ICON = resolve_existing_path(
-    PROJECT_ROOT / "library" / "icon" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT / "assets" / "icons" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT / "library" / "icon" / "ArcRhoV7.ico",
-    PROJECT_ROOT / "library" / "icon" / "ADASV7.ico",
+    PROJECT_ROOT / "library" / "icon" / "ArcRho Engine.ico",
+    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Engine.ico",
+    PROJECT_ROOT / "assets" / "icons" / "ArcRho Engine.ico",
+    PROJECT_ROOT / "library" / "icon" / "ArcRhoV4.ico",
+    PROJECT_ROOT / "library" / "icon" / "ADASV4.ico",
 )
 
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
 
-try:
-    shutil.rmtree(BUILD_DIR)
-except:
-    pass
 
-try:
-    shutil.rmtree(SPEC_DIR)
-except:
-    pass
+for folder in (BUILD_DIR, SPEC_DIR):
+    try:
+        shutil.rmtree(folder)
+    except FileNotFoundError:
+        pass
+
 
 def run(cmd, check=True):
     print("\n>>>", " ".join(map(str, cmd)))
@@ -70,10 +68,7 @@ def install_requirements():
     if not REQ_FILE.exists():
         raise FileNotFoundError(f"requirements.txt not found: {REQ_FILE}")
 
-    # Upgrade pip tooling first (more reliable installs)
     run([VENV_PYTHON, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
-
-    # Install requirements
     run([VENV_PYTHON, "-m", "pip", "install", "-r", REQ_FILE])
 
 
@@ -81,19 +76,27 @@ def build_exe():
     APPS_DIR.mkdir(parents=True, exist_ok=True)
     cmd = [
         VENV_PYTHON,
-        "-m", "PyInstaller",
-        "--specpath", SPEC_DIR,
-        "--noconfirm",   
+        "-m",
+        "PyInstaller",
+        "--specpath",
+        SPEC_DIR,
+        "--noconfirm",
         "--onedir",
-        "--paths", SOURCE_ROOT,
-        "--hidden-import", "utils",
+        "--paths",
+        SOURCE_ROOT,
+        "--hidden-import",
+        "utils",
         f"--icon={ICON}",
-        "--add-data", f"{ICON};.",
+        "--add-data",
+        f"{ICON};.",
         "--noconsole",
         "--clean",
-        "--name", APP_NAME,
-        "--distpath", APPS_DIR,
-        "--workpath", BUILD_DIR,
+        "--name",
+        APP_NAME,
+        "--distpath",
+        APPS_DIR,
+        "--workpath",
+        BUILD_DIR,
         ENTRY_PY,
     ]
 
@@ -113,6 +116,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except subprocess.CalledProcessError as e:
-        print(f"\nERROR: Command failed with exit code {e.returncode}")
-        sys.exit(e.returncode)
+    except subprocess.CalledProcessError as exc:
+        print(f"\nERROR: Command failed with exit code {exc.returncode}")
+        sys.exit(exc.returncode)

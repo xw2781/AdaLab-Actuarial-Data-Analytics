@@ -4,16 +4,30 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Resolve product root from __file__: main.py -> engine app -> core -> project root
-_PRODUCT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _PRODUCT_ROOT not in sys.path:
-    sys.path.insert(0, _PRODUCT_ROOT)
+# Resolve packaged, deployed src layout, and repo src layout.
+_MODULE_ROOT = Path(__file__).resolve().parent
+_SOURCE_ROOT = _MODULE_ROOT.parent
+_BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", _MODULE_ROOT)).resolve()
+_EXE_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else None
+_DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
+
+if "ARCRHO_ROOT" not in os.environ:
+    if _EXE_DIR and _EXE_DIR.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent)
+    elif _EXE_DIR and _EXE_DIR.parent.name.lower() == "apps":
+        os.environ["ARCRHO_ROOT"] = str(_EXE_DIR.parent.parent)
+    elif not getattr(sys, "frozen", False):
+        os.environ["ARCRHO_ROOT"] = str(_DEPLOY_ROOT)
+
+for _path in (_SOURCE_ROOT, _BUNDLE_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from core.utils import get_config_value, get_project_root, normalize_function_name
-from core.arcrho_engine.data_processing import (
+from utils import get_config_value, get_project_root, normalize_function_name
+from arcrho_engine.data_processing import (
     BASE_DICT,
     PROJECT_CONFIG,
     PROJECT_CONFIG_LOCK,
@@ -30,7 +44,7 @@ from core.arcrho_engine.data_processing import (
     remove_old_instances,
     robot_id,
 )
-from core.arcrho_engine.general_utils import (
+from arcrho_engine.general_utils import (
     DLOOKUP,
     convert_dict,
     get_current_time,
@@ -109,10 +123,12 @@ class RequestHandler(FileSystemEventHandler):
                 UDF_ADASHeaders(arg)
             else:
                 write_lists_to_csv(arg['DataPath'], [['(invalid function name)']])
+
         except ProjectSettingsError as e:
             print(str(e))
             write_lists_to_csv(arg['DataPath'], [['project settings not defined']])
             return
+        
         except Exception as e:
             if debug_mode:
                 import traceback
@@ -171,4 +187,5 @@ def start_monitoring(path):
     observer.join()
 
 
-start_monitoring(str(get_project_root() / "requests"))
+if __name__ == "__main__":
+    start_monitoring(str(get_project_root() / "requests"))
