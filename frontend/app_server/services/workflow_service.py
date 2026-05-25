@@ -7,14 +7,12 @@ from typing import Any, Dict
 
 from fastapi import HTTPException
 
+from app_server import config
 from app_server.schemas.workflow import WorkflowLoadRequest, WorkflowSaveAsRequest, WorkflowSaveRequest
 
 
 def _sanitize_workflow_filename(name: str) -> str:
-    invalid = [":", "*", "?", '"', "<", ">", "|", "/", "\\", "\n", "\r", "\t"]
-    out = (name or "").strip()
-    for ch in invalid:
-        out = out.replace(ch, "_")
+    out = config.encode_filename_segment((name or "").strip())
     return out.strip() or "workflow"
 
 

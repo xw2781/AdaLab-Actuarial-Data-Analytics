@@ -39,16 +39,13 @@ def _sanitize_project_dir_name(name: str) -> str:
 
 
 def _sanitize_filename(name: str) -> str:
-    invalid = [":", "*", "?", '"', "<", ">", "|", "/", "\\", "\n", "\r", "\t"]
-    out = (name or "").strip()
-    for ch in invalid:
-        out = out.replace(ch, "_")
+    out = config.encode_filename_segment((name or "").strip())
     return out.strip() or "workflow"
 
 
 def sanitize_reserving_class_folder(value: Any, fallback: str = "ReservingClass") -> str:
     text = str(value if value is not None else "").strip()
-    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", text)
+    text = config.encode_filename_segment(text)
     text = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), text)
     text = re.sub(r"\s+", " ", text).strip()
     return text or fallback
@@ -56,7 +53,7 @@ def sanitize_reserving_class_folder(value: Any, fallback: str = "ReservingClass"
 
 def sanitize_dataset_file_name(value: Any, fallback: str = "Dataset") -> str:
     text = str(value if value is not None else "").strip()
-    text = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", text)
+    text = config.encode_filename_segment(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text or fallback
 
@@ -110,8 +107,7 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
             dataset_file = f"{dataset_file}@{origin_part}@{dev_part}"
         return os.path.join(project_data_dir, rc_folder, f"{dataset_file}.csv")
 
-    full_name = "@".join(values)
-    full_name = full_name.replace("\\", "^").replace("/", "^").replace("*", "$star$")
+    full_name = config.encode_filename_segment("@".join(values))
 
     if proj:
         return os.path.join(project_data_dir, f"{full_name}.csv")

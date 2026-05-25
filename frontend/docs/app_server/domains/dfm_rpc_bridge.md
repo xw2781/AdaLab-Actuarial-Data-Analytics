@@ -43,6 +43,7 @@ Routes:
 - Local DFM method JSON path: `projects/<project>/data/<ReservingClassFolder>/DFM@<Name>.json`.
 - Remote DFM method JSON path: `projects/<project>/data/tmp/<ReservingClassFolder>/DFM@<Name>.json`.
 - Remote update status JSON path: `projects/<project>/data/tmp/<ReservingClassFolder>/SyncDFM@<Name>.json`.
+- `<ReservingClassFolder>` and `<Name>` use the shared reversible `_%XX_` filename escaping rule for Windows-invalid filename characters.
 - Applying the remote version writes the canonical GUI-tab grouped DFM method JSON with the same row-compact layout used by normal DFM saves, so any 2D array remains one child row per JSON line, including `ratio triangle`.`excluded`, `average formulas`.`selected`, input data triangle values, `ratio triangle`.`ratio values`, `average formulas`.`values`, and extra or nested 2D arrays when present.
 - Applying the remote version is driven by an explicit component list matching the current grouped RPC JSON shape. Synced RPC components include Details fields, `ratio triangle`.`excluded`, average formula labels/settings/selected values, Results ratio-basis settings, notes, and `method metadata`.`last modified`.
 - Local-only or active-page-owned components are explicitly preserved when local values exist: Data-tab labels, Ratios-tab labels, input data triangle values, input data triangle CSV path, ratio values, and ultimate vector. `average formulas`.`values` merges by row so populated RPC rows update local values while empty RPC rows preserve local rows.

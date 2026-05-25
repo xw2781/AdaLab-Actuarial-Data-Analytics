@@ -29,7 +29,7 @@ Routes:
 <!-- MANUAL:BEGIN -->
 - Cache file path: `projects/<project>/data/dfm_method_index.json`.
 - Indexed method files must match local DFM method storage: `projects/<project>/data/<ReservingClassFolder>/DFM@<Name>.json`.
-- The index stores only method entries with `path` and `name`. `path` is the filename-safe Reserving Class folder under `data`, and `name` is the DFM method name component.
+- The index stores only method entries with `path` and `name`. `path` is the filename-escaped Reserving Class folder under `data`, and `name` is the DFM method name component; both use the shared reversible `_%XX_` rule for Windows-invalid filename characters.
 - Normal DFM saves request an index refresh for the current project after the JSON file is written, so newly created DFM objects are available in the Details `Name` selector.
 - `% Developed` curve lookup is read-only. It uses the same local DFM filename convention, reads `data tab`.`development labels` for x-axis month indexes, reads `ratios tab`.`ratio triangle`.`development labels` for displayed ratio period labels, reads `ratios tab`.`average formulas`.`selected` and `values`, derives selected/cumulative/% developed values, and returns only plot points and request metadata. Missing or incomplete DFM methods return explicit API errors so the frontend does not add a comparison line.
 <!-- MANUAL:END -->

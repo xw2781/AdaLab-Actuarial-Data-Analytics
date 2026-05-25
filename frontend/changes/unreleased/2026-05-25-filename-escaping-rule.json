@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "app-server",
+  "audience": "user",
+  "summary": "Updated app-server file and folder naming to preserve invalid filename characters with reversible escaping.",
+  "details": [
+    "Project, reserving-class, dataset, DFM method, workflow, and project-user filename components now use the shared _%XX_ escaping rule instead of one-way underscore, caret, or $star$ replacements."
+  ]
+}

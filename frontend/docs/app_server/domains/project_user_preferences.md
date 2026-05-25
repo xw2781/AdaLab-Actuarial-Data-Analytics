@@ -25,7 +25,7 @@ Routes:
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
-- Preference file path: `projects/<project>/users/<windows-login>/preferences.json`.
+- Preference file path: `projects/<project>/users/<windows-login>/preferences.json`; the Windows login folder uses the shared reversible `_%XX_` filename escaping rule for Windows-invalid filename characters.
 - `lastReservingClassPath` stores the project-specific last Reserving Class path shared by Dataset Viewer, DFM objects, and future pages that use the same Reserving Class input.
 - `datasetViewer` stores the project-specific last Dataset Name for Dataset Viewer.
 - `datasetNamePicker` stores the Dataset Type picker `dsp-pref-pop` toggles (`doubleClickToSelect`, `closeAfterSelection`) for the current project/user.

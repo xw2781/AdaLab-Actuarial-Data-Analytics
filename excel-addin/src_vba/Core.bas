@@ -2,9 +2,9 @@
 Option Private Module
 Option Explicit
 
-Public Const ADAS_VERSION As String = "2.1.0"
+Public Const ARCRHO_VERSION As String = "2.1.0"
 
-' User-specific config (C:\Users\...\AppData\Local\ADAS\config.txt)
+' User-specific config (C:\Users\...\AppData\Local\ArcRho\config.txt)
 Public configDir As String
 Public configPath As String
 Public removeData As Boolean
@@ -28,10 +28,6 @@ Public pendingUpdate As Boolean
 Public doubleRefresh As Boolean
 Public disableWatcher As Boolean
 
-' UI Select Dataset
-Public Const VP_SETTINGS_PATH As String = "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx"
-Public Const VP_SETTINGS_SHEET As String = "Dataset Types"
-
 Public triangle_tool_row As Long
 Public triangle_tool_col As Long
 
@@ -47,7 +43,28 @@ Public Function FirstExistingPath(ParamArray paths() As Variant) As String
 End Function
 
 Public Function ProductRootPath() As String
-    ProductRootPath = FirstExistingPath("E:\ArcRho Server", "E:\ArcRho", "E:\ADAS")
+    Dim addinDir As String
+    addinDir = ThisWorkbook.Path
+
+    If EndsWithText(addinDir, "\Excel Add-ins\beta") Then
+        ProductRootPath = Left$(addinDir, Len(addinDir) - Len("\Excel Add-ins\beta"))
+        Exit Function
+    End If
+
+    If EndsWithText(addinDir, "\Excel Add-ins") Then
+        ProductRootPath = Left$(addinDir, Len(addinDir) - Len("\Excel Add-ins"))
+        Exit Function
+    End If
+
+    ProductRootPath = "\\Ne7saswpn02\e\ArcRho Server"
+End Function
+
+Private Function EndsWithText(ByVal value As String, ByVal suffix As String) As Boolean
+    If Len(value) < Len(suffix) Then
+        EndsWithText = False
+    Else
+        EndsWithText = (StrComp(Right$(value, Len(suffix)), suffix, vbTextCompare) = 0)
+    End If
 End Function
 
 Public Function ProductPath(ByVal relativePath As String) As String
@@ -55,14 +72,8 @@ Public Function ProductPath(ByVal relativePath As String) As String
     ProductPath = ProductRootPath() & "\" & relativePath
 End Function
 
-Public Function VPSettingsPath() As String
-    VPSettingsPath = FirstExistingPath( _
-        ProductPath("Virtual Projects\ResQ - Channel.xlsx"), _
-        "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx")
-End Function
-
 Private Sub InitConfigPaths()
-    configDir = Environ$("LOCALAPPDATA") & "\ADAS"
+    configDir = Environ$("LOCALAPPDATA") & "\ArcRho"
     configPath = configDir & "\config.txt"
 End Sub
 
@@ -86,6 +97,11 @@ Public Function GetDataset(funcArgs As String)
     
     dataPath = SetDataPath(funcArgs)
     If InStrRev(dataPath, "\") > 0 Then
+        projectDataDir = GetProjectDataRootFromDataPath(dataPath)
+        If Len(projectDataDir) > 0 And Dir(projectDataDir, vbDirectory) = "" Then
+            GetDataset = "(project not defined: " & projectDataDir & ")"
+            GoTo CleanExit
+        End If
         projectDataDir = Left$(dataPath, InStrRev(dataPath, "\") - 1)
         If Dir(projectDataDir, vbDirectory) = "" Then
             EnsureFolderPath projectDataDir
@@ -143,22 +159,35 @@ CleanExit:
     
 ErrHandler:
     Debug.Print "GetDataset error: "; Err.Number; Err.Description
+    Debug.Print "ProductRootPath: "; ProductRootPath()
+    Debug.Print "DataPath: "; dataPath
+    Debug.Print "RequestDir: "; ProductPath("requests")
+    GetDataset = "ArcRho file access error " & Err.Number & ": " & Err.Description
     Resume CleanExit
-
+    
 End Function
 
 
+Private Function FolderExists(ByVal folderPath As String) As Boolean
+    On Error GoTo Missing
+    FolderExists = ((GetAttr(folderPath) And vbDirectory) = vbDirectory)
+    Exit Function
+Missing:
+    FolderExists = False
+End Function
 Private Sub EnsureFolderPath(ByVal folderPath As String)
     Dim parts() As String
     Dim currentPath As String
     Dim i As Long
-
+    Dim mkdirErr As Long
+    Dim mkdirDesc As String
+    
     If Len(Trim$(folderPath)) = 0 Then Exit Sub
-    If Dir(folderPath, vbDirectory) <> "" Then Exit Sub
-
+    If FolderExists(folderPath) Then Exit Sub
+    
     parts = Split(folderPath, "\")
     If UBound(parts) < 0 Then Exit Sub
-
+    
     If Left$(folderPath, 2) = "\\" Then
         If UBound(parts) < 3 Then Exit Sub
         currentPath = "\\" & parts(2) & "\" & parts(3)
@@ -167,15 +196,38 @@ Private Sub EnsureFolderPath(ByVal folderPath As String)
         currentPath = parts(0)
         i = 1
     End If
-
+    
     For i = i To UBound(parts)
         If Len(parts(i)) > 0 Then
             currentPath = currentPath & "\" & parts(i)
-            If Dir(currentPath, vbDirectory) = "" Then MkDir currentPath
+            If Not FolderExists(currentPath) Then
+                On Error Resume Next
+                MkDir currentPath
+                mkdirErr = Err.Number
+                mkdirDesc = Err.Description
+                Err.Clear
+                On Error GoTo 0
+                If mkdirErr <> 0 And Not FolderExists(currentPath) Then
+                    Err.Raise mkdirErr, "EnsureFolderPath", "Could not create folder: " & currentPath & " - " & mkdirDesc
+                End If
+            End If
         End If
     Next i
 End Sub
 
+Private Function GetProjectDataRootFromDataPath(ByVal dataPath As String) As String
+    Dim marker As String
+    Dim pos As Long
+    marker = "\data\"
+    pos = InStr(1, dataPath, marker, vbTextCompare)
+    If pos > 0 Then
+        GetProjectDataRootFromDataPath = Left$(dataPath, pos + Len("\data") - 1)
+    ElseIf InStrRev(dataPath, "\") > 0 Then
+        GetProjectDataRootFromDataPath = Left$(dataPath, InStrRev(dataPath, "\") - 1)
+    Else
+        GetProjectDataRootFromDataPath = vbNullString
+    End If
+End Function
 Public Sub LoadConfig()
     Dim line As String, parts As Variant
     Dim fileVersion As String
@@ -211,7 +263,7 @@ Public Sub LoadConfig()
         Close #f
 
         ' Version mismatch ? delete config
-        If fileVersion <> ADAS_VERSION Then
+        If fileVersion <> ARCRHO_VERSION Then
             Kill configPath
         End If
     End If
@@ -222,7 +274,7 @@ Public Sub LoadConfig()
     If Dir(configPath) = "" Then
         f = FreeFile
         Open configPath For Output As #f
-        Print #f, "version = " & ADAS_VERSION
+        Print #f, "version = " & ARCRHO_VERSION
         Print #f, "removeData = False"
         Print #f, "disable_ufLoading = False"
         Print #f, "teamProfile = Default"
@@ -364,7 +416,7 @@ Public Function SetDataPath(inputString As String) As String
     Else
         projectDataPath = basePath & "data"
     End If
-
+    
     ' New storage contract: dataset CSV files live under one sanitized
     ' reserving-class folder and no longer repeat the reserving class path in
     ' the filename.
@@ -374,31 +426,33 @@ Public Function SetDataPath(inputString As String) As String
         SetDataPath = projectDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
         Exit Function
     End If
-
-    ' Legacy fallback for requests that are not scoped by reserving class and
-    ' dataset name, such as ArcRhoHeaders.
-    fullName = Replace(fullName, "\", "^")
-    fullName = Replace(fullName, "/", "^")
-    fullName = Replace(fullName, "*", "$star$")
+    
+    ' Fallback for requests that are not scoped by reserving class and dataset
+    ' name, such as ArcRhoHeaders and ArcRhoProjectSettings.
+    fullName = EncodeFileNameSegment(fullName)
     SetDataPath = projectDataPath & "\" & fullName & ".csv"
 End Function
 
+' Keep this mapping in sync with data-engine/docs/filename-escaping-rules.md.
+Private Function EncodeFileNameSegment(ByVal value As String) As String
+    EncodeFileNameSegment = value
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "\", "_%5C_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "/", "_%2F_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, ":", "_%3A_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "*", "_%2A_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "?", "_%3F_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, """", "_%22_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "<", "_%3C_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, ">", "_%3E_")
+    EncodeFileNameSegment = Replace(EncodeFileNameSegment, "|", "_%7C_")
+End Function
+
 Private Function SanitizeProjectFolderName(ByVal value As String) As String
-    Dim invalidChars As Variant, ch As Variant
-    SanitizeProjectFolderName = Trim$(value)
-    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
-    For Each ch In invalidChars
-        SanitizeProjectFolderName = Replace(SanitizeProjectFolderName, CStr(ch), "_")
-    Next ch
+    SanitizeProjectFolderName = EncodeFileNameSegment(Trim$(value))
 End Function
 
 Private Function SanitizeReservingClassFolderName(ByVal value As String) As String
-    Dim invalidChars As Variant, ch As Variant
-    SanitizeReservingClassFolderName = Trim$(value)
-    invalidChars = Array("<", ">", ":", """", "/", "\", "|", "?", "*")
-    For Each ch In invalidChars
-        SanitizeReservingClassFolderName = Replace(SanitizeReservingClassFolderName, CStr(ch), "^")
-    Next ch
+    SanitizeReservingClassFolderName = EncodeFileNameSegment(Trim$(value))
     Do While Right$(SanitizeReservingClassFolderName, 1) = " " Or Right$(SanitizeReservingClassFolderName, 1) = "."
         SanitizeReservingClassFolderName = Left$(SanitizeReservingClassFolderName, Len(SanitizeReservingClassFolderName) - 1) & "^"
     Loop
@@ -406,12 +460,7 @@ Private Function SanitizeReservingClassFolderName(ByVal value As String) As Stri
 End Function
 
 Private Function SanitizeDataFileName(ByVal value As String) As String
-    Dim invalidChars As Variant, ch As Variant
-    SanitizeDataFileName = Trim$(value)
-    invalidChars = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
-    For Each ch In invalidChars
-        SanitizeDataFileName = Replace(SanitizeDataFileName, CStr(ch), "_")
-    Next ch
+    SanitizeDataFileName = EncodeFileNameSegment(Trim$(value))
     If Len(SanitizeDataFileName) = 0 Then SanitizeDataFileName = "Dataset"
 End Function
 
@@ -430,42 +479,61 @@ Public Sub SendRequest(requestInfo As String)
     Dim lines() As String
     Dim aFile As Integer
     Dim currentTime As String
+    Dim requestDir As String
     Dim tempPath As String, finalPath As String
+    Dim phase As String
     Dim i As Long
+
+    On Error GoTo ErrHandler
 
     If disableRequest Then Exit Sub
 
     lines = Split(requestInfo, "#")
 
     currentTime = Format(Now, "yyyy-mm-dd_hh-mm-ss") & Format(Timer - Int(Timer), ".000")
-    If Dir(ProductPath("requests"), vbDirectory) = "" Then MkDir ProductPath("requests")
+    requestDir = ProductPath("requests")
+    phase = "ensure request folder"
+    If Not FolderExists(requestDir) Then
+        On Error Resume Next
+        EnsureFolderPath requestDir
+        Err.Clear
+        On Error GoTo ErrHandler
+    End If
 
-    tempPath = ProductPath("requests\request-" & currentTime & ".tmp")
-    finalPath = ProductPath("requests\request-" & currentTime & ".txt")
+    tempPath = requestDir & "\request-" & currentTime & ".tmp"
+    finalPath = requestDir & "\request-" & currentTime & ".txt"
 
+    phase = "open temp request file"
     aFile = FreeFile
     Open tempPath For Output As #aFile
+        phase = "write temp request file"
         For i = LBound(lines) To UBound(lines)
             Print #aFile, lines(i)
         Next
         Print #aFile, "UserName = " & Environ$("USERNAME")
     Close #aFile
 
-    ' --- overwrite protection ---
+    phase = "remove existing final request file"
     If Dir(finalPath, vbNormal) <> "" Then
-        On Error Resume Next
         Kill finalPath
-        If Err.Number <> 0 Then
-            Err.Clear
-            On Error GoTo 0
-            Kill tempPath     ' cleanup temp
-            Exit Sub          ' abort safely
-        End If
-        On Error GoTo 0
     End If
 
-    ' --- atomic publish ---
+    phase = "publish final request file"
+    On Error Resume Next
     Name tempPath As finalPath
+    If Err.Number <> 0 Then
+        Err.Clear
+        FileCopy tempPath, finalPath
+        Kill tempPath
+    End If
+    On Error GoTo 0
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    If aFile <> 0 Then Close #aFile
+    On Error GoTo 0
+    Err.Raise Err.Number, "SendRequest", phase & " failed. RequestDir=" & requestDir & "; TempPath=" & tempPath & "; FinalPath=" & finalPath & "; " & Err.Description
 End Sub
 
 Public Function GetDataArray(dataPath As String)
@@ -512,6 +580,13 @@ Public Function GetDataArray(dataPath As String)
     
     GetDataArray = outputArray
 End Function
+
+
+
+
+
+
+
 
 
 

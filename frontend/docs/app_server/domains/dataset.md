@@ -37,7 +37,7 @@ Also handles dataset Notes persistence files under each project `data` folder.
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Uses in-memory dataset map and patch payloads.
-- ArcRhoTri CSV request targets are `projects/<project>/data/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv` such as `Claim Counts--CWP@12@12.csv`; the reserving-class path is a single caret-sanitized folder name and is not repeated in the CSV filename.
+- ArcRhoTri CSV request targets are `projects/<project>/data/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv` such as `Claim Counts--CWP@12@12.csv`; the reserving-class path is a single filename-escaped folder name using the reversible `_%XX_` rule and is not repeated in the CSV filename.
 - Persists dataset Notes as JSON files in `projects/<project>/data/<ReservingClassFolder>/ArcRhoTriNotes@<DatasetName>.json`.
 - Cached dataset lookup is read-only and scans only the selected reserving-class folder, matching `.csv` and `.json` filenames back to dataset-name candidates after applying the same server-side folder/file sanitizers used by runtime cache writes.
 <!-- MANUAL:END -->

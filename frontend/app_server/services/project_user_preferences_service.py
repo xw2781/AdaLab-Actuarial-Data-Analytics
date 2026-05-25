@@ -4,7 +4,6 @@ from __future__ import annotations
 import getpass
 import json
 import os
-import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -20,9 +19,8 @@ def _clean_text(value: Any) -> str:
 
 
 def _safe_folder_name(value: str, fallback: str = "unknown") -> str:
-    cleaned = _clean_text(value)
-    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    cleaned = config.encode_filename_segment(_clean_text(value))
+    cleaned = " ".join(cleaned.split()).strip(" .")
     return cleaned or fallback
 
 

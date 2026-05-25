@@ -31,7 +31,7 @@ Workflow file save/load domain.
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
-- Reads/writes workflow files under configured workflow directory.
+- Reads/writes workflow files under configured workflow directory; saved workflow names use the shared reversible `_%XX_` filename escaping rule for Windows-invalid filename characters.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

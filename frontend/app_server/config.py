@@ -245,19 +245,36 @@ ELECTRON_SHUTDOWN_FLAG = BASE_DIR / ".shutdown_electron"
 # Path-resolver helpers
 # ---------------------------------------------------------------------------
 
+def encode_filename_segment(name: str) -> str:
+    replacements = {
+        "\\": "_%5C_",
+        "/": "_%2F_",
+        ":": "_%3A_",
+        "*": "_%2A_",
+        "?": "_%3F_",
+        '"': "_%22_",
+        "<": "_%3C_",
+        ">": "_%3E_",
+        "|": "_%7C_",
+    }
+    out = []
+    for ch in name or "":
+        if ch in replacements:
+            out.append(replacements[ch])
+        elif ord(ch) < 32:
+            out.append(f"_%{ord(ch):02X}_")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _sanitize_folder_name(name: str) -> str:
-    invalid = [":", "*", "?", '"', "<", ">", "|"]
-    out = name or ""
-    for ch in invalid:
-        out = out.replace(ch, "_")
-    return out
+    return encode_filename_segment(name or "")
 
 
 def _sanitize_project_dir_name(name: str) -> str:
     out = (name or "").strip()
-    for ch in ["\\", "/", ":", "*", "?", '"', "<", ">", "|"]:
-        out = out.replace(ch, "_")
-    return out
+    return encode_filename_segment(out)
 
 
 def _infer_project_name_from_table_path(table_path: str) -> str:
