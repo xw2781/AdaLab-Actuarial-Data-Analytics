@@ -6,6 +6,8 @@ backup_src_vba.cmd
 push.cmd
 
 # Excel / Office artifacts
+excel-addin/beta/
+excel-addin/signature/
 *.xlam
 *.xlsm
 *.xlsx
@@ -17,6 +19,7 @@ node-portable/
 node-v*-win-x64/
 .venv/
 venv/
+venvs/
 venv_*/
 .env
 .env.*
@@ -53,6 +56,7 @@ output/
 cache/
 temp/
 tmp_data/
+runtime/
 *.tmp
 *.log
 .restart_app

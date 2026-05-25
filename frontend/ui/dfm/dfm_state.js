@@ -6,6 +6,10 @@ used across all DFM tab modules.
 */
 import { state } from "/ui/shared/state.js";
 import {
+  sanitizeDataFolderPart,
+  sanitizeFileNamePart,
+} from "/ui/shared/filename_sanitizer.js";
+import {
   getSummaryConfigKey,
   loadCustomSummaryRows,
 } from "/ui/dfm/dfm_storage.js";
@@ -232,21 +236,10 @@ export function getHostApi() {
   return null;
 }
 
-export function sanitizeFileNamePart(value, fallback) {
-  const cleaned = String(value ?? "")
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, "_")
-    .replace(/\s+/g, " ");
-  return cleaned || fallback;
-}
+export { sanitizeFileNamePart };
 
-function sanitizeDfmMethodFilePartWithCaret(value, fallback) {
-  const cleaned = String(value ?? "")
-    .trim()
-    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, "^")
-    .replace(/[. ]+$/g, (match) => "^".repeat(match.length))
-    .replace(/\s+/g, " ");
-  return cleaned || fallback;
+export function sanitizeDfmMethodFilePart(value, fallback) {
+  return sanitizeDataFolderPart(value, fallback);
 }
 
 export function getRatioSaveProjectName() {
@@ -265,7 +258,7 @@ export function getRatioSaveSuggestedName() {
 export async function getRatioSaveBaseDir() {
   const rootPath = await getRootPath();
   const project = sanitizeFileNamePart(getRatioSaveProjectName(), "UnknownProject");
-  const reservingClass = sanitizeDfmMethodFilePartWithCaret(
+  const reservingClass = sanitizeDfmMethodFilePart(
     getResolvedReservingClass() || String(document.getElementById("pathInput")?.value || "").trim(),
     "ReservingClass",
   );

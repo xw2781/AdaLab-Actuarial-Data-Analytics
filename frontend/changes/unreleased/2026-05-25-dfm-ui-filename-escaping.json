@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "frontend",
+  "audience": "user",
+  "summary": "Aligned frontend dataset-style save paths with the reversible filename escaping rule.",
+  "details": [
+    "DFM direct file saves now use a shared browser-side sanitizer matching the app-server and Excel add-in _%XX_ convention used by Dataset, DFM, and future dataset-style modules."
+  ]
+}

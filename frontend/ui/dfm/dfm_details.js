@@ -9,6 +9,7 @@ import {
   getResolvedProjectName,
   getResolvedReservingClass,
   markDfmDirty,
+  sanitizeDfmMethodFilePart,
 } from "/ui/dfm/dfm_state.js";
 import { resetRatioChartThresholds } from "/ui/dfm/dfm_ratios_tab.js";
 import {
@@ -36,15 +37,6 @@ function toText(value) {
 
 function normalizeKey(value) {
   return toText(value).toLowerCase();
-}
-
-function sanitizeDfmMethodPathPart(value) {
-  const cleaned = String(value ?? "")
-    .trim()
-    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, "^")
-    .replace(/[. ]+$/g, (match) => "^".repeat(match.length))
-    .replace(/\s+/g, " ");
-  return cleaned;
 }
 
 function getInputSnapshotSafe() {
@@ -522,12 +514,12 @@ async function applyLastLocalProjectNameIfBlank() {
 }
 
 function normalizeDfmMethodIndexNames(payload, pathValue) {
-  const targetPath = sanitizeDfmMethodPathPart(pathValue);
+  const targetPath = sanitizeDfmMethodFilePart(pathValue, "");
   const targetKey = normalizeKey(targetPath);
   const seen = new Set();
   const out = [];
   for (const item of Array.isArray(payload?.methods) ? payload.methods : []) {
-    const itemPath = sanitizeDfmMethodPathPart(item?.path);
+    const itemPath = sanitizeDfmMethodFilePart(item?.path, "");
     const name = toText(item?.name);
     if (!name || normalizeKey(itemPath) !== targetKey) continue;
     const key = normalizeKey(name);
@@ -541,7 +533,7 @@ function normalizeDfmMethodIndexNames(payload, pathValue) {
 
 async function loadDfmMethodNames(projectName, pathValue, options = {}) {
   const project = toText(projectName);
-  const pathPart = sanitizeDfmMethodPathPart(pathValue);
+  const pathPart = sanitizeDfmMethodFilePart(pathValue, "");
   if (!project || !pathPart) return [];
   const cacheKey = `${normalizeKey(project)}\n${normalizeKey(pathPart)}`;
   if (!options?.forceReload && dfmMethodNamesByProjectPath.has(cacheKey)) {
