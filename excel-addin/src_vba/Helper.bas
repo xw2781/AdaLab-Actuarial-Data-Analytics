@@ -246,7 +246,7 @@ Private Function IsNonEmptyValue(ByVal v As Variant) As Boolean
 End Function
 
 ' ref like:  "Sheet Name!$B$4:$C$11"
-Public Sub RefreshADASBlock(ByVal ref As String)
+Public Sub RefreshArcRhoBlock(ByVal ref As String)
     Dim parts() As String
     Dim shName As String, addr As String
     Dim ws As Worksheet

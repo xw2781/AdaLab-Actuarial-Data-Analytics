@@ -18,6 +18,9 @@ Option Explicit
 
 ' in-memory data from the sheet
 ' mData is a 2D array including headers (row 1)
+Private Const DATASET_TYPES_FILE As String = "Dataset Types.xlsx"
+Private Const DATASET_TYPES_SHEET As String = "Dataset Types"
+
 Private mData As Variant
 Private mColCat As Long, mColName As Long, mColFmt As Long
 
@@ -36,8 +39,8 @@ Private Sub UserForm_Initialize()
     
     On Error GoTo clean_fail
     
-    Set wb = Workbooks.Open(fileName:=VP_SETTINGS_PATH, ReadOnly:=True, UpdateLinks:=False, AddToMru:=False)
-    Set ws = wb.Worksheets(VP_SETTINGS_SHEET)
+    Set wb = Workbooks.Open(fileName:=DatasetTypesPath(), ReadOnly:=True, UpdateLinks:=False, AddToMru:=False)
+    Set ws = wb.Worksheets(DATASET_TYPES_SHEET)
     
     ' Load the used range to an array
     mData = ws.UsedRange.Value2
@@ -65,10 +68,13 @@ clean_exit:
     Exit Sub
 
 clean_fail:
-    MsgBox "Unable to load dataset list:" & vbCrLf & VP_SETTINGS_PATH & " / " & VP_SETTINGS_SHEET & vbCrLf & Err.Description, vbExclamation
+    MsgBox "Unable to load dataset list:" & vbCrLf & DatasetTypesPath() & " / " & DATASET_TYPES_SHEET & vbCrLf & Err.Description, vbExclamation
     Resume clean_exit
 End Sub
 
+Private Function DatasetTypesPath() As String
+    DatasetTypesPath = ProductPath("library\" & DATASET_TYPES_FILE)
+End Function
 ' ==== Filtering ====
 
 Private Sub ApplyFilters()
@@ -196,15 +202,15 @@ Private Sub cmdSelect_Click()
     Dim tgt As Range, owner As Range
     Set tgt = ActiveCell
 
-    ' 1) If active cell itself is ADAS formula -> update its second arg
-    If tgt.HasFormula And IsADASFormula(tgt.Formula2) Then
-        If UpdateADASArg(2, tgt, picked) Then Exit Sub
+    ' 1) If active cell itself is ArcRho or legacy alias formula -> update its second arg
+    If tgt.HasFormula And IsArcRhoFormula(tgt.Formula2) Then
+        If UpdateArcRhoArg(2, tgt, picked) Then Exit Sub
     End If
 
-    ' 2) If active cell is inside a spill from an ADAS formula -> update that owner
-    Set owner = FindADASOwnerForCell(tgt)
+    ' 2) If active cell is inside a spill from an ArcRho or legacy alias formula -> update that owner
+    Set owner = FindArcRhoOwnerForCell(tgt)
     If Not owner Is Nothing Then
-        If UpdateADASArg(2, owner, picked) Then Exit Sub
+        If UpdateArcRhoArg(2, owner, picked) Then Exit Sub
     End If
 
     ' 3) Otherwise just write the Value to the active cell
@@ -218,5 +224,7 @@ End Sub
 Private Sub cmdCancel_Click()
     Unload Me
 End Sub
+
+
 
 

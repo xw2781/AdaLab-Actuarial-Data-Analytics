@@ -1,6 +1,6 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ufSettings 
-   Caption         =   "User Settings - ADAS"
+   Caption         =   "User Settings - ArcRho"
    ClientHeight    =   7230
    ClientLeft      =   195
    ClientTop       =   795
@@ -18,10 +18,11 @@ Option Explicit
 Private Sub UserForm_Initialize()
   ' Get Initial Values
     LoadConfig
-    ComboBox1.Value = "E:\ADAS\Virtual Projects\ResQ - Channel.xlsx"
-    ComboBox2.Value = "E:\ADAS\Team Profile\Actuarial_NJ.xlsm"
-    
-    LoadFilePaths ComboBox1, "E:\ADAS\Virtual Projects\"
+    On Error Resume Next
+    ComboBox1.Visible = False
+    CommandButton1.Visible = False
+    On Error GoTo 0
+    ComboBox2.Value = ProductPath("Team Profile\Actuarial_NJ.xlsm")
     
     If removeData Then
         OptionButton1.Value = False
@@ -66,12 +67,6 @@ End Sub
 ' +--------+
 ' | Page 2 |
 ' +--------+
-
-' Virtual Project Settings
-
-Private Sub CommandButton1_Click()
-    OpenFileFromCombo Me.ComboBox1
-End Sub
 
 ' Team Profile
 
@@ -121,4 +116,6 @@ Public Sub OpenFileFromCombo(cb As MSForms.ComboBox)
     ThisWorkbook.FollowHyperlink f
     
 End Sub
+
+
 

@@ -15,7 +15,6 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Private Const CSV_PATH As String = "E:\ADAS\library\INDEX_RSV_CLS_INPUT.csv"
 Private mHeaders As Variant      ' 1..5 strings
 Private mDefaults As Variant     ' 1..5 strings
 Private mAllCols As Variant      ' 1..5, each 0-based array of strings
@@ -23,14 +22,22 @@ Private mUpdating As Boolean
 Private mFilteringEnabled As Boolean
 Private mUIReady As Boolean
 
+Private Const RSV_CLS_INPUT_FILE As String = "INDEX_RSV_CLS_INPUT.csv"
+
 Private Sub UserForm_Initialize()
     On Error GoTo load_fail
+    Dim csvPath As String
+    Dim loadStage As String
     
     mFilteringEnabled = False ' start disabled
-    mUIReady = False          ' <— form not ready yet
+    mUIReady = False          ' form not ready yet
     
-    LoadCSV5 CSV_PATH, 5, mHeaders, mDefaults, mAllCols
+    loadStage = "resolving CSV path"
+    csvPath = ReservingClassesInputPath()
+    loadStage = "loading CSV data"
+    LoadCSV5 csvPath, 5, mHeaders, mDefaults, mAllCols
     
+    loadStage = "setting field labels"
     lbl1.Caption = NzStr(mHeaders(1), "Field 1")
     lbl2.Caption = NzStr(mHeaders(2), "Field 2")
     lbl3.Caption = NzStr(mHeaders(3), "Field 3")
@@ -40,15 +47,19 @@ Private Sub UserForm_Initialize()
     ' choose defaults: external > CSV row2
     Dim d(1 To 5) As String
     Dim i As Long
+    Dim activeRng As Range
     
-    If ActiveCellHasRsvCls Then
+    Set activeRng = GetSafeActiveCell()
+    loadStage = "reading active cell defaults"
+    If Not activeRng Is Nothing And ActiveCellHasRsvCls(activeRng) Then
         Dim arr As Variant
-        arr = GetActiveCellParts()
+        arr = GetActiveCellParts(activeRng)
         For i = 1 To 5: d(i) = arr(i): Next i
     Else
         For i = 1 To 5: d(i) = CStr(mDefaults(i)): Next
     End If
     
+    loadStage = "initializing controls"
     InitCombo cbo1, 1, d(1)
     InitCombo cbo2, 2, d(2)
     InitCombo cbo3, 3, d(3)
@@ -59,8 +70,14 @@ Private Sub UserForm_Initialize()
     
     Exit Sub
 load_fail:
-    MsgBox "Failed to load from:" & vbCrLf & CSV_PATH & vbCrLf & Err.Description, vbExclamation
+    MsgBox "Failed while " & loadStage & ":" & vbCrLf & csvPath & vbCrLf & Err.Description, vbExclamation
 End Sub
+
+Private Function ReservingClassesInputPath() As String
+    ReservingClassesInputPath = FirstExistingPath( _
+        ProductPath("library\" & RSV_CLS_INPUT_FILE), _
+        ProductPath(RSV_CLS_INPUT_FILE))
+End Function
 
 Private Sub UserForm_Activate()
     mUIReady = True
@@ -289,21 +306,24 @@ Private Sub cmdSelect_Click()
     Dim result As String
     result = parts(1) & "\" & parts(2) & "\" & parts(3) & "\" & parts(4) & "\" & parts(5)
     
-    ' If InStr(ActiveCell.Formula, "ADAS") = 0 Then ActiveCell.Value = result
     ' Unload Me
     
     Dim tgt As Range, owner As Range
-    Set tgt = ActiveCell
-
-    ' 1) If active cell itself is ADAS formula -> update its second arg
-    If tgt.HasFormula And IsADASFormula(tgt.Formula2) Then
-        If UpdateADASArg(1, tgt, result) Then Exit Sub
+    Set tgt = GetSafeActiveCell()
+    If tgt Is Nothing Then
+        MsgBox "Select a worksheet cell before loading reserving classes.", vbExclamation
+        Exit Sub
     End If
 
-    ' 2) If active cell is inside a spill from an ADAS formula -> update that owner
-    Set owner = FindADASOwnerForCell(tgt)
+    ' 1) If active cell itself is ArcRho or legacy alias formula -> update its second arg
+    If tgt.HasFormula And IsArcRhoFormula(tgt.Formula2) Then
+        If UpdateArcRhoArg(1, tgt, result) Then Exit Sub
+    End If
+
+    ' 2) If active cell is inside a spill from an ArcRho or legacy alias formula -> update that owner
+    Set owner = FindArcRhoOwnerForCell(tgt)
     If Not owner Is Nothing Then
-        If UpdateADASArg(1, owner, result) Then Exit Sub
+        If UpdateArcRhoArg(1, owner, result) Then Exit Sub
     End If
 
     ' 3) Otherwise just write the Value to the active cell
@@ -314,9 +334,17 @@ Private Sub cmdCancel_Click()
     Unload Me
 End Sub
 
-Public Function ActiveCellHasRsvCls() As Boolean
+Private Function GetSafeActiveCell() As Range
+    On Error Resume Next
+    Set GetSafeActiveCell = ActiveCell
+    On Error GoTo 0
+End Function
+
+Public Function ActiveCellHasRsvCls(ByVal cell As Range) As Boolean
+    If cell Is Nothing Then Exit Function
+
     Dim s As String
-    s = CStr(ActiveCell.Value)
+    s = CStr(cell.Value)
     
     ' Count "\" occurrences
     If (Len(s) - Len(Replace$(s, "\", ""))) = 4 Then
@@ -326,13 +354,18 @@ Public Function ActiveCellHasRsvCls() As Boolean
     End If
 End Function
 
-Public Function GetActiveCellParts() As Variant
+Public Function GetActiveCellParts(ByVal cell As Range) As Variant
     Dim s As String
     Dim parts As Variant
     Dim arr(1 To 5) As String
     Dim i As Long
     
-    s = CStr(ActiveCell.Value)
+    If cell Is Nothing Then
+        GetActiveCellParts = arr
+        Exit Function
+    End If
+
+    s = CStr(cell.Value)
     parts = Split(s, "\")   ' 0-based array (0 to 4)
     
     For i = 0 To 4
@@ -341,6 +374,9 @@ Public Function GetActiveCellParts() As Variant
     
     GetActiveCellParts = arr   ' return 1-based array
 End Function
+
+
+
 
 
 

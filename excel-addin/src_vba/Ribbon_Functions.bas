@@ -1,4 +1,3 @@
-Attribute VB_Name = "Ribbon_Functions"
 Sub CalculateWorkbook()
     If disableProgressBar Then
         CalculateWorkbookNoUI
@@ -30,11 +29,11 @@ Sub CalculateWorkbookWithUI()
     doubleRefresh = Fasle
     
     Show_ufProgressBar
-    ufProgressBar.LabelTitle.Caption = "Searching for ADAS formulas ..."
+    ufProgressBar.LabelTitle.Caption = "Searching for ArcRho formulas ..."
     DoEvents
    
     ' Step (1) Search & Send Requests
-    Call SearchADASFormulas
+    Call SearchArcRhoFormulas
     
     If processedArrays Is Nothing Then Exit Sub
     If processedArrays.Count = 0 Then Exit Sub
@@ -50,7 +49,7 @@ Sub CalculateWorkbookWithUI()
         disableRequest = True
         For Each item In processedArrays
             If cancelUpdate Then GoTo CleanExit
-            Call RefreshADASBlock(CStr(item))
+            Call RefreshArcRhoBlock(CStr(item))
             
             countDataset = countDataset + 1
             ' Refresh UI
@@ -107,11 +106,11 @@ Sub CalculateSheet()
     doubleRefresh = Fasle
     
     Show_ufProgressBar
-    ufProgressBar.LabelTitle.Caption = "Searching for ADAS formulas ..."
+    ufProgressBar.LabelTitle.Caption = "Searching for ArcRho formulas ..."
     DoEvents
    
     ' Step (1) Search & Send Requests
-    SearchADASFormulas True
+    SearchArcRhoFormulas True
     
     If processedArrays Is Nothing Then Exit Sub
     If processedArrays.Count = 0 Then Exit Sub
@@ -127,7 +126,7 @@ Sub CalculateSheet()
         disableRequest = True
         For Each item In processedArrays
             If cancelUpdate Then GoTo CleanExit
-            Call RefreshADASBlock(CStr(item))
+            Call RefreshArcRhoBlock(CStr(item))
             
             countDataset = countDataset + 1
             ' Refresh UI
@@ -183,7 +182,7 @@ ErrorHandler:
     
 End Sub
 
-Public Sub SearchADASFormulas(Optional ByVal ActiveSheetOnly As Boolean = False)
+Public Sub SearchArcRhoFormulas(Optional ByVal ActiveSheetOnly As Boolean = False)
 
     Dim ws As Worksheet
     Dim cell As Range
@@ -233,7 +232,8 @@ Public Sub SearchADASFormulas(Optional ByVal ActiveSheetOnly As Boolean = False)
             End If
             cellKey = ws.Name & "!" & cell.Address
             If Not KeyExists(processedCells, cellKey) Then
-                If InStr(cell.formula, "ADAS") > 0 Then
+                If InStr(1, cell.formula, "ADAS", vbTextCompare) > 0 _
+                   Or InStr(1, cell.formula, "ArcRho", vbTextCompare) > 0 Then
                     If cell.HasArray Then
                         cell.CurrentArray.FormulaArray = cell.CurrentArray.FormulaArray
                         arrKey = ws.Name & "!" & cell.CurrentArray.Address
@@ -321,7 +321,7 @@ Public Sub SetupConnection2()
         Sheet2.Columns("B").ColumnWidth = 22.14
         Sheet2.Columns("C").ColumnWidth = 39.43
         
-        Sheet2.Range("B4:C11").FormulaArray = "=ADASProjectSettings()"
+        Sheet2.Range("B4:C11").FormulaArray = "=ArcRhoProjectSettings()"
         Sheet2.Range("C4:C11").Interior.Color = 10092543
         Sheet2.Range("C4:C11").HorizontalAlignment = xlCenter
         Sheet2.Range("C4:C11").Font.Color = 255 ' Red
@@ -392,8 +392,8 @@ Sub UnloadAddIn()
     Dim addIn As addIn
     
     For Each addIn In AddIns
-        'If InStr(addIn.name, "ADAS") > 0 Then
-        If addIn.Name = "ADAS.xlam" Or addIn.Name = "ADAS_BETA.xlam" Then
+        If StrComp(addIn.Name, "ArcRho.xlam", vbTextCompare) = 0 _
+           Or StrComp(addIn.Name, "ARCRHO_BETA.xlam", vbTextCompare) = 0 Then
             addIn.Installed = False
             Exit For
         End If
@@ -435,10 +435,10 @@ Sub ResetAddinReferences()
     Dim book As Workbook
     Dim oldCalcMode As XlCalculation
     Dim hasOldLink As Boolean
-    Dim hasNewLink As Boolean
+    Dim hasArcRhoLink As Boolean
     Dim hasBetaLink As Boolean
-    Dim TextADAS As String
-    Dim TextADAS_BETA As String
+    Dim TextArcRho As String
+    Dim TextArcRhoBeta As String
     Dim TextResQ As String
     
     On Error GoTo CleanExit
@@ -448,44 +448,45 @@ Sub ResetAddinReferences()
     
     Set book = ActiveWorkbook
     
-    TextADAS = "='E:\ADAS\Excel Add-ins\ADAS.xlam'!ADAS"
-    TextADAS_BETA = "='E:\ADAS\Excel Add-ins\beta\ADAS_BETA.xlam'!ADAS"
+    TextArcRho = "='" & ProductPath("Excel Add-ins\ArcRho.xlam") & "'!ArcRho"
+    TextArcRhoBeta = "='" & ProductPath("Excel Add-ins\beta\ARCRHO_BETA.xlam") & "'!ArcRho"
     TextResQ = "='C:\Program Files\Willis Towers Watson\ResQ\Addins\ResQ.xlam'!ResQ"
     
     ' Check all links in the workbook
     If Not IsEmpty(book.linkSources()) Then
         For Each link In book.linkSources()
             If InStr(link, "ResQ.xlam") > 0 Then hasOldLink = True
-            If InStr(link, "ADAS") > 0 Then hasNewLink = True
-            If InStr(link, "ADAS_BETA.xlam") > 0 Then hasBetaLink = True
+            If InStr(1, link, "ArcRho", vbTextCompare) > 0 Then hasArcRhoLink = True
+            If InStr(1, link, "ARCRHO_BETA.xlam", vbTextCompare) > 0 Then hasBetaLink = True
         Next link
     End If
     
-    If hasOldLink Then ' Change to ADAS
+    If hasOldLink Then ' Change to ArcRho
         skipDataProcess = True
-        ReplaceInWorkbook "='C:\Program Files (x86)\Willis Towers Watson\ResQ\Addins\ResQ.xlam'!ResQ", "=ADAS"
-        ReplaceInWorkbook TextResQ, "=ADAS"
-        ReplaceInWorkbook "=ResQ", "=ADAS"
-        Application.StatusBar = "ADAS Excel Add-in activated."
+        ReplaceInWorkbook "='C:\Program Files (x86)\Willis Towers Watson\ResQ\Addins\ResQ.xlam'!ResQ", "=ArcRho"
+        ReplaceInWorkbook TextResQ, "=ArcRho"
+        ReplaceInWorkbook "=ResQ", "=ArcRho"
+        Application.StatusBar = "ArcRho Excel Add-in activated."
         
-    ElseIf Not hasOldLink And hasNewLink Then ' Change to ResQ
+    ElseIf Not hasOldLink And hasArcRhoLink Then ' Change to ResQ
         If Dir("C:\Program Files\Willis Towers Watson\ResQ\Addins\ResQ.xlam") <> "" Then
             If hasBetaLink Then
-                ReplaceInWorkbook TextADAS_BETA, TextResQ
+                ReplaceInWorkbook TextArcRhoBeta, TextResQ
             Else
-                ReplaceInWorkbook TextADAS, TextResQ
+                ReplaceInWorkbook TextArcRho, TextResQ
             End If
-            ReplaceInWorkbook "=ADAS", TextResQ
+            ReplaceInWorkbook "=ArcRho", TextResQ
             Application.StatusBar = "ResQ Excel Add-in activated."
         Else
             Application.StatusBar = "Error: ResQ Excel Add-in can only be activated on Remote Desktop!"
         End If
     End If
     
-    If ThisWorkbook.Name = "ADAS.xlam" And hasBetaLink Then
+    If StrComp(ThisWorkbook.Name, "ArcRho.xlam", vbTextCompare) = 0 _
+        And hasBetaLink Then
         Application.StatusBar = ""
-        ReplaceInWorkbook "E:\ADAS\Excel Add-ins\beta\ADAS_BETA.xlam", "E:\ADAS\Excel Add-ins\ADAS.xlam"
-        Application.StatusBar = "ADAS - Update Completed!"
+        ReplaceInWorkbook ProductPath("Excel Add-ins\beta\ARCRHO_BETA.xlam"), ProductPath("Excel Add-ins\ArcRho.xlam")
+        Application.StatusBar = "ArcRho - Update Completed!"
     End If
     
 CleanExit:
@@ -493,5 +494,3 @@ CleanExit:
     skipDataProcess = False
     
 End Sub
-
-

@@ -1,7 +1,7 @@
 
 Private Sub Workbook_Open()
 
-    ' Register_ADASTri_Help_Safe
+    ' Register_ArcRhoTri_Help_Safe
     
     LoadConfig
     

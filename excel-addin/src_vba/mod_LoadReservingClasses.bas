@@ -1,4 +1,3 @@
-Attribute VB_Name = "mod_LoadReservingClasses"
 Option Private Module
 Option Explicit
 

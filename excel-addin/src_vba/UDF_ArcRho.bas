@@ -1,5 +1,5 @@
 
-Public Function ADASTri( _
+Public Function ArcRhoTri( _
     Path As String, TriangleName As String, _
     Optional Cumulative As Boolean = True, _
     Optional Transposed As Boolean = False, _
@@ -16,7 +16,7 @@ Public Function ADASTri( _
     On Error GoTo ErrorHandler
 
     v = GetDataset( _
-        "Function = ADASTri" & "#" & _
+        "Function = ArcRhoTri" & "#" & _
         "Path = " & Path & "#" & _
         "DatasetName = " & TriangleName & "#" & _
         "Cumulative = " & Cumulative & "#" & _
@@ -28,30 +28,30 @@ Public Function ADASTri( _
 
     ' If GetDataset returned an error value, just pass it through
     If IsError(v) Then
-        ADASTri = v
+        ArcRhoTri = v
         Exit Function
     End If
 
     ' If GetDataset returned an array, you may transpose it
     If IsArray(v) Then
         If Transposed Then
-            ADASTri = TransposeArray(v)
+            ArcRhoTri = TransposeArray(v)
         Else
-            ADASTri = v
+            ArcRhoTri = v
         End If
     Else
         ' Scalar (string/number/etc.) -> just return it directly
-        ADASTri = v
+        ArcRhoTri = v
     End If
 
     Exit Function
 
 ErrorHandler:
     Debug.Print "UDF error: "; Err.Number; Err.Description
-    ADASTri = "(dataset needs to be updated)"
+    ArcRhoTri = "(dataset needs to be updated)"
 End Function
 
-Public Function ADASTriDiag( _
+Public Function ArcRhoTriDiag( _
     Path As String, TriangleName As String, _
     Optional DiagonalIndex As Long = 0, _
     Optional Cumulative As Boolean = True, _
@@ -68,7 +68,7 @@ Public Function ADASTriDiag( _
     
     On Error Resume Next
     
-    tri = ADASTri( _
+    tri = ArcRhoTri( _
               Path, TriangleName, _
               Cumulative, Transposed = 1, Calendar = 0, _
               ProjectName, OriginLength, DevelopmentLength, _
@@ -78,11 +78,11 @@ Public Function ADASTriDiag( _
     
     If Transposed Then outArr = TransposeArray(outArr)
    
-    ADASTriDiag = outArr
+    ArcRhoTriDiag = outArr
     
 End Function
 
-Public Function ADASTriCell( _
+Public Function ArcRhoTriCell( _
     Path As String, TriangleName As String, _
     OriginPeriod As Long, DevelopmentPeriod As Long, _
     Optional Cumulative As Boolean = True, _
@@ -96,17 +96,17 @@ Public Function ADASTriCell( _
     Dim tri As Variant
     On Error Resume Next
     
-    tri = ADASTri( _
+    tri = ArcRhoTri( _
               Path, TriangleName, _
               Cumulative, Transposed = False, Calendar = False, _
               ProjectName, OriginLength, DevelopmentLength, _
               ByTypeName, SuppressWarnings)
     
-    ADASTriCell = tri(DevelopmentPeriod, OriginPeriod)
+    ArcRhoTriCell = tri(DevelopmentPeriod, OriginPeriod)
     
 End Function
 
-Public Function ADASHeaders( _
+Public Function ArcRhoHeaders( _
     periodType As Integer, _
     Transposed As Boolean, _
     Optional PeriodLength As Integer = 12, _
@@ -118,7 +118,7 @@ Public Function ADASHeaders( _
     On Error Resume Next
     
     outArr = GetDataset( _
-      "Function = ADASHeaders" & "#" & _
+      "Function = ArcRhoHeaders" & "#" & _
       "periodType = " & periodType & "#" & _
       "Transposed = " & Transposed & "#" & _
       "PeriodLength = " & PeriodLength & "#" & _
@@ -129,14 +129,14 @@ Public Function ADASHeaders( _
     outArr = FormatYYYYMM_ToMmmYYYY(outArr)
     
     If Transposed Then
-        ADASHeaders = outArr
+        ArcRhoHeaders = outArr
     Else
-        ADASHeaders = TransposeArray(outArr)
+        ArcRhoHeaders = TransposeArray(outArr)
     End If
     
 End Function
 
-Public Function ADASTriOrigin( _
+Public Function ArcRhoTriOrigin( _
     Path As String, TriangleName As String, _
     OriginPeriod As Long, _
     Optional Cumulative As Boolean = True, _
@@ -155,7 +155,7 @@ Public Function ADASTriOrigin( _
     Dim r As Long, c As Long
     On Error Resume Next
     
-    tri = ADASTri( _
+    tri = ArcRhoTri( _
             Path, TriangleName, _
             Cumulative, 0, Calendar, _
             ProjectName, OriginLength, DevelopmentLength, _
@@ -178,14 +178,14 @@ Public Function ADASTriOrigin( _
     Next c
 
     If Transposed Then
-        ADASTriOrigin = TransposeArray(outArr)
+        ArcRhoTriOrigin = TransposeArray(outArr)
     Else
-        ADASTriOrigin = outArr
+        ArcRhoTriOrigin = outArr
     End If
     
 End Function
 
-Public Function ADASVec( _
+Public Function ArcRhoVec( _
     Path As String, VectorName As String, _
     Optional Transposed As Boolean = False, _
     Optional ProjectName As String = "Default", _
@@ -198,7 +198,7 @@ Public Function ADASVec( _
     On Error Resume Next
     
     outArr = GetDataset( _
-        "Function = ADASVec" & "#" & _
+        "Function = ArcRhoVec" & "#" & _
         "Path = " & Path & "#" & _
         "DatasetName = " & VectorName & "#" & _
         "Cumulative = True" & "#" & _
@@ -208,14 +208,14 @@ Public Function ADASVec( _
         "DevelopmentLength = " & PeriodLength)
         
     If Transposed Then
-        ADASVec = TransposeArray(outArr)
+        ArcRhoVec = TransposeArray(outArr)
     Else
-        ADASVec = outArr
+        ArcRhoVec = outArr
     End If
     
 End Function
 
-Public Function ADASVecCell( _
+Public Function ArcRhoVecCell( _
     Path As String, VectorName As String, Index As Integer, _
     Optional ProjectName As String = "Default", _
     Optional PeriodLength As Integer = 12, _
@@ -226,7 +226,7 @@ Public Function ADASVecCell( _
     Dim vec As Variant
     On Error GoTo ErrorHandler
 
-    vec = ADASVec( _
+    vec = ArcRhoVec( _
               Path, VectorName, _
               Transposed:=False, _
               ProjectName:=ProjectName, _
@@ -235,12 +235,12 @@ Public Function ADASVecCell( _
               SuppressWarnings:=SuppressWarnings)
 
     If IsError(vec) Then
-        ADASVecCell = vec
+        ArcRhoVecCell = vec
         Exit Function
     End If
 
     If Not IsArray(vec) Then
-        ADASVecCell = vec
+        ArcRhoVecCell = vec
         Exit Function
     End If
 
@@ -255,7 +255,7 @@ Public Function ADASVecCell( _
         Err.Clear
         On Error GoTo ErrorHandler
         lb1 = LBound(vec, 1)
-        ADASVecCell = vec(lb1 + Index - 1)
+        ArcRhoVecCell = vec(lb1 + Index - 1)
     Else
         ' 2D array — index along whichever dimension has length > 1
         On Error GoTo ErrorHandler
@@ -263,42 +263,41 @@ Public Function ADASVecCell( _
         ub2 = UBound(vec, 2)
         If (ub2 - lb2) > 0 Then
             ' Multiple columns (1 row x N cols) — index along dim 2
-            ADASVecCell = vec(lb1, lb2 + Index - 1)
+            ArcRhoVecCell = vec(lb1, lb2 + Index - 1)
         Else
             ' Multiple rows (N rows x 1 col) — index along dim 1
-            ADASVecCell = vec(lb1 + Index - 1, lb2)
+            ArcRhoVecCell = vec(lb1 + Index - 1, lb2)
         End If
     End If
 
     Exit Function
 
 ErrorHandler:
-    ADASVecCell = 0
+    ArcRhoVecCell = 0
 End Function
 
-Public Function ADASProjectSettings(Optional ProjectName As String = "Default")
+Public Function ArcRhoProjectSettings(Optional ProjectName As String = "Default")
     On Error Resume Next
-    ADASProjectSettings = GetDataset( _
-        "Function = ADASProjectSettings" & "#" & _
+    ArcRhoProjectSettings = GetDataset( _
+        "Function = ArcRhoProjectSettings" & "#" & _
         "ProjectName = " & SetDefaultProject(ProjectName))
         
 End Function
 
-Function ADASReservingClasses(Optional Level, Optional WithDataOnly, Optional ProjectName) As Variant
-    ADASReservingClasses = ""
+Function ArcRhoReservingClasses(Optional Level, Optional WithDataOnly, Optional ProjectName) As Variant
+    ArcRhoReservingClasses = ""
 End Function
 
-Function ADASNodeContents(Path As String, Optional ContentType, Optional ProjectName) As Variant
-    ADASNodeContents = ""
+Function ArcRhoNodeContents(Path As String, Optional ContentType, Optional ProjectName) As Variant
+    ArcRhoNodeContents = ""
 End Function
 
-Sub ADASMetadata()
+Sub ArcRhoMetadata()
     qqq ActiveSheet.Name & "--" & ActiveCell.formula
 End Sub
+' --- Legacy UDF aliases for ArcRho functions ---
 
-' --- Arc wrapper functions (aliases for ADAS functions) ---
-
-Public Function ArcTri( _
+Public Function ADASTri( _
     Path As String, TriangleName As String, _
     Optional Cumulative As Boolean = True, _
     Optional Transposed As Boolean = False, _
@@ -309,11 +308,11 @@ Public Function ArcTri( _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcTri = ADASTri(Path, TriangleName, Cumulative, Transposed, Calendar, _
-                     ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
+    ADASTri = ArcRhoTri(Path, TriangleName, Cumulative, Transposed, Calendar, _
+                        ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcTriDiag( _
+Public Function ADASTriDiag( _
     Path As String, TriangleName As String, _
     Optional DiagonalIndex As Long = 0, _
     Optional Cumulative As Boolean = True, _
@@ -324,11 +323,11 @@ Public Function ArcTriDiag( _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcTriDiag = ADASTriDiag(Path, TriangleName, DiagonalIndex, Cumulative, Transposed, _
-                             ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
+    ADASTriDiag = ArcRhoTriDiag(Path, TriangleName, DiagonalIndex, Cumulative, Transposed, _
+                                ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcTriCell( _
+Public Function ADASTriCell( _
     Path As String, TriangleName As String, _
     OriginPeriod As Long, DevelopmentPeriod As Long, _
     Optional Cumulative As Boolean = True, _
@@ -338,21 +337,21 @@ Public Function ArcTriCell( _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcTriCell = ADASTriCell(Path, TriangleName, OriginPeriod, DevelopmentPeriod, Cumulative, _
-                             ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
+    ADASTriCell = ArcRhoTriCell(Path, TriangleName, OriginPeriod, DevelopmentPeriod, Cumulative, _
+                                ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcHeaders( _
+Public Function ADASHeaders( _
     periodType As Integer, _
     Transposed As Boolean, _
     Optional PeriodLength As Integer = 12, _
     Optional ProjectName As String = "Default", _
     Optional StoredPeriodLength As Integer = -1 _
 ) As Variant
-    ArcHeaders = ADASHeaders(periodType, Transposed, PeriodLength, ProjectName, StoredPeriodLength)
+    ADASHeaders = ArcRhoHeaders(periodType, Transposed, PeriodLength, ProjectName, StoredPeriodLength)
 End Function
 
-Public Function ArcTriOrigin( _
+Public Function ADASTriOrigin( _
     Path As String, TriangleName As String, _
     OriginPeriod As Long, _
     Optional Cumulative As Boolean = True, _
@@ -363,11 +362,11 @@ Public Function ArcTriOrigin( _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcTriOrigin = ADASTriOrigin(Path, TriangleName, OriginPeriod, Cumulative, Transposed, _
-                                 ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
+    ADASTriOrigin = ArcRhoTriOrigin(Path, TriangleName, OriginPeriod, Cumulative, Transposed, _
+                                    ProjectName, OriginLength, DevelopmentLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcVec( _
+Public Function ADASVec( _
     Path As String, VectorName As String, _
     Optional Transposed As Boolean = False, _
     Optional ProjectName As String = "Default", _
@@ -375,27 +374,32 @@ Public Function ArcVec( _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcVec = ADASVec(Path, VectorName, Transposed, ProjectName, PeriodLength, ByTypeName, SuppressWarnings)
+    ADASVec = ArcRhoVec(Path, VectorName, Transposed, ProjectName, PeriodLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcVecCell( _
+Public Function ADASVecCell( _
     Path As String, VectorName As String, Index As Integer, _
     Optional ProjectName As String = "Default", _
     Optional PeriodLength As Integer = 12, _
     Optional ByTypeName, _
     Optional SuppressWarnings _
 ) As Variant
-    ArcVecCell = ADASVecCell(Path, VectorName, Index, ProjectName, PeriodLength, ByTypeName, SuppressWarnings)
+    ADASVecCell = ArcRhoVecCell(Path, VectorName, Index, ProjectName, PeriodLength, ByTypeName, SuppressWarnings)
 End Function
 
-Public Function ArcProjectSettings(Optional ProjectName As String = "Default")
-    ArcProjectSettings = ADASProjectSettings(ProjectName)
+Public Function ADASProjectSettings(Optional ProjectName As String = "Default")
+    ADASProjectSettings = ArcRhoProjectSettings(ProjectName)
 End Function
 
-Function ArcReservingClasses(Optional Level, Optional WithDataOnly, Optional ProjectName) As Variant
-    ArcReservingClasses = ADASReservingClasses(Level, WithDataOnly, ProjectName)
+Function ADASReservingClasses(Optional Level, Optional WithDataOnly, Optional ProjectName) As Variant
+    ADASReservingClasses = ArcRhoReservingClasses(Level, WithDataOnly, ProjectName)
 End Function
 
-Function ArcNodeContents(Path As String, Optional ContentType, Optional ProjectName) As Variant
-    ArcNodeContents = ADASNodeContents(Path, ContentType, ProjectName)
+Function ADASNodeContents(Path As String, Optional ContentType, Optional ProjectName) As Variant
+    ADASNodeContents = ArcRhoNodeContents(Path, ContentType, ProjectName)
 End Function
+
+Sub ADASMetadata()
+    ArcRhoMetadata
+End Sub
+

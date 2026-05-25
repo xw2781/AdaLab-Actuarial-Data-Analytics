@@ -1,6 +1,6 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ufAbout 
-   Caption         =   "ADAS Excel Add-in"
+   Caption         =   "ArcRho Excel Add-in"
    ClientHeight    =   2415
    ClientLeft      =   255
    ClientTop       =   1020
@@ -15,12 +15,12 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 
 Private Sub UserForm_Initialize()
-    Label2.Caption = "Version: " & ADAS_VERSION
+    Label2.Caption = "Version: " & ARCRHO_VERSION
     Label3.ForeColor = RGB(100, 100, 100)
 End Sub
 
 Private Sub Label3_Click()
-    OpenWordReadOnly "E:\ADAS\library\Version Track.docx"
+    OpenWordReadOnly ProductPath("library\Version Track.docx")
 End Sub
 
 Sub OpenWordReadOnly(ByVal fullPath As String)
@@ -57,4 +57,5 @@ Private Sub UserForm_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, 
     ' Label3.Font.Name = "Aptos Narrow"
     Me.MousePointer = fmMousePointerDefault
 End Sub
+
 

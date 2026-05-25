@@ -1,4 +1,3 @@
-Attribute VB_Name = "UDF_TRIMAVG"
 ' TRIMAVG(rng, [n_year], [exclude], [weights])
 ' - Filters rng like lastNRow (skip: errors, empty, "", whitespace-only strings, "0" as text,
 '   numeric 0, and cells formatted with Strikethrough), then keeps the last N rows.

@@ -1,4 +1,3 @@
-Attribute VB_Name = "mod_SelectDataset"
 Option Private Module
 Option Explicit
 
@@ -131,25 +130,28 @@ End Function
 
 '=== Helpers ======================================================
 
-Public Function IsADASFormula(ByVal f As String) As Boolean
+Public Function IsArcRhoFormula(ByVal f As String) As Boolean
     Dim u As String: u = UCase$(Trim$(f))
-    IsADASFormula = (Left$(u, 9) = "=ADASTRI(") Or (Left$(u, 9) = "=ADASVEC(")
+    IsArcRhoFormula = (Left$(u, 9) = "=ADASTRI(") _
+        Or (Left$(u, 9) = "=ADASVEC(") _
+        Or (Left$(u, 11) = "=ARCRHOTRI(") _
+        Or (Left$(u, 11) = "=ARCRHOVEC(")
 End Function
 
-' Return the top-left “owner” cell if ActiveCell is inside a spilled ADAS output;
+' Return the top-left “owner” cell if ActiveCell is inside a spilled ArcRho or legacy alias output;
 ' otherwise Nothing.
-Public Function FindADASOwnerForCell(ByVal c As Range) As Range
+Public Function FindArcRhoOwnerForCell(ByVal c As Range) As Range
     On Error Resume Next
 
-    ' 1) If c itself is an ADAS formula, it’s the owner
+    ' 1) If c itself is an ArcRho or legacy alias formula, it’s the owner
     If c.HasFormula Then
-        If IsADASFormula(c.Formula2) Then
-            Set FindADASOwnerForCell = c
+        If IsArcRhoFormula(c.Formula2) Then
+            Set FindArcRhoOwnerForCell = c
             Exit Function
         End If
     End If
 
-    ' 2) Look for a nearby spilled ADAS formula whose spill range contains c.
+    ' 2) Look for a nearby spilled ArcRho or legacy alias formula whose spill range contains c.
     '    Limit the search to CurrentRegion to keep it snappy.
     Dim region As Range
     If c.CurrentRegion Is Nothing Then
@@ -165,7 +167,7 @@ Public Function FindADASOwnerForCell(ByVal c As Range) As Range
 
     If Not formulas Is Nothing Then
         For Each fc In formulas.Cells
-            If IsADASFormula(fc.Formula2) Then
+            If IsArcRhoFormula(fc.Formula2) Then
                 If fc.HasSpill Then
                     Dim spill As Range
                     On Error Resume Next
@@ -173,7 +175,7 @@ Public Function FindADASOwnerForCell(ByVal c As Range) As Range
                     On Error GoTo 0
                     If Not spill Is Nothing Then
                         If Not Application.Intersect(c, spill) Is Nothing Then
-                            Set FindADASOwnerForCell = fc
+                            Set FindArcRhoOwnerForCell = fc
                             Exit Function
                         End If
                     End If
@@ -183,16 +185,16 @@ Public Function FindADASOwnerForCell(ByVal c As Range) As Range
     End If
 End Function
 
-' Replace the N-th argument in the ADAS formula:
+' Replace the N-th argument in the ArcRho or legacy alias formula:
 '   - If the N-th arg is a string literal, replace it in the formula text.
 '   - If the N-th arg is a reference, write newVal into that reference and
 '     leave the formula unchanged.
-Public Function UpdateADASArg(ByVal n_th_arg As Long, _
+Public Function UpdateArcRhoArg(ByVal n_th_arg As Long, _
                               ByVal owner As Range, _
                               ByVal newVal As String) As Boolean
     Dim f As String
     f = owner.Formula2
-    If Not IsADASFormula(f) Then Exit Function
+    If Not IsArcRhoFormula(f) Then Exit Function
     If n_th_arg < 1 Then Exit Function
 
     Dim i As Long, lvl As Long, inQ As Boolean
@@ -275,7 +277,7 @@ Public Function UpdateADASArg(ByVal n_th_arg As Long, _
         rightPart = Mid$(f, endPos + 1)
 
         owner.Formula2 = leftPart & """" & esc & """" & rightPart
-        UpdateADASArg = True
+        UpdateArcRhoArg = True
         Exit Function
     End If
 
@@ -291,7 +293,7 @@ Public Function UpdateADASArg(ByVal n_th_arg As Long, _
 
     If Not refRng Is Nothing Then
         refRng.Value = newVal
-        UpdateADASArg = True
+        UpdateArcRhoArg = True
     Else
         ' Fallback: if we can't resolve the ref, switch to string literal
         Dim esc2 As String
@@ -302,7 +304,8 @@ Public Function UpdateADASArg(ByVal n_th_arg As Long, _
         rightPart2 = Mid$(f, endPos + 1)
 
         owner.Formula2 = leftPart2 & """" & esc2 & """" & rightPart2
-        UpdateADASArg = True
+        UpdateArcRhoArg = True
     End If
 End Function
+
 

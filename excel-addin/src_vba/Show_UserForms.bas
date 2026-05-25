@@ -1,4 +1,3 @@
-Attribute VB_Name = "Show_UserForms"
 ' ufLoading
 
 Sub Show_ufLoading()
