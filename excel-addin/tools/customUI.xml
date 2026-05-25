@@ -1,0 +1,34 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">
+	<ribbon>
+		<tabs>
+			<tab id="aTab" label="ArcRho" insertAfterMso="TabHome">   
+        			<group id="Group1" label="Unlimited Remote Access">
+          				<button id="G11" label="Connect and Login"  imageMso="ImportMoreMenu"  size="large" onAction="uiSetupConnection2"/>
+          				<button id="G12" label="Calculate Worksheet" imageMso="CalculateSheet"  size="large" onAction="uiRefreshSheet"/>
+          				<button id="G13" label="Calculate Workbook"  imageMso="Calculator"    size="large" onAction="uiRefreshWorkbook"/>
+						<button id="G14" label="Refresh Database"   imageMso="DataRefreshAll"  size="large"  onAction="uiRefreshDatabase"/>
+					</group>
+
+					<group id="Group2" label="Shortcuts">
+						<button id="G21" label="Insert Function"  imageMso="WorkflowVariables"  size="large" onAction="uiInsertFunction"/>
+          				<button id="G22" label="Clear Formulas"  imageMso="InkEraseMode"   size="large" onAction="uiClearResQFormulae2"/>
+						<button id="G23" label="Load Reserving Classes"  imageMso="OrganizationChartLayoutRightHanging" size="large"   onAction="uiLoadReservingClasses2"/>
+						<button id="G24" label="Select Datasets"  imageMso="ViewsDesignView"  size="large" onAction="uiSelectDatasets"/>
+					</group>
+
+					<group id="Group3" label="Add-in Settings">
+						<button id="G31" label="Reset Add-in References"   imageMso="QueryMakeTable"    size="large" onAction="uiResetAddinReferences"/>
+						<button id="G32" label="Load and Calculate"  imageMso="CatalogMergeCreateList"  size="large"  onAction="uiLoadAddIn"/>
+						<button id="G33" label="Unload Add-In"  imageMso="ExcludeSelectedRecord"  size="large"  onAction="uiUnloadAddIn"/>
+        			</group>
+
+					<group id="Group4" label="Options">
+						<button id="G41" label="Check Updates"   imageMso="SmartArtReorderDown"  size="large"  onAction="uiCheckUpdates"/>
+						<button id="G42" label="Settings"   imageMso="CurrentViewSettings"  size="large"  onAction="uiSettings"/>
+						<button id="G43" label="About"   imageMso="About"  size="large"  onAction="uiAbout"/>
+					</group>
+
+			</tab>
+		</tabs>
+	</ribbon>
+</customUI>

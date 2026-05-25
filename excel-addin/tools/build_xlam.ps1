@@ -1,0 +1,270 @@
+﻿param(
+    [string]$SourceDir = (Join-Path $PSScriptRoot "..\src_vba"),
+    [string]$TargetPath = (Join-Path $PSScriptRoot "..\beta\ARCRHO_BETA.xlam"),
+    [string]$CustomUIPath = (Join-Path $PSScriptRoot "customUI.xml")
+)
+
+$ErrorActionPreference = "Stop"
+
+function Resolve-FullPath([string]$Path) {
+    $executionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+}
+
+function Get-VbaComponentName([System.IO.FileInfo]$File) {
+    $name = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+    $name = $name -replace '[^A-Za-z0-9_]', '_'
+    if ($name -notmatch '^[A-Za-z]') {
+        $name = "M_$name"
+    }
+    $name
+}
+
+function Remove-ExcelTempFiles([string]$Directory) {
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+        return
+    }
+
+    Get-ChildItem -LiteralPath $Directory -File -Force |
+        Where-Object {
+            ($_.Name -match '^[0-9A-Fa-f]{8}$' -and [string]::IsNullOrEmpty($_.Extension)) -or
+            ($_.Name -like '~$*.xls*')
+        } |
+        ForEach-Object {
+            try {
+                Remove-Item -LiteralPath $_.FullName -Force
+                Write-Host "Removed Excel temp file $($_.Name)"
+            }
+            catch {
+                Write-Warning "Could not remove Excel temp file $($_.FullName): $($_.Exception.Message)"
+            }
+        }
+}
+
+function Get-RibbonLabelForWorkbook([string]$WorkbookPath) {
+    [System.IO.Path]::GetFileNameWithoutExtension($WorkbookPath)
+}
+
+function Update-WorkbookCoreProperties([string]$WorkbookPath, [string]$Title) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $zip = [System.IO.Compression.ZipFile]::Open($WorkbookPath, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $zip.Entries | Where-Object { ($_.FullName -replace '\\', '/') -ieq 'docProps/core.xml' } | Select-Object -First 1
+        if ($null -eq $entry) {
+            Write-Warning "Workbook core properties not found: $WorkbookPath"
+            return
+        }
+
+        $reader = New-Object System.IO.StreamReader($entry.Open())
+        try {
+            [xml]$xml = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+
+        $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+        $ns.AddNamespace('dc', 'http://purl.org/dc/elements/1.1/')
+        $titleNode = $xml.SelectSingleNode('//dc:title', $ns)
+        if ($null -eq $titleNode) {
+            $titleNode = $xml.CreateElement('dc', 'title', 'http://purl.org/dc/elements/1.1/')
+            [void]$xml.DocumentElement.AppendChild($titleNode)
+        }
+        $titleNode.InnerText = $Title
+
+        $descriptionNode = $xml.SelectSingleNode('//dc:description', $ns)
+        if ($null -eq $descriptionNode) {
+            $descriptionNode = $xml.CreateElement('dc', 'description', 'http://purl.org/dc/elements/1.1/')
+            [void]$xml.DocumentElement.AppendChild($descriptionNode)
+        }
+        $descriptionNode.InnerText = 'ArcRho actuarial data and analytics system'
+
+        $entry.Delete()
+        $newEntry = $zip.CreateEntry('docProps/core.xml', [System.IO.Compression.CompressionLevel]::Optimal)
+        $writer = New-Object System.IO.StreamWriter($newEntry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+        try {
+            $xml.Save($writer)
+        }
+        finally {
+            $writer.Dispose()
+        }
+        Write-Host "Updated workbook title: $Title"
+    }
+    finally {
+        $zip.Dispose()
+    }
+}
+
+function New-CustomUIXmlForWorkbook([string]$RibbonXmlPath, [string]$WorkbookPath, [string]$WorkingDir) {
+    if (-not (Test-Path -LiteralPath $WorkingDir -PathType Container)) {
+        New-Item -ItemType Directory -Path $WorkingDir | Out-Null
+    }
+
+    $label = Get-RibbonLabelForWorkbook $WorkbookPath
+    [xml]$xml = Get-Content -LiteralPath $RibbonXmlPath -Raw
+
+    $namespaceUri = $xml.DocumentElement.NamespaceURI
+    if ([string]::IsNullOrEmpty($namespaceUri)) {
+        $tab = $xml.SelectSingleNode("//tab")
+    }
+    else {
+        $namespaceManager = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+        $namespaceManager.AddNamespace("ui", $namespaceUri)
+        $tab = $xml.SelectSingleNode("//ui:tab", $namespaceManager)
+    }
+
+    if ($null -eq $tab) {
+        throw "Ribbon XML does not contain a tab element: $RibbonXmlPath"
+    }
+
+    $tab.SetAttribute("label", $label)
+
+    $tempPath = Join-Path $WorkingDir ("customUI.{0}.xml" -f [System.Guid]::NewGuid().ToString("N"))
+    $settings = New-Object System.Xml.XmlWriterSettings
+    $settings.Indent = $true
+    $settings.OmitXmlDeclaration = $true
+    $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+
+    $writer = [System.Xml.XmlWriter]::Create($tempPath, $settings)
+    try {
+        $xml.Save($writer)
+    }
+    finally {
+        $writer.Close()
+    }
+
+    Write-Host "Using ribbon tab label: $label"
+    $tempPath
+}
+
+function Update-CustomUIXml([string]$WorkbookPath, [string]$RibbonXmlPath) {
+    if (-not (Test-Path -LiteralPath $RibbonXmlPath -PathType Leaf)) {
+        Write-Warning "Ribbon XML not found: $RibbonXmlPath"
+        return
+    }
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $tempRibbonXmlPath = New-CustomUIXmlForWorkbook $RibbonXmlPath $WorkbookPath ([System.IO.Path]::GetTempPath())
+    $zip = [System.IO.Compression.ZipFile]::Open($WorkbookPath, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entryPath = "customUI/customUI.xml"
+        $entriesToDelete = @($zip.Entries | Where-Object { ($_.FullName -replace '\\', '/') -ieq $entryPath })
+        foreach ($entry in $entriesToDelete) {
+            $entry.Delete()
+        }
+
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $zip,
+            $tempRibbonXmlPath,
+            $entryPath,
+            [System.IO.Compression.CompressionLevel]::Optimal
+        ) | Out-Null
+
+        Write-Host "Updated ribbon XML: $RibbonXmlPath"
+    }
+    finally {
+        $zip.Dispose()
+        if ($null -ne $tempRibbonXmlPath -and (Test-Path -LiteralPath $tempRibbonXmlPath -PathType Leaf)) {
+            Remove-Item -LiteralPath $tempRibbonXmlPath -Force
+        }
+    }
+}
+
+$sourceDirFull = Resolve-FullPath $SourceDir
+$targetPathFull = Resolve-FullPath $TargetPath
+$customUIPathFull = Resolve-FullPath $CustomUIPath
+
+if (-not (Test-Path -LiteralPath $sourceDirFull -PathType Container)) {
+    throw "Source VBA folder not found: $sourceDirFull"
+}
+
+if (-not (Test-Path -LiteralPath $targetPathFull -PathType Leaf)) {
+    throw "Target XLAM not found: $targetPathFull"
+}
+
+$targetName = Split-Path -Leaf $targetPathFull
+if ([string]::Compare($targetName, "ArcRho.xlam", $true) -eq 0) {
+    throw "Refusing to update ArcRho.xlam. This script updates ARCRHO_BETA.xlam only."
+}
+
+$targetDir = Split-Path -Parent $targetPathFull
+Remove-ExcelTempFiles $targetDir
+Update-CustomUIXml $targetPathFull $customUIPathFull
+Update-WorkbookCoreProperties $targetPathFull (Get-RibbonLabelForWorkbook $targetPathFull)
+
+$excel = $null
+$workbook = $null
+
+try {
+    $excel = New-Object -ComObject Excel.Application
+    $excel.Visible = $false
+    $excel.DisplayAlerts = $false
+
+    $workbook = $excel.Workbooks.Open($targetPathFull)
+    $vbProject = $workbook.VBProject
+
+    # Remove imported modules/forms/classes from the target. Document modules
+    # such as ThisWorkbook and worksheet modules cannot be removed.
+    $toRemove = @()
+    foreach ($component in $vbProject.VBComponents) {
+        if ($component.Type -ne 100) {
+            $toRemove += $component
+        }
+    }
+
+    foreach ($component in $toRemove) {
+        $vbProject.VBComponents.Remove($component)
+    }
+
+    # Replace ThisWorkbook code from the exported document module, if present.
+    $thisWorkbookPath = Join-Path $sourceDirFull "ThisWorkbook.cls"
+    if (Test-Path -LiteralPath $thisWorkbookPath -PathType Leaf) {
+        $thisWorkbook = $vbProject.VBComponents.Item("ThisWorkbook")
+        $codeModule = $thisWorkbook.CodeModule
+        if ($null -ne $codeModule) {
+            if ($codeModule.CountOfLines -gt 0) {
+                $codeModule.DeleteLines(1, $codeModule.CountOfLines)
+            }
+            $codeModule.AddFromFile($thisWorkbookPath)
+        }
+        else {
+            Write-Warning "Could not replace ThisWorkbook code because Excel returned no CodeModule."
+        }
+    }
+
+    # Import standard modules and class modules before forms.
+    $importPatterns = @("*.bas", "*.cls", "*.frm")
+    foreach ($pattern in $importPatterns) {
+        Get-ChildItem -LiteralPath $sourceDirFull -Filter $pattern -File |
+            Where-Object { $_.Name -ne "ThisWorkbook.cls" } |
+            Sort-Object Name |
+            ForEach-Object {
+                $componentName = Get-VbaComponentName $_
+                Write-Host "Importing $($_.Name) as $componentName"
+                $component = $vbProject.VBComponents.Import($_.FullName)
+                $component.Name = $componentName
+            }
+    }
+
+    $workbook.IsAddin = $true
+    $workbook.SaveAs($targetPathFull, 55)
+    $workbook.Close($true)
+    $workbook = $null
+
+    Write-Host "Updated XLAM: $targetPathFull"
+}
+finally {
+    if ($null -ne $workbook) {
+        $workbook.Close($false)
+    }
+    if ($null -ne $excel) {
+        $excel.Quit()
+        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
+    }
+    Remove-ExcelTempFiles $targetDir
+}
+
+
