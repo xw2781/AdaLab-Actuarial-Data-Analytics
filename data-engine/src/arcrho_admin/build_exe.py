@@ -12,26 +12,13 @@ for path in (PROJECT_ROOT, SOURCE_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-try:
-    from core.utils import resolve_existing_path
-except ModuleNotFoundError:
-    from utils import resolve_existing_path
-
-
 BUILD_ROOT = PROJECT_ROOT / "builds" / BASE_DIR.name
 DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
 APPS_DIR = DEPLOY_ROOT / "apps"
 VENV_PYTHON = PROJECT_ROOT / "venvs" / BASE_DIR.name / "Scripts" / "python.exe"
 ENTRY_PY = BASE_DIR / "main.py"
 APP_NAME = "ArcRho Admin Control"
-ICON = resolve_existing_path(
-    PROJECT_ROOT / "library" / "icon" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT / "library" / "icon" / "ArcRho Engine.ico",
-    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Engine.ico",
-    PROJECT_ROOT / "assets" / "icons" / "ArcRho Orchestrator.ico",
-    PROJECT_ROOT / "assets" / "icons" / "ArcRho Engine.ico",
-)
+ICON = PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Orchestrator.ico"
 
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
@@ -75,6 +62,10 @@ def build_exe():
         SOURCE_ROOT,
         "--hidden-import",
         "utils",
+        "--exclude-module",
+        "tkinter",
+        "--exclude-module",
+        "_tkinter",
         f"--icon={ICON}",
         "--add-data",
         f"{BASE_DIR / 'index.html'};.",
@@ -105,6 +96,4 @@ if __name__ == "__main__":
     except subprocess.CalledProcessError as exc:
         print(f"\nERROR: Command failed with exit code {exc.returncode}")
         sys.exit(exc.returncode)
-
-
 

@@ -1,18 +1,33 @@
 ﻿import argparse
+import atexit
 import getpass
 import json
 import os
-import socket
+import subprocess
 import sys
+import time
+
+
+def early_log_event(message):
+    try:
+        base_dir = os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+        log_path = os.path.join(base_dir, "arcrho_admin.log")
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, mode="a", encoding="utf-8") as file:
+            file.write(f"{stamp} {message}\n")
+    except OSError:
+        pass
+
+
+early_log_event(f"python module entry pid={os.getpid()} frozen={getattr(sys, 'frozen', False)} exe={sys.executable}")
+
+import socket
+import tempfile
 import threading
 import time
-import webbrowser
+import traceback
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 
 
 MODULE_ROOT = Path(__file__).resolve().parent
@@ -37,6 +52,8 @@ for path in (PRODUCT_ROOT, SOURCE_ROOT, BUNDLE_ROOT):
 DEFAULT_PORT = 8765
 DEFAULT_STALE_AFTER_SECONDS = 60
 ENGINE_STALE_AFTER_SECONDS = 6
+HEARTBEAT_INTERVAL_SECONDS = 2
+HEARTBEAT_WRITE_ATTEMPTS = 5
 PROJECT_ROOT_NAMES = ("ArcRho Server", "ArcRho", "ADAS")
 COMPONENT_DIRS = {
     "admin": ("arcrho_admin",),
@@ -44,6 +61,9 @@ COMPONENT_DIRS = {
     "orchestrator": ("arcrho_orchestrator", "ArcRho Orchestrator", "ADAS Master"),
     "bridge": ("arcrho_bridge",),
     "bridge_worker": ("arcrho_bridge_worker",),
+}
+COMPONENT_APPS = {
+    "orchestrator": ("ArcRho Orchestrator", "ADAS Master"),
 }
 
 
@@ -91,6 +111,8 @@ def resolve_config_file():
 
 
 CONFIG_FILE = resolve_config_file()
+LOG_FILE = PROJECT_ROOT / "runtime" / "logs" / "arcrho_admin.log"
+DEPLOY_LOG_FILE = (EXE_DIR or MODULE_ROOT) / "arcrho_admin.log"
 
 
 def resource_path(name):
@@ -149,18 +171,68 @@ def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def log_event(message):
+    line = f"{current_timestamp()} {message}\n"
+    for log_file in (DEPLOY_LOG_FILE, LOG_FILE):
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_file, mode="a", encoding="utf-8") as file:
+                file.write(line)
+        except OSError:
+            pass
+
+
+def log_unhandled_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        return sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    log_event("unhandled exception\n" + "".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+    return sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+
+def log_thread_exception(args):
+    log_event(
+        f"unhandled thread exception thread={getattr(args.thread, 'name', '')}\n"
+        + "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+    )
+
+
+sys.excepthook = log_unhandled_exception
+if hasattr(threading, "excepthook"):
+    threading.excepthook = log_thread_exception
+atexit.register(lambda: log_event(f"process exiting pid={os.getpid()}"))
+log_event(
+    f"module loaded pid={os.getpid()} frozen={getattr(sys, 'frozen', False)} "
+    f"exe={sys.executable} exe_dir={EXE_DIR} root={PROJECT_ROOT} config={CONFIG_FILE}"
+)
+
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import URLError
+from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
+
+
 def admin_instance_id():
     stamp = datetime.now().strftime("%y%m%d-%H%M%S")
     return f"{socket.gethostname()}@{getpass.getuser()}@{os.getpid()}@{stamp}"
 
 
-def write_json(path, payload):
+def write_json(path, payload, attempts=HEARTBEAT_WRITE_ATTEMPTS):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    with open(temp_path, mode="w", encoding="utf-8") as file:
-        json.dump(payload, file, indent=2)
-        file.write("\n")
-    os.replace(temp_path, path)
+
+    for attempt in range(1, attempts + 1):
+        temp_path = path.with_name(f"{path.name}.{os.getpid()}.{time.time_ns()}.{attempt}.tmp")
+        try:
+            with open(temp_path, mode="w", encoding="utf-8") as file:
+                json.dump(payload, file, indent=2)
+                file.write("\n")
+            os.replace(temp_path, path)
+            return
+        except OSError:
+            safe_unlink(temp_path)
+            if attempt == attempts:
+                raise
+            time.sleep(0.1 * attempt)
 
 
 def safe_unlink(path):
@@ -187,17 +259,20 @@ def start_admin_heartbeat(server, instance_path):
     instance_id = instance_path.stem
     created = current_timestamp()
     write_json(instance_path, admin_heartbeat_payload(instance_id, created))
+    log_event(f"started pid={os.getpid()} instance={instance_path}")
 
     def monitor():
         while True:
-            time.sleep(2)
+            time.sleep(HEARTBEAT_INTERVAL_SECONDS)
             if getattr(server, "shutdown_requested", False):
+                log_event(f"heartbeat stopped pid={os.getpid()} reason=shutdown_requested")
                 return
-            if not instance_path.exists():
-                server.shutdown_requested = True
-                threading.Thread(target=server.shutdown, daemon=True).start()
-                return
-            write_json(instance_path, admin_heartbeat_payload(instance_id, created))
+            try:
+                if not instance_path.exists():
+                    log_event(f"heartbeat missing; recreating pid={os.getpid()} instance={instance_path}")
+                write_json(instance_path, admin_heartbeat_payload(instance_id, created))
+            except Exception:
+                log_event(f"heartbeat write failed pid={os.getpid()}\n{traceback.format_exc()}")
 
     thread = threading.Thread(target=monitor, daemon=True)
     thread.start()
@@ -227,6 +302,27 @@ def resolve_app_path(role, *parts):
             if candidate.exists():
                 return candidate.joinpath(*parts)
     return (PROJECT_ROOT / "core" / COMPONENT_DIRS[role][0]).joinpath(*parts)
+
+
+def resolve_app_exe(role):
+    app_names = COMPONENT_APPS.get(role, ())
+    candidates = []
+    for app_name in app_names:
+        candidates.append(PROJECT_ROOT / "apps" / app_name / f"{app_name}.exe")
+        candidates.append(PROJECT_ROOT / "apps" / f"{app_name}.exe")
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0] if candidates else None
+
+
+def resolve_source_main(role):
+    for dirname in COMPONENT_DIRS[role]:
+        path = PROJECT_ROOT / "data-engine" / "src" / dirname / "main.py"
+        if path.exists():
+            return path
+    path = SOURCE_ROOT / COMPONENT_DIRS[role][0] / "main.py"
+    return path if path.exists() else None
 
 
 def instance_age(last_seen):
@@ -314,6 +410,46 @@ def remove_instance(role, name):
     return False
 
 
+def clear_stale_instances():
+    removed = []
+    for item in list_instances():
+        if item.get("status") != "Stale":
+            continue
+        try:
+            if remove_instance(item["role"], item["name"]):
+                removed.append(item)
+        except (OSError, ValueError):
+            log_event(f"failed to remove stale instance role={item.get('role')} name={item.get('name')}")
+    return removed
+
+
+def start_orchestrator_instance():
+    exe = resolve_app_exe("orchestrator")
+    if exe is not None and exe.exists():
+        process = subprocess.Popen([str(exe)], close_fds=True)
+        log_event(f"started orchestrator exe={exe} pid={process.pid}")
+        return {"pid": process.pid, "path": str(exe)}
+
+    source_main = resolve_source_main("orchestrator")
+    if source_main is not None:
+        process = subprocess.Popen([sys.executable, str(source_main)], close_fds=True)
+        log_event(f"started orchestrator source={source_main} pid={process.pid}")
+        return {"pid": process.pid, "path": str(source_main)}
+
+    raise FileNotFoundError("Could not find ArcRho Orchestrator executable or source main.py")
+
+
+def shutdown_server(server, reason):
+    if getattr(server, "shutdown_requested", False):
+        return
+    server.shutdown_requested = True
+    log_event(f"shutdown requested pid={os.getpid()} reason={reason}")
+    instance_path = getattr(server, "admin_instance_path", None)
+    if instance_path is not None:
+        safe_unlink(instance_path)
+    threading.Thread(target=server.shutdown, daemon=True).start()
+
+
 class AdminHandler(BaseHTTPRequestHandler):
     server_version = "ArcRhoAdmin/1.0"
 
@@ -369,9 +505,14 @@ class AdminHandler(BaseHTTPRequestHandler):
             return
 
         query = parse_qs(parsed.query)
+        role = query.get("role", [""])[0]
+        name = query.get("name", [""])[0]
         try:
-            removed = remove_instance(query.get("role", [""])[0], query.get("name", [""])[0])
+            removed = remove_instance(role, name)
             self.send_json({"ok": True, "removed": removed, "instances": list_instances()})
+            admin_instance_path = getattr(self.server, "admin_instance_path", None)
+            if role == "admin" and admin_instance_path is not None and name == admin_instance_path.name:
+                shutdown_server(self.server, "current admin instance removed")
         except ValueError as exc:
             self.send_error(400, str(exc))
 
@@ -384,13 +525,19 @@ class AdminHandler(BaseHTTPRequestHandler):
             config = default_config()
             save_config(config)
             self.send_json({"ok": True, "path": str(CONFIG_FILE), "config": config})
+        elif parsed.path == "/api/clear-stale-instances":
+            removed = clear_stale_instances()
+            self.send_json({"ok": True, "removed": len(removed), "instances": list_instances()})
+        elif parsed.path == "/api/start-orchestrator":
+            try:
+                result = start_orchestrator_instance()
+                self.send_json({"ok": True, **result, "instances": list_instances()})
+            except (FileNotFoundError, OSError) as exc:
+                log_event(f"start orchestrator failed\n{traceback.format_exc()}")
+                self.send_error(500, str(exc))
         elif parsed.path == "/api/shutdown":
             self.send_json({"ok": True})
-            self.server.shutdown_requested = True
-            instance_path = getattr(self.server, "admin_instance_path", None)
-            if instance_path is not None:
-                safe_unlink(instance_path)
-            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            shutdown_server(self.server, "api shutdown")
         else:
             self.send_error(404, "Not found")
 
@@ -412,6 +559,7 @@ class AdminHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(data)
 
@@ -421,6 +569,7 @@ class AdminHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(data)
 
@@ -438,69 +587,168 @@ def make_server(port):
 
 
 class StartupSplash:
-    def __init__(self):
+    def __init__(self, port):
+        self.port = port
         self._ready = threading.Event()
-        self._close = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._path = None
 
     def start(self):
-        self._thread.start()
-        self._ready.wait(timeout=0.8)
+        try:
+            self._path = Path(tempfile.gettempdir()) / f"arcrho_admin_splash_{os.getpid()}.html"
+            self._path.write_text(self._html(), encoding="utf-8")
+            webbrowser.open(self._path.as_uri())
+        except Exception:
+            log_event(f"splash failed\n{traceback.format_exc()}")
+        finally:
+            self._ready.set()
 
     def close(self):
-        self._close.set()
-        if self._thread.is_alive():
-            self._thread.join(timeout=1.0)
+        return
 
-    def _run(self):
-        try:
-            import tkinter as tk
-        except Exception:
-            self._ready.set()
-            return
+    def _html(self):
+        port_start = int(self.port)
+        port_end = port_start + 19
+        return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcRho Admin Control</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --ink: #1f3b67;
+      --muted: #5d6a7f;
+      --line: #dfe6ef;
+      --blue: #2563eb;
+      --blue-soft: #dbeafe;
+      --page: #f4f7fb;
+      --panel: #ffffff;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--page);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }}
+    main {{
+      width: min(440px, calc(100vw - 32px));
+      padding: 28px 30px 30px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 18px 42px rgba(31, 59, 103, 0.12);
+    }}
+    .brand {{
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 18px;
+      align-items: center;
+    }}
+    .mark {{
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--blue-soft);
+    }}
+    .mark::before {{
+      content: "";
+      width: 25px;
+      height: 25px;
+      border-radius: 5px;
+      background: var(--blue);
+      box-shadow: inset 0 0 0 7px #fff;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }}
+    p {{
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }}
+    .status {{
+      margin-top: 28px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4d5b71;
+    }}
+    .bar {{
+      position: relative;
+      height: 8px;
+      margin-top: 14px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }}
+    .bar::after {{
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      width: 34%;
+      border-radius: inherit;
+      background: var(--blue);
+      animation: slide 1.1s ease-in-out infinite;
+    }}
+    @keyframes slide {{
+      from {{ transform: translateX(-110%); }}
+      to {{ transform: translateX(320%); }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>ArcRho Admin Control</h1>
+        <p>Starting the local admin server.</p>
+      </div>
+    </div>
+    <div class="status" id="status">Preparing workspace</div>
+    <div class="bar" aria-hidden="true"></div>
+  </main>
+  <script>
+    const portStart = {port_start};
+    const portEnd = {port_end};
+    const statusEl = document.getElementById("status");
 
-        try:
-            root = tk.Tk()
-            root.overrideredirect(True)
-            root.attributes("-topmost", True)
-            root.configure(bg="#f4f7fb")
+    async function probe(port) {{
+      const url = `http://127.0.0.1:${{port}}/`;
+      try {{
+        const response = await fetch(`${{url}}api/health`, {{cache: "no-store"}});
+        if (response.ok) {{
+          window.location.replace(url);
+          return true;
+        }}
+      }} catch (err) {{}}
+      return false;
+    }}
 
-            width = 360
-            height = 190
-            screen_w = root.winfo_screenwidth()
-            screen_h = root.winfo_screenheight()
-            x = int((screen_w - width) / 2)
-            y = int((screen_h - height) / 2)
-            root.geometry(f"{width}x{height}+{x}+{y}")
+    async function scan() {{
+      for (let port = portStart; port <= portEnd; port += 1) {{
+        statusEl.textContent = `Looking for local server on port ${{port}}`;
+        if (await probe(port)) return;
+      }}
+      statusEl.textContent = "Waiting for local admin server";
+      setTimeout(scan, 700);
+    }}
 
-            frame = tk.Frame(root, bg="#ffffff", highlightbackground="#dfe6ef", highlightthickness=1)
-            frame.place(x=10, y=10, width=width - 20, height=height - 20)
-
-            canvas = tk.Canvas(frame, width=64, height=64, bg="#ffffff", highlightthickness=0)
-            canvas.pack(pady=(24, 10))
-            canvas.create_oval(11, 11, 53, 53, outline="#dbeafe", width=5)
-            arc = canvas.create_arc(11, 11, 53, 53, start=90, extent=105, outline="#2563eb", width=5, style="arc")
-
-            title = tk.Label(frame, text="ArcRho Admin Control", bg="#ffffff", fg="#1f3b67", font=("Segoe UI", 13, "bold"))
-            title.pack()
-            detail = tk.Label(frame, text="Starting local admin server...", bg="#ffffff", fg="#5d6a7f", font=("Segoe UI", 9))
-            detail.pack(pady=(6, 0))
-
-            state = {"angle": 90}
-
-            def tick():
-                if self._close.is_set():
-                    root.destroy()
-                    return
-                state["angle"] = (state["angle"] - 18) % 360
-                canvas.itemconfigure(arc, start=state["angle"])
-                root.after(55, tick)
-
-            self._ready.set()
-            tick()
-            root.mainloop()
-        except Exception:
-            self._ready.set()
+    scan();
+  </script>
+</body>
+</html>
+"""
 
 
 def is_admin_server(port):
@@ -557,23 +805,33 @@ def main():
     parser.add_argument("--no-splash", action="store_true")
     args = parser.parse_args()
 
-    splash = None if args.no_splash else StartupSplash()
+    server = None
+    log_event(f"main starting pid={os.getpid()} frozen={getattr(sys, 'frozen', False)} root={PROJECT_ROOT}")
+    splash = None if args.no_splash or args.no_browser else StartupSplash(args.port)
     if splash:
+        log_event(f"splash starting pid={os.getpid()}")
         splash.start()
 
     try:
+        log_event(f"closing existing servers pid={os.getpid()} port={args.port}")
         remaining_servers = shutdown_existing_admin_servers(args.port)
         if remaining_servers:
             raise OSError(f"Could not close previous ArcRho Admin Control server(s) on port(s): {', '.join(map(str, sorted(remaining_servers)))}")
 
+        log_event(f"creating server pid={os.getpid()} port={args.port}")
         server = make_server(args.port)
         server.admin_instance_path = resolve_app_path("admin", "instances", f"{admin_instance_id()}.json")
+        log_event(f"starting heartbeat pid={os.getpid()} instance={server.admin_instance_path}")
         start_admin_heartbeat(server, server.admin_instance_path)
         url = f"http://127.0.0.1:{server.server_port}/"
+        log_event(f"server ready pid={os.getpid()} url={url}")
         print(f"ArcRho Admin Control: {url}")
 
-        if not args.no_browser:
+        if not args.no_browser and splash is None:
             webbrowser.open(url)
+    except Exception:
+        log_event(f"startup failed pid={os.getpid()}\n{traceback.format_exc()}")
+        raise
     finally:
         if splash:
             splash.close()
@@ -583,9 +841,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        server.shutdown_requested = True
-        safe_unlink(server.admin_instance_path)
-        server.server_close()
+        if server is not None:
+            server.shutdown_requested = True
+            safe_unlink(server.admin_instance_path)
+            server.server_close()
+            log_event(f"stopped pid={os.getpid()}")
 
 
 if __name__ == "__main__":

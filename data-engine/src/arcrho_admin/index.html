@@ -374,6 +374,9 @@
               <label for="maxWorkers">Max Engine Workers</label>
               <input id="maxWorkers" type="number" min="0" max="100" data-path="apps.orchestrator.max_workers">
             </div>
+            <div class="panel-actions">
+              <button class="primary" id="startOrchestrator">Start New Instance</button>
+            </div>
           </div>
         </section>
 
@@ -404,6 +407,7 @@
               </select>
             </label>
             <button class="primary" id="refreshInstances">Refresh</button>
+            <button id="clearStaleInstances">Clear Stale</button>
             <button id="openConfigFolder">Open Config Folder</button>
             <button class="danger" id="shutdownServer">Close Admin Server</button>
           </div>
@@ -442,6 +446,14 @@
     let sortState = {column: "role_label", direction: "asc"};
 
     const roleIcons = {
+      admin: `
+        <svg class="role-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="4.5" y="5" width="15" height="14" rx="3" fill="none" stroke="#1f3b67" stroke-width="1.7"></rect>
+          <path d="M8.2 9.2h7.6M8.2 12h7.6M8.2 14.8h4.8" fill="none" stroke="#1f3b67" stroke-width="1.6" stroke-linecap="round"></path>
+          <circle cx="17.2" cy="16.2" r="2.1" fill="#2563eb"></circle>
+          <path d="M17.2 13.2v1M17.2 18.2v1M14.2 16.2h1M19.2 16.2h1M15.1 14.1l.7.7M18.6 17.6l.7.7M19.3 14.1l-.7.7M15.8 17.6l-.7.7" stroke="#2563eb" stroke-width="1.1" stroke-linecap="round"></path>
+        </svg>
+      `,
       engine: `
         <svg class="role-icon" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="12" cy="12" r="3.1" fill="#2563eb"></circle>
@@ -664,6 +676,35 @@
       }
     }
 
+    async function clearStaleInstances() {
+      const staleCount = latestInstances.filter(item => item.status === "Stale").length;
+      if (!staleCount) {
+        setStatus("No stale instances");
+        return;
+      }
+      if (!confirm(`Remove ${staleCount} stale heartbeat${staleCount === 1 ? "" : "s"}?`)) return;
+      try {
+        const data = await api("/api/clear-stale-instances", {method: "POST"});
+        latestInstances = data.instances;
+        renderInstances(latestInstances);
+        setStatus(`Removed ${data.removed} stale instance${data.removed === 1 ? "" : "s"}`);
+      } catch (err) {
+        setStatus("Clear stale failed", true);
+      }
+    }
+
+    async function startOrchestrator() {
+      try {
+        const data = await api("/api/start-orchestrator", {method: "POST"});
+        latestInstances = data.instances;
+        renderInstances(latestInstances);
+        setStatus(`Orchestrator started (PID ${data.pid})`);
+        setTimeout(loadInstances, 1500);
+      } catch (err) {
+        setStatus("Start orchestrator failed", true);
+      }
+    }
+
     function closeAdminPage() {
       window.close();
       document.body.innerHTML = "<main class=\"app\"><section><h1>ArcRho Admin Control Closed</h1></section></main>";
@@ -683,6 +724,8 @@
     }
 
     document.getElementById("refreshInstances").addEventListener("click", loadInstances);
+    document.getElementById("clearStaleInstances").addEventListener("click", clearStaleInstances);
+    document.getElementById("startOrchestrator").addEventListener("click", startOrchestrator);
     groupByInstances.addEventListener("change", () => renderInstances(latestInstances));
     for (const button of document.querySelectorAll("[data-sort]")) {
       button.addEventListener("click", () => {

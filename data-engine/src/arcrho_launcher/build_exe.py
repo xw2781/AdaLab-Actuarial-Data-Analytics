@@ -11,10 +11,7 @@ for path in (PROJECT_ROOT, SOURCE_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-try:
-    from core.utils import component_app_name, resolve_existing_path
-except ModuleNotFoundError:
-    from utils import component_app_name, resolve_existing_path
+from utils import component_app_name
 
 BUILD_ROOT = PROJECT_ROOT / "builds" / BASE_DIR.name
 DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))
@@ -24,14 +21,7 @@ REQ_FILE = BASE_DIR / "requirements.txt"
 
 ENTRY_PY = BASE_DIR / "main.py"
 APP_NAME = component_app_name("launcher")
-ICON = resolve_existing_path(
-    PROJECT_ROOT / "library" / "icon" / "ArcRho Launcher.ico",
-    PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Launcher.ico",
-    PROJECT_ROOT / "assets" / "icons" / "ArcRho Launcher.ico",
-    BASE_DIR / "ArcRho Launcher.ico",
-    BASE_DIR / "ArcRho Shell.ico",
-    BASE_DIR / "ADAS Shell.ico",
-)
+ICON = PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Launcher.ico"
 
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
