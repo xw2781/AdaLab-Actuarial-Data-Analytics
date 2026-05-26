@@ -29,7 +29,7 @@ def _require_project_dir(project_name: str) -> str:
 
 
 def _data_dir(project_name: str) -> str:
-    return os.path.join(_require_project_dir(project_name), "data")
+    return os.path.join(_require_project_dir(project_name), config.PROJECT_DATA_DIR, config.MANUAL_DATA_DIR)
 
 
 def _index_path(project_name: str) -> str:

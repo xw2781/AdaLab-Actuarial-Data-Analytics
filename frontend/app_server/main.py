@@ -6,6 +6,8 @@ and mounts the static frontend.  All business logic lives in
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
@@ -68,3 +70,12 @@ app.mount("/icons", StaticFiles(directory=str(config.PROJECT_ROOT / "icons")), n
 @app.get("/")
 def home():
     return RedirectResponse(url="/ui/")
+
+
+@app.get("/app/health")
+def app_health():
+    return {
+        "ok": True,
+        "token": os.environ.get("ARCRHO_BACKEND_TOKEN", ""),
+        "project_root": str(config.PROJECT_ROOT),
+    }

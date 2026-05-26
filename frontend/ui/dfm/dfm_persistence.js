@@ -85,6 +85,35 @@ const DFM_ANALYSIS_DECIMALS = 4;
 const DFM_METHOD_JSON_FORMAT = "arcrho-dfm-method-by-tab-v1";
 const DFM_METHOD_FILE_WATCH_INTERVAL_MS = 2000;
 
+function buildDatasetSidecarJson(csvPath, datasetName) {
+  const name = String(datasetName || "").trim();
+  const outputType = String(document.getElementById("dfmOutputVector")?.value || "").trim();
+  return JSON.stringify({
+    dataset_name: name,
+    dataset_type: outputType || name,
+    instance_name: name,
+    reserving_class: getResolvedReservingClass(),
+    project_name: getRatioSaveProjectName(),
+    storage: "manual",
+    source: "dfm",
+    csv_file: String(csvPath || "").split(/[\\/]/).pop() || "",
+    updated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+  }, null, 2) + "\n";
+}
+
+async function saveDatasetSidecar(hostApi, csvPath, datasetName) {
+  if (!hostApi || typeof hostApi.saveTextFile !== "function" || !csvPath) return { ok: true };
+  const jsonPath = String(csvPath).replace(/\.csv$/i, ".json");
+  const out = await hostApi.saveTextFile({
+    path: jsonPath,
+    data: buildDatasetSidecarJson(csvPath, datasetName),
+  });
+  if (!out || out.error) {
+    return { ok: false, error: out?.error ? String(out.error) : "unknown error" };
+  }
+  return { ok: true };
+}
+
 function getRatioLoadReasonPriority(reason) {
   const key = String(reason || "").trim().toLowerCase();
   switch (key) {
@@ -1117,12 +1146,17 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
           csvErrors.push(csvOut?.error ? String(csvOut.error) : "unknown error");
         } else {
           baseCsvSaved = true;
+          const sidecarOut = await saveDatasetSidecar(hostApi, csvPath, getResultsCsvSuggestedName().replace(/\.csv$/i, ""));
+          if (!sidecarOut.ok) {
+            csvErrors.push(`${csvPath.replace(/\.csv$/i, ".json")}: ${sidecarOut.error}`);
+          }
           const variants = buildAggregatedResultVariants(resultVector);
           for (const variant of variants) {
-            const aggPath = `${dataDir}\\${getResultsCsvSuggestedName({
+            const aggName = getResultsCsvSuggestedName({
               originLen: variant.originLen,
               devLen: variant.devLen,
-            })}`;
+            });
+            const aggPath = `${dataDir}\\${aggName}`;
             if (aggPath.toLowerCase() === csvPath.toLowerCase()) continue;
             const aggOut = await hostApi.saveTextFile({
               path: aggPath,
@@ -1131,6 +1165,10 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
             if (!aggOut || aggOut.error) {
               csvErrors.push(`${aggPath}: ${aggOut?.error ? String(aggOut.error) : "unknown error"}`);
               continue;
+            }
+            const aggSidecarOut = await saveDatasetSidecar(hostApi, aggPath, aggName.replace(/\.csv$/i, ""));
+            if (!aggSidecarOut.ok) {
+              csvErrors.push(`${aggPath.replace(/\.csv$/i, ".json")}: ${aggSidecarOut.error}`);
             }
             aggregatedCsvPaths.push(aggPath);
           }

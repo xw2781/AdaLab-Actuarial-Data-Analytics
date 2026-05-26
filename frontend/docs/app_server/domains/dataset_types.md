@@ -10,7 +10,7 @@ Dataset types catalog domain.
 | Method | Path | Handler | Request Model | Schema | Service Calls |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/dataset_types` | `get_dataset_types` | `str` | - | `dataset_types_service.normalize_dataset_types_data` |
-| `POST` | `/dataset_types` | `save_dataset_types` | `DatasetTypesSaveRequest` | [`app_server/schemas/dataset_types.py`](../../../app_server/schemas/dataset_types.py) | `audit_service.safe_append_project_audit_log`, `dataset_types_service._build_dataset_source_resolver`, `dataset_types_service._extract_formula_components`, `dataset_types_service._load_dataset_source_map`, `dataset_types_service.save_dataset_types_payload` |
+| `POST` | `/dataset_types` | `save_dataset_types` | `DatasetTypesSaveRequest` | [`app_server/schemas/dataset_types.py`](../../../app_server/schemas/dataset_types.py) | `audit_service.safe_append_project_audit_log`, `dataset_types_service._build_dataset_source_resolver`, `dataset_types_service._extract_formula_components`, `dataset_types_service._is_source_generated_from_field_names`, `dataset_types_service._load_dataset_source_map`, `dataset_types_service._load_field_mapping_field_names`, `dataset_types_service.save_dataset_types_payload` |
 | `POST` | `/dataset_types/import_local_file` | `import_local_dataset_types_file` | `DatasetTypesImportLocalFileRequest` | [`app_server/schemas/dataset_types.py`](../../../app_server/schemas/dataset_types.py) | `dataset_types_service.parse_local_dataset_types_file` |
 <!-- AUTO-GEN:END -->
 
@@ -25,14 +25,15 @@ Dataset types catalog domain.
 <!-- MANUAL:BEGIN -->
 - Used by project settings dataset types panel and dependent flows.
 - `GET /dataset_types` keeps normalized 5-column `data.columns/data.rows` for compatibility and also returns `data.source_by_name` (dataset name -> Source expression) derived from project `dataset_types.json`.
-- `POST /dataset_types/import_local_file` parses local `.json`/`.xlsx` Dataset Types files for UI-side local import; for `.xlsx`, parser assumes one sheet and the header exactly matches JSON column layout (supports 5-column local format or 6-column persisted format with trailing `Source`).
+- `POST /dataset_types/import_local_file` parses local `.json`/`.xlsx` Dataset Types files for UI-side local import; for `.xlsx`, parser assumes one sheet and the header exactly matches JSON column layout (supports 5-column local format, 6-column persisted format with trailing `Source`, or 7-column persisted format with trailing `Source` and `Generated`).
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Persists dataset type definitions under project folders.
-- `POST /dataset_types` saves both `dataset_types.json` and same-folder `dataset_types.xlsx` with matching columns/rows (`Name`, `Data Format`, `Category`, `Calculated`, `Formula`, `Source`); XLSX header row is bold and column widths are auto-sized from header + cell contents (bounded min/max).
+- `POST /dataset_types` saves both `dataset_types.json` and same-folder `dataset_types.xlsx` with matching columns/rows (`Name`, `Data Format`, `Category`, `Calculated`, `Formula`, `Source`, `Generated`); XLSX header row is bold and column widths are auto-sized from header + cell contents (bounded min/max).
 - `GET /dataset_types` source metadata extraction is backward-compatible with legacy files: `source_by_name` reads from a `Source` column when present or falls back to row index 5 for older row layouts.
+- `POST /dataset_types` recomputes the persisted `Generated` flag from each row's saved `Source`: it is `true` only when the source is non-empty and every non-operator component is covered by a `field_name` in project `field_mapping.json`.
 - Save validation treats calculated formulas as valid when referenced components resolve to Dataset Type `Name` values; it no longer requires field-mapping source resolution for those components.
 <!-- MANUAL:END -->
 

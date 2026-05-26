@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require("electron");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const os = require("os");
@@ -21,6 +21,8 @@ const HOST = process.env.ARCRHO_HOST || "127.0.0.1";
 const PORT = parseInt(process.env.ARCRHO_PORT || "8000", 10);
 const UI_VERSION = process.env.ARCRHO_UI_VERSION || String(Date.now());
 const URL = `http://${HOST}:${PORT}/ui/?v=${encodeURIComponent(UI_VERSION)}`;
+const BACKEND_HEALTH_URL = `http://${HOST}:${PORT}/app/health`;
+const BACKEND_TOKEN = crypto.randomBytes(16).toString("hex");
 const START_BACKEND = process.env.ARCRHO_START_BACKEND !== "0";
 const PYTHON_EXE = process.env.PYTHON_EXE || process.env.PYTHON || "python";
 const APP_ROOT = path.resolve(__dirname, "..");
@@ -2325,12 +2327,88 @@ function forceKillBackendProc(proc) {
   proc.kill("SIGTERM");
 }
 
+function execFileAsync(file, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+function requestBackendHealth(timeoutMs = 1000) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(BACKEND_HEALTH_URL, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        body += chunk;
+        if (body.length > 4096) req.destroy(new Error("health response too large"));
+      });
+      res.on("end", () => {
+        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`health status ${res.statusCode || "unknown"}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body || "{}"));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error("timeout"));
+    });
+    req.on("error", reject);
+  });
+}
+
+async function getBackendPortListenerPids() {
+  if (process.platform !== "win32") return [];
+  try {
+    const { stdout } = await execFileAsync("netstat.exe", ["-ano", "-p", "tcp"], { windowsHide: true });
+    const pids = new Set();
+    for (const line of String(stdout || "").split(/\r?\n/)) {
+      if (!line.includes(`:${PORT}`) || !/\bLISTENING\b/i.test(line)) continue;
+      const parts = line.trim().split(/\s+/);
+      const pid = Number(parts[parts.length - 1]);
+      if (Number.isInteger(pid) && pid > 0) pids.add(pid);
+    }
+    return Array.from(pids);
+  } catch {
+    return [];
+  }
+}
+
+async function stopMismatchedBackendListener() {
+  let health = null;
+  try {
+    health = await requestBackendHealth(700);
+  } catch {}
+  if (health && health.ok === true && health.token === BACKEND_TOKEN) return;
+  const pids = await getBackendPortListenerPids();
+  for (const pid of pids) {
+    if (serverProc && pid === serverProc.pid) continue;
+    try {
+      await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true });
+    } catch {}
+  }
+  if (pids.length) await sleep(700);
+}
+
 function startBackend() {
   const env = { ...process.env };
   env.TRI_DATA_DIR = env.TRI_DATA_DIR || APP_ROOT;
   env.ARCRHO_WORKFLOW_DIR =
     env.ARCRHO_WORKFLOW_DIR ||
     path.join(require("os").homedir(), "Documents", "ArcRho", "workflows");
+  env.ARCRHO_BACKEND_TOKEN = BACKEND_TOKEN;
   serverSpawnError = null;
 
   const bundledServer = getBundledServerPath();
@@ -2378,17 +2456,10 @@ async function waitForServer(timeoutMs = BACKEND_STARTUP_TIMEOUT_MS) {
       );
     }
     try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(URL, (res) => {
-          res.destroy();
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) resolve();
-          else reject();
-        });
-        req.setTimeout(1500, () => {
-          req.destroy(new Error("timeout"));
-        });
-        req.on("error", reject);
-      });
+      const payload = await requestBackendHealth(1500);
+      if (!payload || payload.ok !== true || payload.token !== BACKEND_TOKEN) {
+        throw new Error("health token mismatch");
+      }
       return;
     } catch {
       await sleep(400);
@@ -2401,6 +2472,7 @@ async function startBackendWithRetry() {
   let lastErr = null;
   for (let attempt = 1; attempt <= BACKEND_STARTUP_ATTEMPTS; attempt++) {
     clearBackendControlFlags();
+    await stopMismatchedBackendListener();
     startBackend();
     try {
       await waitForServer(BACKEND_STARTUP_TIMEOUT_MS);

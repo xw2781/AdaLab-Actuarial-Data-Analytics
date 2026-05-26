@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from typing import Any, Dict
 
 from fastapi import APIRouter
@@ -50,7 +49,7 @@ def arcrho_tri_precheck(req: ArcRhoTriRequest) -> Dict[str, Any]:
         ("DevelopmentLength", str(req.DevelopmentLength)),
     ]
     data_path = set_data_path_like_vba(pairs)
-    need_request = not os.path.exists(data_path)
+    need_request = not arcrho_runtime_service.arcrho_tri_cache_matches(data_path, pairs)
     ds_id = "arcrhotri_" + hashlib.sha1(data_path.encode("utf-8")).hexdigest()[:16]
     return {
         "ok": True,

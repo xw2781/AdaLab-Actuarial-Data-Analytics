@@ -48,6 +48,7 @@ Cache/lock constants detected:
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - File names and limits are defined in `app_server/config.py` constants.
+- Project data is split into `data/generated` for rebuildable source-derived CSV/JSON pairs and temporary RPC exchange files, and `data/manual` for durable DFM method JSON, DFM output CSV/JSON sidecars, dataset notes, and manually maintained dataset instances.
 - Dataset Viewer and DFM store the local last selected Project Name in `%APPDATA%\ArcRho\local_project_prefs.json` so it can be checked and edited manually without opening the server project folder. The same file also stores `recentProjectNames`, capped to the last three project names selected from the project tree picker, which appear in the picker's blue virtual `Recent Projects` folder above real project folders, and `projectExplorer.expandedFolders`, which restores the Project Settings folder expansion state.
 - Reserving-class tree filter specs are stored in each project-user preference file under `projects/<project>/users/<windows-login>/preferences.json`; `%APPDATA%\ArcRho\cache\reserving_class_filter_spec.json` is obsolete and is no longer read or written.
 - Refresh endpoints can clear and rebuild cache files.

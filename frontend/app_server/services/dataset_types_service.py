@@ -138,16 +138,20 @@ def parse_local_dataset_types_file(file_path: str) -> Dict[str, Any]:
         while header_raw and header_raw[-1] == "":
             header_raw.pop()
         expected_columns_5 = list(config.DATASET_TYPES_COLUMNS)
-        expected_columns_6 = list(config.DATASET_TYPES_FILE_COLUMNS)
+        expected_columns_6 = ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"]
+        expected_columns_7 = list(config.DATASET_TYPES_FILE_COLUMNS)
         if header_raw == expected_columns_5:
             expected_columns = expected_columns_5
         elif header_raw == expected_columns_6:
             expected_columns = expected_columns_6
+        elif header_raw == expected_columns_7:
+            expected_columns = expected_columns_7
         else:
             raise HTTPException(
                 400,
                 "Invalid XLSX header. Expected either "
-                f"[{', '.join(expected_columns_5)}] or [{', '.join(expected_columns_6)}].",
+                f"[{', '.join(expected_columns_5)}], [{', '.join(expected_columns_6)}], "
+                f"or [{', '.join(expected_columns_7)}].",
             )
         expected_count = len(expected_columns)
         idx_calculated = expected_columns.index("Calculated")
@@ -344,6 +348,65 @@ def _load_dataset_source_map(project_name: str) -> Dict[str, str]:
         if key not in out:
             out[key] = field_name
     return out
+
+
+def _load_field_mapping_field_names(project_name: str) -> List[str]:
+    try:
+        filepath = config.get_field_mapping_path(project_name)
+    except ValueError:
+        return []
+    if not os.path.exists(filepath):
+        return []
+
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return []
+
+    rows = raw.get("rows", []) if isinstance(raw, dict) else []
+    if not isinstance(rows, list):
+        return []
+
+    out: List[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        field_name = str(row.get("field_name", "") or "").strip()
+        if not field_name:
+            continue
+        key = re.sub(r"\s+", " ", field_name).casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(field_name)
+    return out
+
+
+def _is_source_generated_from_field_names(source: str, field_names: List[str]) -> bool:
+    text = str(source or "").strip()
+    if not text:
+        return False
+    candidates = [str(name or "").strip() for name in field_names if str(name or "").strip()]
+    if not candidates:
+        return False
+
+    remaining = text
+    matched_field = False
+    for name in sorted(set(candidates), key=len, reverse=True):
+        escaped = re.escape(name)
+        if re.match(r"^[A-Za-z0-9_]+$", name):
+            pattern = re.compile(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])", flags=re.IGNORECASE)
+        else:
+            pattern = re.compile(escaped, flags=re.IGNORECASE)
+        remaining, replacements = pattern.subn(" ", remaining)
+        if replacements > 0:
+            matched_field = True
+
+    remaining = re.sub(r"(?:\d+(?:\.\d*)?|\.\d+)", " ", remaining)
+    remaining = re.sub(r"[\s()+\-*/.,]+", " ", remaining)
+    return matched_field and remaining.strip() == ""
 
 
 def _wrap_source_component(expr: str) -> str:

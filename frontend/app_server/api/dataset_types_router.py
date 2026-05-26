@@ -74,6 +74,7 @@ def save_dataset_types(req: DatasetTypesSaveRequest) -> Dict[str, Any]:
         raise HTTPException(404, str(e))
 
     source_map = dataset_types_service._load_dataset_source_map(project_name)
+    field_names = dataset_types_service._load_field_mapping_field_names(project_name)
     normalized_rows_base: List[List[Any]] = []
     for row in req.rows or []:
         if not isinstance(row, list):
@@ -137,7 +138,8 @@ def save_dataset_types(req: DatasetTypesSaveRequest) -> Dict[str, Any]:
         source_value = str(resolve_dataset_source(norm[0]) or "").strip()
         if source_value == "":
             source_value = str(source_map.get(_canon_dataset_name(norm[0]), "") or "").strip()
-        normalized_rows.append([norm[0], norm[1], norm[2], norm[3], norm[4], source_value])
+        generated = dataset_types_service._is_source_generated_from_field_names(source_value, field_names)
+        normalized_rows.append([norm[0], norm[1], norm[2], norm[3], norm[4], source_value, generated])
 
     payload = {
         "columns": list(config.DATASET_TYPES_FILE_COLUMNS),

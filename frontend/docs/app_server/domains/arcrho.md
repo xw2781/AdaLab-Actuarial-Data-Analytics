@@ -13,7 +13,7 @@ ArcRho calculations/precheck domain.
 | `POST` | `/arcrho/headers/cache/clear` | `clear_arcrho_headers_cache` | `ArcRhoHeadersCacheClearRequest` | [`app_server/schemas/arcrho.py`](../../../app_server/schemas/arcrho.py) | `arcrho_runtime_service.clear_arcrho_headers_cache` |
 | `GET` | `/arcrho/projects` | `arcrho_projects` | - | - | `arcrho_runtime_service.arcrho_projects` |
 | `POST` | `/arcrho/tri` | `arcrho_tri` | `ArcRhoTriRequest` | [`app_server/schemas/arcrho.py`](../../../app_server/schemas/arcrho.py) | `arcrho_runtime_service.run_arcrho_tri` |
-| `POST` | `/arcrho/tri/precheck` | `arcrho_tri_precheck` | `ArcRhoTriRequest` | [`app_server/schemas/arcrho.py`](../../../app_server/schemas/arcrho.py) | - |
+| `POST` | `/arcrho/tri/precheck` | `arcrho_tri_precheck` | `ArcRhoTriRequest` | [`app_server/schemas/arcrho.py`](../../../app_server/schemas/arcrho.py) | `arcrho_runtime_service.arcrho_tri_cache_matches` |
 | `POST` | `/arcrho/tri/refresh` | `arcrho_tri_refresh` | `ArcRhoTriRequest` | [`app_server/schemas/arcrho.py`](../../../app_server/schemas/arcrho.py) | `arcrho_runtime_service.run_arcrho_tri` |
 <!-- AUTO-GEN:END -->
 
@@ -27,13 +27,14 @@ ArcRho calculations/precheck domain.
 ## External Interfaces
 <!-- MANUAL:BEGIN -->
 - Called by dataset/workflow actions requiring ArcRho processing.
-- Includes a cache-maintenance endpoint used by Project Settings reload to clear project-scoped `ArcRhoHeaders*.csv` files.
+- Includes a cache-maintenance endpoint used by Project Settings reload to clear project-scoped generated `ArcRhoHeaders*.csv` files.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Integrates headers/project listing and tri execution endpoints.
-- Manages ArcRho request-result CSV caches under each project `data` folder; supports targeted ArcRhoHeaders cache clearing.
+- Manages ArcRho request-result CSV caches under each project `data/generated` folder; supports targeted ArcRhoHeaders cache clearing without touching `data/manual`.
+- ArcRhoTri writes a generated `<DatasetName>.csv` plus matching `<DatasetName>.json` metadata sidecar under `data/generated/<ReservingClassFolder>`.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

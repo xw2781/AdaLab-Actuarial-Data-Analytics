@@ -219,10 +219,13 @@ RESERVING_CLASS_TYPES_SHEET_NAME = "Reserving Class Types"
 RESERVING_CLASS_TYPES_COLUMNS = ["Name", "Level", "Formula", "EEX Formula"]
 RESERVING_CLASS_TYPES_FILE_COLUMNS = ["Name", "Level", "Formula", "EEX Formula", "Source"]
 DATASET_TYPES_COLUMNS = ["Name", "Data Format", "Category", "Calculated", "Formula"]
-DATASET_TYPES_FILE_COLUMNS = ["Name", "Data Format", "Category", "Calculated", "Formula", "Source"]
+DATASET_TYPES_FILE_COLUMNS = ["Name", "Data Format", "Category", "Calculated", "Formula", "Source", "Generated"]
 AUDIT_LOG_FILE = "audit_log.json"
 AUDIT_LOG_MAX_ENTRIES = 5000
 GENERAL_SETTINGS_FILE = "general_settings.json"
+PROJECT_DATA_DIR = "data"
+GENERATED_DATA_DIR = "generated"
+MANUAL_DATA_DIR = "manual"
 
 # ---------------------------------------------------------------------------
 # Thread locks
@@ -394,4 +397,12 @@ def get_project_data_dir(project_name: str) -> str:
     project_dir = _find_existing_project_dir(project_name)
     if not project_dir:
         raise ValueError(f"Project folder not found under projects: {project_name}")
-    return os.path.join(project_dir, "data")
+    return os.path.join(project_dir, PROJECT_DATA_DIR)
+
+
+def get_project_generated_data_dir(project_name: str) -> str:
+    return os.path.join(get_project_data_dir(project_name), GENERATED_DATA_DIR)
+
+
+def get_project_manual_data_dir(project_name: str) -> str:
+    return os.path.join(get_project_data_dir(project_name), MANUAL_DATA_DIR)

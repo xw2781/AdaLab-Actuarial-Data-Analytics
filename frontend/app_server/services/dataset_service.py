@@ -88,6 +88,59 @@ def _cached_dataset_names_from_file(filename: str) -> Set[str]:
     return names
 
 
+def _read_dataset_sidecar(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return payload
+
+
+def _cached_dataset_names_from_sidecar(path: str) -> Set[str]:
+    names: Set[str] = set()
+    payload = _read_dataset_sidecar(path)
+    if not payload:
+        return names
+    for key in ("dataset_name", "instance_name", "dataset_type", "dataset_type_name"):
+        _add_cached_dataset_name(names, payload.get(key))
+    return names
+
+
+def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str], List[Dict[str, Any]]]:
+    names: Set[str] = set()
+    files: List[Dict[str, Any]] = []
+    if not os.path.isdir(folder_path):
+        return names, files
+    with os.scandir(folder_path) as it:
+        for entry in it:
+            if not entry.is_file():
+                continue
+            ext = os.path.splitext(entry.name)[1].lower()
+            if ext not in {".csv", ".json"}:
+                continue
+            names.update(_cached_dataset_names_from_file(entry.name))
+            metadata: Dict[str, Any] = {}
+            if ext == ".csv":
+                metadata = _read_dataset_sidecar(os.path.splitext(entry.path)[0] + ".json")
+            if ext == ".json":
+                metadata = _read_dataset_sidecar(entry.path)
+                names.update(_cached_dataset_names_from_sidecar(entry.path))
+            file_info = {
+                "name": entry.name,
+                "storage": storage,
+                "path": entry.path,
+            }
+            if metadata:
+                file_info["dataset_name"] = str(metadata.get("dataset_name") or metadata.get("instance_name") or "").strip()
+                file_info["dataset_type"] = str(metadata.get("dataset_type") or metadata.get("dataset_type_name") or "").strip()
+                file_info["csv_file"] = str(metadata.get("csv_file") or "").strip()
+            files.append(file_info)
+    return names, files
+
+
 def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[str, Any]:
     project = str(project_name if project_name is not None else "").strip()
     rc = str(reserving_class if reserving_class is not None else "").strip()
@@ -95,35 +148,39 @@ def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[s
         raise HTTPException(400, "project_name and reserving_class are required.")
 
     try:
-        data_dir = config.get_project_data_dir(project)
+        generated_data_dir = config.get_project_generated_data_dir(project)
+        manual_data_dir = config.get_project_manual_data_dir(project)
     except ValueError as err:
         raise HTTPException(404, str(err))
 
     rc_folder = sanitize_reserving_class_folder(rc)
-    folder_path = os.path.join(data_dir, rc_folder)
-    if not os.path.isdir(folder_path):
+    generated_folder_path = os.path.join(generated_data_dir, rc_folder)
+    manual_folder_path = os.path.join(manual_data_dir, rc_folder)
+    if not os.path.isdir(generated_folder_path) and not os.path.isdir(manual_folder_path):
         return {
             "ok": True,
             "exists": False,
             "project_name": project,
             "reserving_class": rc,
-            "folder_path": folder_path,
+            "folder_path": generated_folder_path,
+            "folder_paths": {
+                "generated": generated_folder_path,
+                "manual": manual_folder_path,
+            },
             "dataset_names": [],
             "files": [],
         }
 
     names: Set[str] = set()
-    files: List[str] = []
+    files: List[Dict[str, Any]] = []
     try:
-        with os.scandir(folder_path) as it:
-            for entry in it:
-                if not entry.is_file():
-                    continue
-                ext = os.path.splitext(entry.name)[1].lower()
-                if ext not in {".csv", ".json"}:
-                    continue
-                files.append(entry.name)
-                names.update(_cached_dataset_names_from_file(entry.name))
+        for storage, folder_path in (
+            ("generated", generated_folder_path),
+            ("manual", manual_folder_path),
+        ):
+            folder_names, folder_files = _scan_cached_dataset_folder(folder_path, storage)
+            names.update(folder_names)
+            files.extend(folder_files)
     except PermissionError:
         raise HTTPException(423, "Cached dataset folder is locked or inaccessible.")
     except OSError as err:
@@ -134,9 +191,13 @@ def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[s
         "exists": True,
         "project_name": project,
         "reserving_class": rc,
-        "folder_path": folder_path,
+        "folder_path": generated_folder_path,
+        "folder_paths": {
+            "generated": generated_folder_path,
+            "manual": manual_folder_path,
+        },
         "dataset_names": sorted(names, key=lambda item: item.lower()),
-        "files": sorted(files, key=lambda item: item.lower()),
+        "files": sorted(files, key=lambda item: (str(item.get("storage") or ""), str(item.get("name") or "").lower())),
     }
 
 
@@ -206,7 +267,7 @@ def _require_notes_fields(project_name: str, reserving_class: str, dataset_name:
 
 def _get_notes_file_path(project_name: str, reserving_class: str, dataset_id: str) -> str:
     try:
-        data_dir = config.get_project_data_dir(project_name)
+        data_dir = config.get_project_manual_data_dir(project_name)
     except ValueError as err:
         raise HTTPException(404, str(err))
     rc_folder = sanitize_reserving_class_folder(reserving_class)

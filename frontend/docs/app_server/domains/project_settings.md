@@ -44,7 +44,8 @@ Provides project-folder filesystem operations used by Project Settings tree acti
 <!-- MANUAL:BEGIN -->
 - Handles folder CRUD and settings JSON writes.
 - Handles project folder open requests by resolving the project directory through config path helpers before launching OS file explorer.
-- `create_project_folder` creates an empty project folder plus `data` subfolder; client coordinates rollback if later folder-structure/settings saves fail.
+- `create_project_folder` creates an empty project folder plus `data/generated` and `data/manual` subfolders; client coordinates rollback if later folder-structure/settings saves fail.
+- `duplicate_project_folder` copies project configuration files and `data/manual` only, then creates an empty `data/generated` folder so source-derived/generated datasets are rebuilt for the duplicated project instead of being carried forward.
 - Handles per-project `general_settings.json` persistence in each project folder.
 - Normalizes stored Origin/Development boundary values to plain integer strings (no commas, no trailing `.0`/`.00`).
 - Stores `auto_generated` in `general_settings.json`; the app server writes `project_name` as current project folder name to detect stale duplicated files.

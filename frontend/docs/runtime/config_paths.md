@@ -27,6 +27,8 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
   - `get_local_project_prefs_path`
   - `get_path`
   - `get_project_data_dir`
+  - `get_project_generated_data_dir`
+  - `get_project_manual_data_dir`
   - `get_project_settings_workbook_path`
   - `get_reserving_class_combinations_path`
   - `get_reserving_class_path_tree_path`
@@ -56,7 +58,7 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
 - App-server modules import `app_server.config` for runtime path resolution.
 - On first-time setup, the Electron shell searches `D:\ArcRho Server` through `Z:\ArcRho Server` and fills the Server Connection root path when found.
 - Saving Server Connection hot-applies the new config by refreshing `app_server.config` runtime globals and notifying open UI frames; app restart is not required for new server requests.
-- DFM RPC Bridge writes request files under `<workspace_root>/<requests_dir>/RPC bridge` and expects remote DFM/SyncDFM JSON files under `<workspace_root>/<projects_dir>/<project>/data/tmp/<ReservingClassFolder>`.
+- DFM RPC Bridge writes request files under `<workspace_root>/<requests_dir>/RPC bridge` and expects remote DFM/SyncDFM JSON files under `<workspace_root>/<projects_dir>/<project>/data/generated/tmp/<ReservingClassFolder>`.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
@@ -68,8 +70,8 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
 - Dataset valid-value caches and the DFM root-path cache are cleared or replaced when the shell broadcasts a Server Connection update.
 - User-local fixed paths are also refreshed in `app_server/config.py`, including workflow export path (`~/Documents/ArcRho/workflows`) and scripting path (`~/Documents/ArcRho/scripts`) used for notebooks and editable macros.
 - Project, reserving-class, dataset, DFM method, workflow, and project-user folder/file components encode Windows-invalid filename characters with the reversible `_%XX_` rule, for example `/` becomes `_%2F_`, `:` becomes `_%3A_`, and ASCII control characters use their two-digit hex code. Backend paths use `app_server.config.encode_filename_segment`; direct renderer-side file paths use the shared `/ui/shared/filename_sanitizer.js` helper so DFM, Dataset, and future pages follow the same convention.
-- ArcRhoTri dataset CSV files use `projects/<project>/data/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv`.
-- DFM local method files use `projects/<project>/data/<ReservingClassFolder>/DFM@<Name>.json`; within one project/reserving-class pair, the DFM `Name` is the sole local instance identity. DFM RPC Bridge remote responses use `data/tmp/<ReservingClassFolder>/DFM@<Name>.json`, while remote-update status files start with `SyncDFM@`.
+- ArcRhoTri generated dataset CSV/JSON sidecar pairs use `projects/<project>/data/generated/<ReservingClassFolder>/<DatasetName>.csv` and `.json`; sidecar metadata records origin/development lengths so shape changes rebuild the generated pair.
+- DFM local method files use `projects/<project>/data/manual/<ReservingClassFolder>/DFM@<Name>.json`; within one project/reserving-class pair, the DFM `Name` is the sole local instance identity. DFM RPC Bridge remote responses use `data/generated/tmp/<ReservingClassFolder>/DFM@<Name>.json`, while remote-update status files start with `SyncDFM@`.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

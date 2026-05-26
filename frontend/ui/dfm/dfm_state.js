@@ -262,7 +262,7 @@ export async function getRatioSaveBaseDir() {
     getResolvedReservingClass() || String(document.getElementById("pathInput")?.value || "").trim(),
     "ReservingClass",
   );
-  return `${rootPath}\\projects\\${project || "UnknownProject"}\\data\\${reservingClass}`;
+  return `${rootPath}\\projects\\${project || "UnknownProject"}\\data\\manual\\${reservingClass}`;
 }
 
 export async function buildRatioSavePath() {

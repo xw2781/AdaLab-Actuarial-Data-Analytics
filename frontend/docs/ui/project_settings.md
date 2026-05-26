@@ -69,6 +69,7 @@ Detected `arcrho:*` message types in key JS files:
 - Field Mapping `Dataset Type` cells use a modern floating suggestion dropdown and typed entry; typing filters suggestions, deleting all text is allowed, empty input shows all available options, dropdown arrow click forces full-option view regardless of current text, any input text change re-applies filtering, the dropdown always opens below the active input, and only dataset types with empty `Formula` are available for selection.
 - Field Mapping `Level` cells auto-fill when `Significances` changes to `Reserving Class` using `max(other Level values) + 1`; level cells also support mouse-wheel +/- integer adjustment with a minimum of `1`.
 - After Field Mapping save succeeds, Project Settings automatically saves Dataset Types for the same project so `dataset_types.json` `Source` values are re-synced from rows where Field Mapping `Significance = Dataset` (`Field Name` mapped into each Dataset Type source chain).
+- Dataset Types saves also refresh the persisted `Generated` flag in `dataset_types.json`/`dataset_types.xlsx`; the flag is `true` when all non-operator components of the saved `Source` are found in project `field_mapping.json` `field_name` values.
 - Dataset Types editor blocks enabling `Calculated` when the dataset type name is already used by a field in Field Mapping for the same project.
 - When the `Dataset Types` ribbon is active, shell `File` actions map to local export/import (`Save Dataset Types` / `Load Dataset Types`) using default folder `Documents\\ArcRho\\templates`; local load accepts both `.json` and `.xlsx` files.
 - When the `Reserving Class Types` ribbon is active, shell `File` actions replace default Save/Save As with local export/import (`Save Reserving Class Types As...` / `Load Reserving Class Types From...`) using default folder `Documents\\ArcRho\\templates`; local load accepts both `.json` and `.xlsx` files and then schedules normal project auto-save.
@@ -95,8 +96,9 @@ Detected `arcrho:*` message types in key JS files:
 - `general_settings.json` stores `auto_generated`; derived writes set it `true`, user edits set it `false`.
 - When `auto_generated` is `false`, table reload will not overwrite the 3 date values unless `project_name` in JSON mismatches the project folder name (stale duplicated settings).
 - Source Data date inputs auto-derive from table summary + field mapping when values are missing, stale mismatch is detected, or reload is requested while `auto_generated=true`.
-- Source Data table reload clears project-level `ArcRhoHeaders*.csv` cache files under the project `data` folder before refreshing table summary.
-- Folder-node context menu supports `Create New Project`, prompts for a project name, creates an empty project folder (with `data` subfolder) via the app server, then persists folder-tree mapping + blank project row with rollback on intermediate failures.
+- Source Data table reload clears project-level `ArcRhoHeaders*.csv` cache files under the project `data/generated` folder before refreshing table summary.
+- Folder-node context menu supports `Create New Project`, prompts for a project name, creates an empty project folder (with `data/generated` and `data/manual` subfolders) via the app server, then persists folder-tree mapping + blank project row with rollback on intermediate failures.
+- Project creation creates `data/generated` and `data/manual`; project duplication copies only `data/manual` and creates a fresh empty `data/generated` so generated source-table datasets are rebuilt for the duplicated project.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

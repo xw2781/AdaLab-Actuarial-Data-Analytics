@@ -1,0 +1,13 @@
+{
+  "type": "change",
+  "scope": "project-data",
+  "audience": "user",
+  "summary": "Split project data files into generated and manual folders.",
+  "details": [
+    "New projects now create `data/generated` and `data/manual` folders.",
+    "Duplicating a project copies only `data/manual` and starts the duplicate with an empty `data/generated` folder, so source-table-derived datasets are rebuilt for the new project period.",
+    "ArcRhoTri generated datasets now write matching CSV/JSON metadata pairs under `data/generated/<ReservingClassPath>`.",
+    "DFM method JSON files, DFM output CSV/JSON sidecar pairs, and dataset notes now live under `data/manual`, while temporary DFM RPC files and ArcRhoHeaders cache cleanup stay in generated storage.",
+    "Desktop startup now verifies the backend it launched before loading the UI, preventing a stale server process on the same port from serving old data-path rules."
+  ]
+}

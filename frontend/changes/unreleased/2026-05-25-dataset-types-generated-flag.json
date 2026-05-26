@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "project settings",
+  "audience": "user",
+  "summary": "Dataset Types saves now refresh a Generated flag from field mapping coverage.",
+  "details": [
+    "The saved Dataset Types JSON and workbook include Generated=true when every Source component maps to a field_mapping field_name."
+  ]
+}

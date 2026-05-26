@@ -207,17 +207,31 @@ def duplicate_project_folder(source: str, old_name: str, new_name: str) -> Dict[
 
     try:
         shutil.copytree(old_path, new_path, ignore=ignore_data_in_root)
-        os.makedirs(os.path.join(new_path, "data"), exist_ok=True)
+        old_manual_path = os.path.join(old_path, config.PROJECT_DATA_DIR, config.MANUAL_DATA_DIR)
+        new_data_path = os.path.join(new_path, config.PROJECT_DATA_DIR)
+        new_generated_path = os.path.join(new_data_path, config.GENERATED_DATA_DIR)
+        new_manual_path = os.path.join(new_data_path, config.MANUAL_DATA_DIR)
+        os.makedirs(new_generated_path, exist_ok=True)
+        if os.path.isdir(old_manual_path):
+            shutil.copytree(old_manual_path, new_manual_path, dirs_exist_ok=True)
+            manual_action = "copied"
+        else:
+            os.makedirs(new_manual_path, exist_ok=True)
+            manual_action = "created"
         safe_append_project_audit_log(
             project_name=new_folder,
             action=f"Duplicated project folder from '{old_folder}'",
         )
+        created = [f"{config.PROJECT_DATA_DIR}/{config.GENERATED_DATA_DIR}"]
+        if manual_action == "created":
+            created.append(f"{config.PROJECT_DATA_DIR}/{config.MANUAL_DATA_DIR}")
         return {
             "ok": True,
             "old_folder": old_folder,
             "new_folder": new_folder,
-            "skipped": ["data"],
-            "created": ["data"],
+            "skipped": [f"{config.PROJECT_DATA_DIR}/{config.GENERATED_DATA_DIR}"],
+            "created": created,
+            "copied": [f"{config.PROJECT_DATA_DIR}/{config.MANUAL_DATA_DIR}"] if manual_action == "copied" else [],
         }
     except FileExistsError:
         raise HTTPException(409, f"Target folder already exists: {new_folder}")
@@ -246,7 +260,8 @@ def create_project_folder(source: str, name: str) -> Dict[str, Any]:
         raise HTTPException(400, "Project name must not be empty.")
 
     folder_path = os.path.join(config.PROJECT_SETTINGS_DIR, folder)
-    data_path = os.path.join(folder_path, "data")
+    generated_data_path = os.path.join(folder_path, config.PROJECT_DATA_DIR, config.GENERATED_DATA_DIR)
+    manual_data_path = os.path.join(folder_path, config.PROJECT_DATA_DIR, config.MANUAL_DATA_DIR)
     base_dir = os.path.normcase(os.path.abspath(config.PROJECT_SETTINGS_DIR))
     target_dir = os.path.normcase(os.path.abspath(folder_path))
     if not (target_dir == base_dir or target_dir.startswith(base_dir + os.sep)):
@@ -258,7 +273,8 @@ def create_project_folder(source: str, name: str) -> Dict[str, Any]:
         raise HTTPException(409, f"Target path is not a folder: {folder}")
 
     try:
-        os.makedirs(data_path, exist_ok=False)
+        os.makedirs(generated_data_path, exist_ok=False)
+        os.makedirs(manual_data_path, exist_ok=False)
         safe_append_project_audit_log(
             project_name=folder,
             action="Created empty project folder",
@@ -266,7 +282,10 @@ def create_project_folder(source: str, name: str) -> Dict[str, Any]:
         return {
             "ok": True,
             "created_folder": folder,
-            "created": ["data"],
+            "created": [
+                f"{config.PROJECT_DATA_DIR}/{config.GENERATED_DATA_DIR}",
+                f"{config.PROJECT_DATA_DIR}/{config.MANUAL_DATA_DIR}",
+            ],
         }
     except FileExistsError:
         raise HTTPException(409, f"Target folder already exists: {folder}")

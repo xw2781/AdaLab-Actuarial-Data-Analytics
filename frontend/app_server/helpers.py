@@ -96,22 +96,22 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
     projects_root = config.PROJECT_SETTINGS_DIR.rstrip("\\/")
     if proj:
         proj = _sanitize_folder_name(proj)
-    project_data_dir = os.path.join(projects_root, proj, "data") if proj else os.path.join(projects_root, "data")
+    project_data_dir = (
+        os.path.join(projects_root, proj, config.PROJECT_DATA_DIR, config.GENERATED_DATA_DIR)
+        if proj
+        else os.path.join(projects_root, config.PROJECT_DATA_DIR, config.GENERATED_DATA_DIR)
+    )
 
     if function_name.strip().lower() == "arcrhotri" and reserving_class and dataset_name:
         rc_folder = sanitize_reserving_class_folder(reserving_class)
         dataset_file = sanitize_dataset_file_name(dataset_name)
-        if origin_length and development_length:
-            origin_part = sanitize_dataset_file_name(origin_length, "OriginLength")
-            dev_part = sanitize_dataset_file_name(development_length, "DevelopmentLength")
-            dataset_file = f"{dataset_file}@{origin_part}@{dev_part}"
         return os.path.join(project_data_dir, rc_folder, f"{dataset_file}.csv")
 
     full_name = config.encode_filename_segment("@".join(values))
 
     if proj:
         return os.path.join(project_data_dir, f"{full_name}.csv")
-    return os.path.join(projects_root, "data", f"{full_name}.csv")
+    return os.path.join(project_data_dir, f"{full_name}.csv")
 
 
 def send_request_like_vba(request_info: str) -> str:
