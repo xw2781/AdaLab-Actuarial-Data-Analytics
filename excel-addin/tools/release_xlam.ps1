@@ -45,6 +45,58 @@ function Get-RibbonLabelForWorkbook([string]$WorkbookPath) {
     [System.IO.Path]::GetFileNameWithoutExtension($WorkbookPath)
 }
 
+function Update-WorkbookCoreProperties([string]$WorkbookPath, [string]$Title) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $zip = [System.IO.Compression.ZipFile]::Open($WorkbookPath, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $zip.Entries | Where-Object { ($_.FullName -replace '\\', '/') -ieq 'docProps/core.xml' } | Select-Object -First 1
+        if ($null -eq $entry) {
+            Write-Warning "Workbook core properties not found: $WorkbookPath"
+            return
+        }
+
+        $reader = New-Object System.IO.StreamReader($entry.Open())
+        try {
+            [xml]$xml = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+
+        $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+        $ns.AddNamespace('dc', 'http://purl.org/dc/elements/1.1/')
+        $titleNode = $xml.SelectSingleNode('//dc:title', $ns)
+        if ($null -eq $titleNode) {
+            $titleNode = $xml.CreateElement('dc', 'title', 'http://purl.org/dc/elements/1.1/')
+            [void]$xml.DocumentElement.AppendChild($titleNode)
+        }
+        $titleNode.InnerText = $Title
+
+        $descriptionNode = $xml.SelectSingleNode('//dc:description', $ns)
+        if ($null -eq $descriptionNode) {
+            $descriptionNode = $xml.CreateElement('dc', 'description', 'http://purl.org/dc/elements/1.1/')
+            [void]$xml.DocumentElement.AppendChild($descriptionNode)
+        }
+        $descriptionNode.InnerText = 'ArcRho actuarial data and analytics system'
+
+        $entry.Delete()
+        $newEntry = $zip.CreateEntry('docProps/core.xml', [System.IO.Compression.CompressionLevel]::Optimal)
+        $writer = New-Object System.IO.StreamWriter($newEntry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+        try {
+            $xml.Save($writer)
+        }
+        finally {
+            $writer.Dispose()
+        }
+        Write-Host "Updated workbook title: $Title"
+    }
+    finally {
+        $zip.Dispose()
+    }
+}
+
 function New-CustomUIXmlForWorkbook([string]$RibbonXmlPath, [string]$WorkbookPath, [string]$WorkingDir) {
     if (-not (Test-Path -LiteralPath $WorkingDir -PathType Container)) {
         New-Item -ItemType Directory -Path $WorkingDir | Out-Null
@@ -181,6 +233,7 @@ if (Test-Path -LiteralPath $releasePathFull -PathType Leaf) {
 
 Copy-Item -LiteralPath $betaPathFull -Destination $releasePathFull -Force
 Update-XlamPackageFromUnpackedFiles $releasePathFull $customUIPathFull $signatureDirFull $extractDirFull $releasePathFull
+Update-WorkbookCoreProperties $releasePathFull (Get-RibbonLabelForWorkbook $releasePathFull)
 (Get-Item -LiteralPath $releasePathFull).Attributes =
     (Get-Item -LiteralPath $releasePathFull).Attributes -bor [System.IO.FileAttributes]::ReadOnly
 

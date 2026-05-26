@@ -31,6 +31,22 @@ Public disableWatcher As Boolean
 Public triangle_tool_row As Long
 Public triangle_tool_col As Long
 
+Private Const DATA_STORAGE_GENERATED As String = "generated"
+Private Const DATA_STORAGE_MANUAL As String = "manual"
+
+Private Type DatasetRequestSpec
+    FunctionName As String
+    ProjectName As String
+    ReservingClassPath As String
+    DatasetName As String
+    ProjectDataPath As String
+    DataPath As String
+    StorageKind As String
+End Type
+
+Private datasetTypesCache As Object
+Private datasetTypesStampCache As Object
+
 Public Function FirstExistingPath(ParamArray paths() As Variant) As String
     Dim i As Long
     For i = LBound(paths) To UBound(paths)
@@ -41,6 +57,32 @@ Public Function FirstExistingPath(ParamArray paths() As Variant) As String
     Next i
     FirstExistingPath = CStr(paths(LBound(paths)))
 End Function
+
+Private Function FileExists(ByVal filePath As String) As Boolean
+    FileExists = (Len(Dir$(filePath, vbNormal Or vbReadOnly Or vbHidden Or vbSystem)) > 0)
+End Function
+
+Private Function NormalizeDatasetKey(ByVal value As String) As String
+    NormalizeDatasetKey = LCase$(Trim$(value))
+End Function
+
+Private Function IsGeneratedDataPath(ByVal filePath As String) As Boolean
+    IsGeneratedDataPath = (InStr(1, filePath, "\data\generated\", vbTextCompare) > 0)
+End Function
+
+Private Sub DeleteFileIfExists(ByVal filePath As String)
+    If FileExists(filePath) Then Kill filePath
+End Sub
+
+Private Sub DeleteGeneratedDatasetCache(ByVal csvPath As String)
+    Dim jsonPath As String
+    If Not IsGeneratedDataPath(csvPath) Then Exit Sub
+    DeleteFileIfExists csvPath
+    If LCase$(Right$(csvPath, 4)) = ".csv" Then
+        jsonPath = Left$(csvPath, Len(csvPath) - 4) & ".json"
+        DeleteFileIfExists jsonPath
+    End If
+End Sub
 
 Public Function ProductRootPath() As String
     Dim addinDir As String
@@ -81,67 +123,83 @@ Public Function GetDataset(funcArgs As String)
 ' +---------------+
 ' | Main Function |
 ' +---------------+
+    Dim spec As DatasetRequestSpec
     Dim dataPath As String
     Dim projectDataDir As String
     Dim t1 As Double, t2 As Double
     Dim requestInfo As String
     Const MAX_WAIT_SEC As Double = 5
     On Error GoTo ErrHandler
-    
+
     If skipDataProcess Then
         Exit Function
     End If
-    
+
     ' t1 = Timer
     ' Debug.Print "Time - Start: " & TimeMS()
-    
-    dataPath = SetDataPath(funcArgs)
+
+    spec = BuildDatasetRequestSpec(funcArgs)
+    dataPath = spec.DataPath
     If InStrRev(dataPath, "\") > 0 Then
         projectDataDir = GetProjectDataRootFromDataPath(dataPath)
         If Len(projectDataDir) > 0 And Dir(projectDataDir, vbDirectory) = "" Then
             GetDataset = "(project not defined: " & projectDataDir & ")"
             GoTo CleanExit
         End If
-        projectDataDir = Left$(dataPath, InStrRev(dataPath, "\") - 1)
-        If Dir(projectDataDir, vbDirectory) = "" Then
-            EnsureFolderPath projectDataDir
-        End If
     End If
     requestInfo = funcArgs & "#DataPath = " & dataPath
-    
-    ' --- Case 1: reuse existing data if allowed ---
+
+    ' Manual datasets are read-only from Excel. Missing manual datasets should
+    ' not create request files or clear files under data\manual.
+    If spec.StorageKind = DATA_STORAGE_MANUAL Then
+        If FileExists(dataPath) Then
+            GetDataset = GetDataArray(dataPath)
+            errCount = 0
+        Else
+            Debug.Print "[error] - manual dataset file not found: "; dataPath
+            GetDataset = "(manual dataset not found)"
+        End If
+        GoTo CleanExit
+    End If
+
+    ' --- Case 1: reuse existing generated/runtime data if allowed ---
     If (Dir(dataPath) <> "") And (removeData = False) Then
         GetDataset = GetDataArray(dataPath)
         errCount = 0
         GoTo CleanExit
     End If
-    
+
     ' --- Case 2: need fresh data ---
     ufLoading.UpdateText "Updating [" & GetParamValue(requestInfo, "DatasetName") & "]"
-    
-    If Dir(dataPath) <> "" Then
-        Kill dataPath
+
+    DeleteGeneratedDatasetCache dataPath
+
+    If InStrRev(dataPath, "\") > 0 Then
+        projectDataDir = Left$(dataPath, InStrRev(dataPath, "\") - 1)
+        If Dir(projectDataDir, vbDirectory) = "" Then
+            EnsureFolderPath projectDataDir
+        End If
     End If
-    
+
     ' Send Request
     SendRequest requestInfo
     doubleRefresh = True
-    
+
     ' Waiting for data...
     If disableWaitTime Then
         GetDataset = "(waiting for data)"
         Exit Function
     End If
-    
+
     If Not WaitForFileReady(dataPath, MAX_WAIT_SEC) Then
         GetDataset = "request time out"
         GoTo CleanExit
     End If
-    
+
     ' t2 = Timer
     ' Debug.Print "Time - End  : " & TimeMS()
     ' Debug.Print "Time - Spent: " & Format(t2 - t1, "0.000")
-    
+
     If Dir(dataPath) <> "" Then
         GetDataset = GetDataArray(dataPath)
     Else
@@ -149,14 +207,14 @@ Public Function GetDataset(funcArgs As String)
         GetDataset = "data path not found"
         GoTo CleanExit
     End If
-    
+
     errCount = 0
 
 CleanExit:
     Unload ufLoading
     ufLoading.Reset
     Exit Function
-    
+
 ErrHandler:
     Debug.Print "GetDataset error: "; Err.Number; Err.Description
     Debug.Print "ProductRootPath: "; ProductRootPath()
@@ -164,7 +222,7 @@ ErrHandler:
     Debug.Print "RequestDir: "; ProductPath("requests")
     GetDataset = "ArcRho file access error " & Err.Number & ": " & Err.Description
     Resume CleanExit
-    
+
 End Function
 
 
@@ -181,13 +239,13 @@ Private Sub EnsureFolderPath(ByVal folderPath As String)
     Dim i As Long
     Dim mkdirErr As Long
     Dim mkdirDesc As String
-    
+
     If Len(Trim$(folderPath)) = 0 Then Exit Sub
     If FolderExists(folderPath) Then Exit Sub
-    
+
     parts = Split(folderPath, "\")
     If UBound(parts) < 0 Then Exit Sub
-    
+
     If Left$(folderPath, 2) = "\\" Then
         If UBound(parts) < 3 Then Exit Sub
         currentPath = "\\" & parts(2) & "\" & parts(3)
@@ -196,7 +254,7 @@ Private Sub EnsureFolderPath(ByVal folderPath As String)
         currentPath = parts(0)
         i = 1
     End If
-    
+
     For i = i To UBound(parts)
         If Len(parts(i)) > 0 Then
             currentPath = currentPath & "\" & parts(i)
@@ -308,19 +366,19 @@ Public Sub LoadConfig()
 
                 Case "teamprofile"
                     teamProfile = Trim$(parts(1))
-                    
+
                 Case "debugMode"
                     debugMode = CBool(Trim$(parts(1)))
-                    
+
                 Case "disableProgressBar"
                     disableProgressBar = CBool(Trim$(parts(1)))
-                    
+
             End Select
         End If
     Loop
 
     Close #f
-   
+
 End Sub
 
 Public Sub UpdateConfigValue(ByVal keyName As String, ByVal newValue As String)
@@ -355,6 +413,12 @@ Public Sub UpdateConfigValue(ByVal keyName As String, ByVal newValue As String)
 End Sub
 
 Public Function SetDataPath(inputString As String) As String
+    Dim spec As DatasetRequestSpec
+    spec = BuildDatasetRequestSpec(inputString)
+    SetDataPath = spec.DataPath
+End Function
+
+Private Function BuildDatasetRequestSpec(inputString As String) As DatasetRequestSpec
     Dim s As String, proj As String
     Dim lines() As String, parts() As String
     Dim i As Long
@@ -365,16 +429,20 @@ Public Function SetDataPath(inputString As String) As String
     Dim reservingClassPath As String
     Dim datasetName As String
     Dim projectDataPath As String
+    Dim generatedDataPath As String
+    Dim manualDataPath As String
+    Dim storageKind As String
     Dim rcFolder As String
     Dim datasetFile As String
-    
+    Dim spec As DatasetRequestSpec
+
     ' Normalize delimiters: allow either "#" or newlines between pairs
     s = inputString
     s = Replace(s, vbCrLf, "#")
     s = Replace(s, vbCr, "#")
     s = Replace(s, vbLf, "#")
     lines = Split(s, "#")
-    
+
     ' Build the @-joined Value list for legacy flat caches while also capturing
     ' the project, reserving class path, and dataset name for the new ArcRho
     ' project data layout.
@@ -384,7 +452,7 @@ Public Function SetDataPath(inputString As String) As String
                 parts = Split(lines(i), "=")
                 key = Trim$(parts(0))
                 val = Trim$(Mid$(lines(i), InStr(1, lines(i), "=", vbTextCompare) + 1))
-                
+
                 Select Case LCase$(key)
                     Case "projectname"
                         proj = val
@@ -407,30 +475,225 @@ Public Function SetDataPath(inputString As String) As String
             End If
         End If
     Next i
-    
+
     basePath = ProductPath("projects\")
-    
+
     If Len(proj) > 0 Then
         proj = SanitizeProjectFolderName(proj)
         projectDataPath = basePath & proj & "\data"
     Else
         projectDataPath = basePath & "data"
     End If
-    
+    generatedDataPath = projectDataPath & "\generated"
+    manualDataPath = projectDataPath & "\manual"
+    storageKind = ResolveDatasetStorageKind(proj, datasetName, functionName)
+
     ' New storage contract: dataset CSV files live under one sanitized
     ' reserving-class folder and no longer repeat the reserving class path in
-    ' the filename.
+    ' the filename. Dataset Types "Generated" controls generated/manual
+    ' placement; missing dataset types are treated as manual instances.
     If Len(reservingClassPath) > 0 And Len(datasetName) > 0 Then
         rcFolder = SanitizeReservingClassFolderName(reservingClassPath)
         datasetFile = SanitizeDataFileName(datasetName)
-        SetDataPath = projectDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
+        If storageKind = DATA_STORAGE_MANUAL Then
+            spec.DataPath = manualDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
+        Else
+            spec.DataPath = generatedDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
+        End If
+    Else
+        ' Fallback for requests that are not scoped by reserving class and dataset
+        ' name, such as ArcRhoHeaders and ArcRhoProjectSettings.
+        fullName = EncodeFileNameSegment(fullName)
+        spec.DataPath = generatedDataPath & "\" & fullName & ".csv"
+    End If
+
+    spec.FunctionName = functionName
+    spec.ProjectName = proj
+    spec.ReservingClassPath = reservingClassPath
+    spec.DatasetName = datasetName
+    spec.ProjectDataPath = projectDataPath
+    spec.StorageKind = storageKind
+    BuildDatasetRequestSpec = spec
+End Function
+
+Private Function ResolveDatasetStorageKind(ByVal projectName As String, ByVal datasetName As String, ByVal functionName As String) As String
+    Dim generatedMap As Object
+    Dim key As String
+
+    If Len(Trim$(datasetName)) = 0 Then
+        ResolveDatasetStorageKind = DATA_STORAGE_GENERATED
         Exit Function
     End If
-    
-    ' Fallback for requests that are not scoped by reserving class and dataset
-    ' name, such as ArcRhoHeaders and ArcRhoProjectSettings.
-    fullName = EncodeFileNameSegment(fullName)
-    SetDataPath = projectDataPath & "\" & fullName & ".csv"
+
+    Set generatedMap = GetDatasetTypesGeneratedMap(projectName)
+    key = NormalizeDatasetKey(datasetName)
+    If generatedMap.Exists(key) Then
+        If CBool(generatedMap(key)) Then
+            ResolveDatasetStorageKind = DATA_STORAGE_GENERATED
+        Else
+            ResolveDatasetStorageKind = DATA_STORAGE_MANUAL
+        End If
+    Else
+        ResolveDatasetStorageKind = DATA_STORAGE_MANUAL
+    End If
+End Function
+
+Private Function GetDatasetTypesGeneratedMap(ByVal projectName As String) As Object
+    Dim datasetTypesPath As String
+    Dim cacheKey As String
+    Dim stamp As String
+    Dim generatedMap As Object
+
+    EnsureDatasetTypesCache
+
+    datasetTypesPath = GetProjectDatasetTypesJsonPath(projectName)
+    cacheKey = LCase$(datasetTypesPath)
+    If FileExists(datasetTypesPath) Then
+        stamp = CStr(FileDateTime(datasetTypesPath))
+    Else
+        stamp = "<missing>"
+    End If
+
+    If datasetTypesCache.Exists(cacheKey) Then
+        If datasetTypesStampCache.Exists(cacheKey) Then
+            If CStr(datasetTypesStampCache(cacheKey)) = stamp Then
+                Set GetDatasetTypesGeneratedMap = datasetTypesCache(cacheKey)
+                Exit Function
+            End If
+        End If
+    End If
+
+    If FileExists(datasetTypesPath) Then
+        Set generatedMap = LoadDatasetTypesGeneratedMap(datasetTypesPath)
+    Else
+        Set generatedMap = CreateObject("Scripting.Dictionary")
+        generatedMap.CompareMode = vbTextCompare
+    End If
+
+    If datasetTypesCache.Exists(cacheKey) Then datasetTypesCache.Remove cacheKey
+    If datasetTypesStampCache.Exists(cacheKey) Then datasetTypesStampCache.Remove cacheKey
+    datasetTypesCache.Add cacheKey, generatedMap
+    datasetTypesStampCache.Add cacheKey, stamp
+
+    Set GetDatasetTypesGeneratedMap = generatedMap
+End Function
+
+Private Function LoadDatasetTypesGeneratedMap(ByVal datasetTypesPath As String) As Object
+    Dim generatedMap As Object
+    Dim root As Object
+    Dim columns As Collection
+    Dim rows As Collection
+    Dim row As Collection
+    Dim nameIndex As Long
+    Dim generatedIndex As Long
+    Dim i As Long
+    Dim datasetName As String
+    Dim key As String
+    Dim generated As Boolean
+
+    Set generatedMap = CreateObject("Scripting.Dictionary")
+    generatedMap.CompareMode = vbTextCompare
+
+    On Error GoTo LoadFailed
+    Set root = JsonParse(ReadUtf8TextFile(datasetTypesPath))
+    If Not root.Exists("columns") Or Not root.Exists("rows") Then GoTo LoadFinished
+
+    Set columns = root("columns")
+    Set rows = root("rows")
+    nameIndex = JsonColumnIndex(columns, "Name")
+    generatedIndex = JsonColumnIndex(columns, "Generated")
+    If nameIndex <= 0 Or generatedIndex <= 0 Then GoTo LoadFinished
+
+    For i = 1 To rows.Count
+        Set row = rows.Item(i)
+        If row.Count >= nameIndex Then
+            datasetName = Trim$(CStr(row.Item(nameIndex)))
+            If Len(datasetName) > 0 Then
+                generated = False
+                If row.Count >= generatedIndex Then
+                    generated = BoolLike(row.Item(generatedIndex), False)
+                End If
+                key = NormalizeDatasetKey(datasetName)
+                If generatedMap.Exists(key) Then
+                    generatedMap(key) = generated
+                Else
+                    generatedMap.Add key, generated
+                End If
+            End If
+        End If
+    Next i
+
+LoadFinished:
+    Set LoadDatasetTypesGeneratedMap = generatedMap
+    Exit Function
+
+LoadFailed:
+    Debug.Print "Failed to load dataset_types.json: "; datasetTypesPath; " - "; Err.Description
+    Set LoadDatasetTypesGeneratedMap = generatedMap
+End Function
+
+Private Sub EnsureDatasetTypesCache()
+    If datasetTypesCache Is Nothing Then
+        Set datasetTypesCache = CreateObject("Scripting.Dictionary")
+        datasetTypesCache.CompareMode = vbTextCompare
+    End If
+    If datasetTypesStampCache Is Nothing Then
+        Set datasetTypesStampCache = CreateObject("Scripting.Dictionary")
+        datasetTypesStampCache.CompareMode = vbTextCompare
+    End If
+End Sub
+
+Private Function GetProjectDatasetTypesJsonPath(ByVal projectName As String) As String
+    Dim projectFolder As String
+    If Len(Trim$(projectName)) > 0 Then
+        projectFolder = SanitizeProjectFolderName(projectName)
+        GetProjectDatasetTypesJsonPath = ProductPath("projects\" & projectFolder & "\dataset_types.json")
+    Else
+        GetProjectDatasetTypesJsonPath = ProductPath("projects\dataset_types.json")
+    End If
+End Function
+
+Private Function JsonColumnIndex(ByVal columns As Collection, ByVal columnName As String) As Long
+    Dim i As Long
+    For i = 1 To columns.Count
+        If StrComp(Trim$(CStr(columns.Item(i))), columnName, vbTextCompare) = 0 Then
+            JsonColumnIndex = i
+            Exit Function
+        End If
+    Next i
+    JsonColumnIndex = 0
+End Function
+
+Private Function BoolLike(ByVal value As Variant, ByVal defaultValue As Boolean) As Boolean
+    Dim text As String
+    If IsEmpty(value) Or IsNull(value) Then
+        BoolLike = defaultValue
+        Exit Function
+    End If
+    If VarType(value) = vbBoolean Then
+        BoolLike = CBool(value)
+        Exit Function
+    End If
+    text = LCase$(Trim$(CStr(value)))
+    Select Case text
+        Case "true", "yes", "y", "1", "generated"
+            BoolLike = True
+        Case "false", "no", "n", "0", "manual"
+            BoolLike = False
+        Case Else
+            BoolLike = defaultValue
+    End Select
+End Function
+
+Private Function ReadUtf8TextFile(ByVal filePath As String) As String
+    Dim stream As Object
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.LoadFromFile filePath
+    ReadUtf8TextFile = stream.ReadText(-1)
+    stream.Close
 End Function
 
 ' Keep this mapping in sync with data-engine/docs/filename-escaping-rules.md.
@@ -546,28 +809,41 @@ Public Function GetDataArray(dataPath As String)
     Dim dateTimeString As String
     Dim data() As String
     Dim fileContent As String
+    Dim normalizedContent As String
     Dim i As Long, j As Long
-    
+
     aFile = FreeFile
     Open dataPath For Input As #aFile
     fileContent = Input$(LOF(aFile), #aFile)
     Close #aFile
 
-    lines = Split(fileContent, vbCrLf)
-    ReDim outputArray(LBound(lines) To UBound(lines) - 1, 0)
-    
-    For i = LBound(lines) To UBound(lines) - 1
+    normalizedContent = Replace(fileContent, vbCrLf, vbLf)
+    normalizedContent = Replace(normalizedContent, vbCr, vbLf)
+    Do While Right$(normalizedContent, 1) = vbLf
+        normalizedContent = Left$(normalizedContent, Len(normalizedContent) - 1)
+    Loop
+
+    If Len(normalizedContent) = 0 Then
+        ReDim outputArray(0 To 0, 0 To 0)
+        GetDataArray = outputArray
+        Exit Function
+    End If
+
+    lines = Split(normalizedContent, vbLf)
+    ReDim outputArray(LBound(lines) To UBound(lines), 0)
+
+    For i = LBound(lines) To UBound(lines)
         data = Split(lines(i), ",")
         If UBound(data) > UBound(outputArray, 2) Then
-            ReDim Preserve outputArray(LBound(lines) To UBound(lines) - 1, LBound(data) To UBound(data))
+            ReDim Preserve outputArray(LBound(lines) To UBound(lines), LBound(data) To UBound(data))
         End If
         For j = LBound(data) To UBound(data)
-     
+
             dateTimeString = data(j)
             If InStr(dateTimeString, "+") > 0 Then
                 dateTimeString = Left(dateTimeString, InStr(dateTimeString, "+") - 1)
             End If
-            
+
             If IsNumeric(data(j)) Then
                 outputArray(i, j) = CDbl(data(j))
             ElseIf IsDate(dateTimeString) Then
@@ -577,7 +853,7 @@ Public Function GetDataArray(dataPath As String)
             End If
         Next j
     Next i
-    
+
     GetDataArray = outputArray
 End Function
 
