@@ -21,7 +21,7 @@ ArcRho's web UI gives actuaries a flexible workspace for customizing, retrieving
 
 ArcRho keeps familiar actuarial methods at the center, then equips them with modern, user-friendly tools that make method review faster and more transparent. The goal is not only to provide accurate data, but to help actuaries reach more accurate insights through clearer assumptions, easier interaction, and more productive review workflows.
 
-## Compare and Sync Reserving Method Versions
+## Versioned Reserving Methods with Built-in Controls
 ![DFM version comparison](./assets/images/version_control.png)
 
 Method Version Compare helps teams review any two historical versions of a chain-ladder method before adopting changes. The comparison view highlights which version is newer, shows side-by-side snapshots of ratio selections, formulas, and notes, and lets users choose which version to keep. This gives actuaries a clear review step before overwriting assumptions, reducing accidental drift while keeping collaboration fast.
