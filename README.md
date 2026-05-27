@@ -131,7 +131,3 @@ All functions use the `ArcRho` prefix.
 | `ArcRhoHeaders` | Utility | Returns axis labels for triangle headers. `periodType = 0` = origin labels; `1` = development age labels | `periodType`, `Transposed`, `[PeriodLength]`, `[ProjectName]` |
 | `ArcRhoProjectSettings` | Utility | Returns project metadata: name, origin type, start/end dates, development end date, period lengths | `[ProjectName]` |
 
-## License
-
-ArcRho is proprietary software. Copyright (c) 2026 Xiao Wei. All rights reserved.
-See [LICENSE](LICENSE) for details.
