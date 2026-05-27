@@ -57,7 +57,7 @@ Save behavior:
 - Preserve unknown JSON fields.
 - Update `method metadata.last modified`.
 - Write with a temporary file and atomic replace.
-- Rebuild `data/dfm_method_index.json`.
+- Rebuild each reserving-class folder's `method_index.json`.
 - Refuse writes when the client is `read_only=True`.
 
 ## Filename Rules
@@ -92,5 +92,5 @@ The `inspect` command returns `DfmMethod.agent_inspect` with requested component
 From repo root:
 
 ```powershell
-python -m unittest discover -s python-api\tests
+python python-api\tools\run_with_timeout.py --timeout 115 -- python -m unittest discover -s python-api\tests
 ```

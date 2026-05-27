@@ -93,8 +93,8 @@ class ArcRhoApiTests(unittest.TestCase):
         refs = project.rebuild_dfm_index()
         self.assertEqual(len(refs), 1)
         self.assertEqual(refs[0].name, "Paid DFM")
-        index = json.loads((self.data_dir / "dfm_method_index.json").read_text(encoding="utf-8"))
-        self.assertEqual(index["methods"], [{"path": "Auto^PP", "name": "Paid DFM"}])
+        index = json.loads((self.rc_data_dir / "method_index.json").read_text(encoding="utf-8"))
+        self.assertEqual(index["methods"], [{"dataset_name": "Paid Ultimate", "method_type": "DFM"}])
 
     def test_default_server_root_uses_host_workspace_config(self) -> None:
         original_root = api_config._server_root

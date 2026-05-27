@@ -9,7 +9,7 @@ from .exceptions import ProjectNotFoundError
 from .io import read_json, write_json_atomic
 from .models import DatasetTypeInfo, DfmMethodRef, ProjectSettings
 from .paths import (
-    DFM_INDEX_FILE_NAME,
+    METHOD_INDEX_FILE_NAME,
     clean_text,
     dfm_filename,
     parse_dfm_filename,
@@ -118,16 +118,35 @@ class Project:
 
     def rebuild_dfm_index(self) -> list[DfmMethodRef]:
         refs = self.list_dfm_methods(refresh=False)
-        payload = {
-            "methods": [
-                {
-                    "path": item.path,
-                    "name": item.name,
-                }
-                for item in refs
-            ]
-        }
-        write_json_atomic(self.data_dir / DFM_INDEX_FILE_NAME, payload, read_only=self.read_only)
+        refs_by_path: dict[str, list[DfmMethodRef]] = {}
+        for item in refs:
+            refs_by_path.setdefault(item.path, []).append(item)
+        folder_names = set(refs_by_path)
+        if self.data_dir.exists():
+            folder_names.update(
+                item.name
+                for item in self.data_dir.iterdir()
+                if item.is_dir() and item.name.lower() != "tmp"
+            )
+        for folder_name in sorted(folder_names, key=str.lower):
+            folder_refs = refs_by_path.get(folder_name, [])
+            methods: list[dict[str, str]] = []
+            for item in folder_refs:
+                payload = read_json(item.file_path)
+                details = payload.get("details tab") if isinstance(payload.get("details tab"), dict) else {}
+                dataset_name = clean_text(details.get("output type"))
+                if not dataset_name:
+                    continue
+                methods.append({
+                    "dataset_name": dataset_name,
+                    "method_type": "DFM",
+                })
+            methods.sort(key=lambda item: (item["dataset_name"].lower(), item["method_type"].lower()))
+            write_json_atomic(
+                self.data_dir / folder_name / METHOD_INDEX_FILE_NAME,
+                {"methods": methods},
+                read_only=self.read_only,
+            )
         return refs
 
 
