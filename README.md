@@ -72,11 +72,9 @@ Instead of pre-building thousands of triangles, ArcRho constructs only the trian
 | **Data structure** | Normalized grain-level fact table | Fixed hierarchical project tree |
 | **Project setup** | Edit JSON config files | Rebuild project hierarchy in GUI |
 | **Computation model** | On-demand, per request | Pre-compute all datasets before access |
-| **Load time** | Near-instant (cached) | Up to half a day for large monthly projects |
 | **Storage footprint** | Only source data stored | 10,000+ pre-computed datasets per project |
 | **New class / coverage** | Update JSON, request resolves immediately | Manual intervention to fix aggregation dependencies |
 | **Custom aggregations** | Define in `reserving_class_types.json` at any time | Requires project rebuild |
-| **Formula datasets** | Arithmetic expressions over triangles | Predefined dataset types only |
 | **Excel integration** | Drop-in VBA functions matching existing syntax | Vendor-bundled Excel Add-In |
 | **Infrastructure** | Runs locally on any machine | Depends on remote server / vendor application |
 
