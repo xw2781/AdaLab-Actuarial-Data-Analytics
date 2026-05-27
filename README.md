@@ -16,7 +16,7 @@ ArcRho replaces that model with on-demand queries against analytics-ready source
 
 ArcRho's web UI gives actuaries a flexible workspace for customizing, retrieving, and reviewing triangle datasets without rebuilding a project structure. Users can pull any configured dataset at the level or segment they need, switch assumptions quickly, and use multiple built-in visualization presets to inspect trends, compare patterns, and validate selections before moving deeper into the analysis.
 
-## Discover New Ways to Interact with Reserving Methods
+## A New Way to Work with Reserving Methods
 ![Screenshot](./assets/images/UI_ChainLadder.png)
 
 ArcRho keeps familiar actuarial methods at the center, then equips them with modern, user-friendly tools that make method review faster and more transparent. The goal is not only to provide accurate data, but to help actuaries reach more accurate insights through clearer assumptions, easier interaction, and more productive review workflows.
