@@ -4,7 +4,7 @@
   "audience": "user",
   "summary": "Moved DFM object selection into the Details page.",
   "details": [
-    "Opening a DFM tab now lands directly on Details. The Details Name field has a project/path-scoped selector backed by dfm_method_index.json, and selecting a name uses the normal local method lookup to load that DFM object.",
-    "The DFM method index cache now stores only path/name entries, and the Details page groups Project, Reserving Class, and Name under Object Path with Output Vector, Input Triangle, and settings under Method Inputs & Settings."
+    "Opening a DFM tab now lands directly on Details. The Details Name field has a project/path-scoped selector backed by the reserving class folder's method_index.json, and selecting a name uses the normal local method lookup to load that DFM object.",
+    "The Details page groups Project, Reserving Class, and Name under Object Path with Output Vector, Input Triangle, and settings under Method Inputs & Settings."
   ]
 }

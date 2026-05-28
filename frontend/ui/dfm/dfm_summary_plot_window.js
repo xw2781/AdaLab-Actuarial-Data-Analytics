@@ -117,6 +117,33 @@ function ensureStyles() {
       height: 16px;
       pointer-events: none;
     }
+    .dfmSummaryPlotModeToggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      margin-left: 4px;
+      padding-left: 8px;
+      border-left: 1px solid #d6dfeb;
+    }
+    .dfmSummaryPlotModeBtn {
+      height: 26px;
+      min-width: 58px;
+      padding: 0 8px;
+      border: 1px solid #b8c5d8;
+      border-radius: 4px;
+      background: #fff;
+      color: #12396e;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+    }
+    .dfmSummaryPlotModeBtn:hover,
+    .dfmSummaryPlotModeBtn.active {
+      border-color: #225baa;
+      background: #eaf2ff;
+      color: #0f3d82;
+    }
     .dfmSummaryPlotContent {
       flex: 1 1 auto;
       min-height: 0;
@@ -295,11 +322,59 @@ function extractSummaryPlotData(summaryTable) {
   return { xLabels, series };
 }
 
+function valuesToPercentDeveloped(values) {
+  const output = new Array(values.length).fill(null);
+  let running = null;
+  for (let index = values.length - 1; index >= 0; index -= 1) {
+    const value = values[index];
+    if (!Number.isFinite(value)) {
+      running = null;
+      continue;
+    }
+    if (index === values.length - 1) {
+      running = value;
+    } else if (Number.isFinite(running)) {
+      running = value * running;
+    } else {
+      running = null;
+      continue;
+    }
+    if (Number.isFinite(running) && running !== 0) {
+      output[index] = (1 / running) * 100;
+    }
+  }
+  return output;
+}
+
+function buildPercentDevelopedPlotData(summaryTable) {
+  const base = extractSummaryPlotData(summaryTable);
+  return {
+    xLabels: base.xLabels,
+    mode: "percent-developed",
+    series: base.series
+      .map((item) => ({
+        ...item,
+        values: valuesToPercentDeveloped(item.values),
+      }))
+      .filter((item) => item.values.some((value) => Number.isFinite(value))),
+  };
+}
+
+function getSummaryPlotData(summaryTable, mode) {
+  if (mode === "percent-developed") return buildPercentDevelopedPlotData(summaryTable);
+  return { ...extractSummaryPlotData(summaryTable), mode: "values" };
+}
+
 function niceNumber(value) {
   if (!Number.isFinite(value)) return "";
   const abs = Math.abs(value);
   if (abs >= 1000 || abs < 0.001) return value.toExponential(2);
   return String(Math.round(value * 10000) / 10000);
+}
+
+function formatPlotValue(value, mode) {
+  const text = niceNumber(value);
+  return mode === "percent-developed" && text ? `${text}%` : text;
 }
 
 function getChartScale(series, xMin = 0, xMax = Number.POSITIVE_INFINITY) {
@@ -335,11 +410,12 @@ function renderChart(data, zoom = null, hiddenSet = new Set()) {
   const xFor = (index) => pad.left + (colCount === 1 ? plotW / 2 : ((index - xMin) / xSpan) * plotW);
   const yFor = (value) => pad.top + (1 - ((value - min) / (max - min))) * plotH;
   const yTicks = Array.from({ length: 5 }, (_unused, index) => min + ((max - min) * index) / 4);
+  const mode = data?.mode || "values";
   const grid = yTicks.map((tick) => {
     const y = yFor(tick);
     return `
       <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#e6ebf2" />
-      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#667085">${escapeHtml(niceNumber(tick))}</text>
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#667085">${escapeHtml(formatPlotValue(tick, mode))}</text>
     `;
   }).join("");
   const labelStep = Math.max(1, Math.ceil(colCount / 12));
@@ -357,7 +433,7 @@ function renderChart(data, zoom = null, hiddenSet = new Set()) {
       .join(" ");
     const markers = item.values.map((value, index) => {
       if (!Number.isFinite(value)) return "";
-      return `<circle cx="${xFor(index)}" cy="${yFor(value)}" r="3" fill="${item.color}"><title>${escapeHtml(item.label)} ${escapeHtml(xLabels[index] || "")}: ${escapeHtml(niceNumber(value))}</title></circle>`;
+      return `<circle cx="${xFor(index)}" cy="${yFor(value)}" r="3" fill="${item.color}"><title>${escapeHtml(item.label)} ${escapeHtml(xLabels[index] || "")}: ${escapeHtml(formatPlotValue(value, mode))}</title></circle>`;
     }).join("");
     const dash = item.dash ? ` stroke-dasharray="${escapeHtml(item.dash)}"` : "";
     const widthAttr = item.label === "Selected" ? "3" : "2";
@@ -578,7 +654,8 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
   ensureStyles();
   const existing = document.querySelector(".dfmSummaryPlotWindow");
   if (existing) existing.remove();
-  let data = extractSummaryPlotData(summaryTable);
+  let plotMode = "values";
+  let data = getSummaryPlotData(summaryTable, plotMode);
   const win = document.createElement("div");
   win.className = "dfmSummaryPlotWindow";
   let zoom = null;
@@ -610,6 +687,10 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
             <path d="M13.7 6.1 17.9 10.3M4 15.8 8.2 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
           </svg>
         </button>
+        <div class="dfmSummaryPlotModeToggle" role="group" aria-label="Graph mode">
+          <button class="dfmSummaryPlotModeBtn active" type="button" data-mode="values">Ratios</button>
+          <button class="dfmSummaryPlotModeBtn" type="button" data-mode="percent-developed">% Dev</button>
+        </div>
       </div>
       <div class="dfmSummaryPlotContent">
         <div class="dfmSummaryPlotChartWrap"></div>
@@ -626,6 +707,7 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
   const zoomBtn = win.querySelector('[data-tool="zoom"]');
   const panBtn = win.querySelector('[data-tool="pan"]');
   const pencilBtn = win.querySelector('[data-tool="pencil"]');
+  const modeBtns = Array.from(win.querySelectorAll(".dfmSummaryPlotModeBtn"));
   let interaction = null;
   let pendingPanZoom = null;
   let panRaf = 0;
@@ -652,6 +734,9 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
     if (zoomBtn) zoomBtn.classList.toggle("active", activeTool === "zoom");
     if (panBtn) panBtn.classList.toggle("active", activeTool === "pan");
     if (pencilBtn) pencilBtn.classList.toggle("active", activeTool === "pencil");
+    modeBtns.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.mode === plotMode);
+    });
     chartWrap.innerHTML = data.series.length
       ? renderChart(data, zoom, hiddenSeries)
       : '<div class="dfmSummaryPlotEmpty">No numeric summary table values to plot.</div>';
@@ -742,7 +827,7 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
       });
       if (changed === false) return false;
     }
-    data = extractSummaryPlotData(summaryTable);
+    data = getSummaryPlotData(summaryTable, plotMode);
     render();
     return true;
   };
@@ -908,6 +993,18 @@ export function openDfmSummaryPlotWindow(summaryTable, options = {}) {
   pencilBtn?.addEventListener("click", () => {
     activeTool = activeTool === "pencil" ? "" : "pencil";
     render();
+  });
+  modeBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.mode === "percent-developed" ? "percent-developed" : "values";
+      if (mode === plotMode) return;
+      plotMode = mode;
+      data = getSummaryPlotData(summaryTable, plotMode);
+      zoom = null;
+      hiddenSeries.clear();
+      cancelActiveInteraction();
+      render();
+    });
   });
   document.addEventListener("keydown", onKeyDown);
   win.querySelector(".dfmSummaryPlotClose")?.addEventListener("click", close);

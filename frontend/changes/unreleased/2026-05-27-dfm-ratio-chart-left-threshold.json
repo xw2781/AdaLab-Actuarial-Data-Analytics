@@ -1,0 +1,15 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a draggable left-cutoff threshold to DFM ratio charts.",
+  "details": [
+    "Ratio chart popups now show a grey vertical threshold at the left edge of the plot area.",
+    "Dragging the threshold right excludes valid ratio points to the left of the line for the opened ratio column.",
+    "Existing exclusions and manual table-cell or chart-point exclusions made while the chart is open are protected from threshold-line actions until the chart closes.",
+    "Unprotected threshold-owned exclusions now reverse when the threshold lines move back past those points.",
+    "The chart y-axis stays fixed while a threshold line is being dragged and resizes after the drag finishes.",
+    "Dragging the top or bottom y-axis label shows a red preview line and applies a custom max or min y-axis boundary for zooming the open chart.",
+    "Y-axis label drags can expand the custom boundary beyond the current plot range, and double-clicking a top or bottom y-axis label resets that custom boundary."
+  ]
+}

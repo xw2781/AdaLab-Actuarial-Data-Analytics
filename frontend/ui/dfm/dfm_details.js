@@ -513,15 +513,12 @@ async function applyLastLocalProjectNameIfBlank() {
   void applyDfmProjectUserPreferences(project);
 }
 
-function normalizeDfmMethodIndexNames(payload, pathValue) {
-  const targetPath = sanitizeDfmMethodFilePart(pathValue, "");
-  const targetKey = normalizeKey(targetPath);
+function normalizeDfmMethodIndexNames(payload) {
   const seen = new Set();
   const out = [];
   for (const item of Array.isArray(payload?.methods) ? payload.methods : []) {
-    const itemPath = sanitizeDfmMethodFilePart(item?.path, "");
-    const name = toText(item?.name);
-    if (!name || normalizeKey(itemPath) !== targetKey) continue;
+    const name = toText(item?.dataset_name);
+    if (!name || normalizeKey(item?.method_type) !== "dfm") continue;
     const key = normalizeKey(name);
     if (!key || seen.has(key)) continue;
     seen.add(key);
@@ -541,6 +538,7 @@ async function loadDfmMethodNames(projectName, pathValue, options = {}) {
   }
   const query = new URLSearchParams({
     project_name: project,
+    reserving_class: pathValue,
     refresh: options?.forceReload ? "true" : "false",
   });
   const response = await fetch(`/dfm/method-index?${query.toString()}`);
@@ -552,7 +550,7 @@ async function loadDfmMethodNames(projectName, pathValue, options = {}) {
     throw new Error(detail || `HTTP ${response.status}`);
   }
   const payload = await response.json().catch(() => ({}));
-  const names = normalizeDfmMethodIndexNames(payload, pathPart);
+  const names = normalizeDfmMethodIndexNames(payload);
   dfmMethodNamesByProjectPath.set(cacheKey, names);
   return names;
 }
@@ -779,7 +777,7 @@ function wireDfmMethodNamePicker() {
   button.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    void openPicker();
+    void openPicker({ forceReload: true });
   });
 
   input.addEventListener("keydown", (e) => {

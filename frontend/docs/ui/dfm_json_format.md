@@ -10,7 +10,7 @@ Top-level sections:
 
 - `json format`: currently `arcrho-dfm-method-by-tab-v1`.
 - `details tab`: `name`, `output type`, `input triangle`, `origin length`, `development length`, and `decimal places`.
-- `data tab`: `origin labels`, raw Data-tab `development labels` such as `2m` and `14m`, `input data triangle values`, and `input data triangle csv path`.
+- `data tab`: `origin labels`, raw Data-tab `development labels` such as `2m` and `14m`, `input data triangle values`, and length-scoped `input data triangle csv path`.
 - `ratios tab`: `ratio triangle` and `average formulas`.
 - `ratios tab`.`ratio triangle`: `origin labels`, GUI-display Ratios-tab `development labels` such as `(1) 2-14`, `ratio values`, and `excluded`.
 - `results tab`: `ratio basis dataset`, `ultimate ratio decimal places`, and `ultimate vector`.

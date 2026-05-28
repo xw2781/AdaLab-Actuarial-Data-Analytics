@@ -1079,11 +1079,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 6px;
       cursor: grab;
     }
     .dfmRatioChartHeader:active { cursor: grabbing; }
+    .dfmRatioChartHeaderTitleBlock {
+      flex: 1 1 220px;
+      min-width: 180px;
+    }
     .dfmRatioChartTitle {
       font-weight: 700;
       font-size: 14px;
@@ -1096,10 +1101,11 @@
     .dfmRatioChartLegend {
       display: flex;
       align-items: center;
+      flex: 1 1 260px;
+      flex-wrap: wrap;
       gap: 12px;
       font-size: 11px;
       color: #374151;
-      flex-shrink: 0;
     }
     .dfmChartLegendItem {
       display: inline-flex;
@@ -1144,6 +1150,24 @@
     .dfmLegendSelectedValue {
       color: #16a34a;
       font-weight: 600;
+    }
+    .dfmRatioChartIncludeAll {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #1f2937;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dfmRatioChartIncludeAll:hover {
+      background: #eef2f7;
+      border-color: #94a3b8;
     }
     .dfmRatioChartClose {
       border: 1px solid #d1d5db;
@@ -1675,7 +1699,7 @@
     <div class="dfmModalBackdrop"></div>
     <div class="dfmModalCard">
       <div class="dfmRatioChartHeader">
-        <div>
+        <div class="dfmRatioChartHeaderTitleBlock">
           <div class="dfmRatioChartTitle" id="dfmRatioChartTitle">Ratio Column</div>
           <div class="dfmRatioChartMeta" id="dfmRatioChartMeta"></div>
         </div>
@@ -1685,6 +1709,7 @@
           <span class="dfmChartLegendItem"><span class="dfmLegendIcon dfmLegendExcluded">×</span>Excluded</span>
           <span class="dfmChartLegendItem dfmLegendSelectedValue" id="dfmRatioChartSelectedValue"><span class="dfmLegendDashedLine"></span></span>
         </div>
+        <button class="dfmRatioChartIncludeAll" id="dfmRatioChartIncludeAll" type="button">Included All Ratios</button>
         <button class="dfmRatioChartClose" id="dfmRatioChartClose" aria-label="Close">×</button>
       </div>
       <div class="dfmRatioChartCanvasWrap">

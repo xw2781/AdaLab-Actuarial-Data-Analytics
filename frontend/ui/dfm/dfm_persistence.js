@@ -1185,7 +1185,7 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
     emitDfmInstancePresence("found");
     await refreshDfmMethodFileRevision(result.path);
     const objectSnapshot = recordCurrentDfmObjectSnapshot();
-    refreshDfmMethodIndex(objectSnapshot.project).catch((err) => {
+    refreshDfmMethodIndex(objectSnapshot.project, objectSnapshot.reservingClass).catch((err) => {
       console.warn("Failed to refresh DFM method index:", err);
     });
     const time = new Date().toLocaleTimeString();

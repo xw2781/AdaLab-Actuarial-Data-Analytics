@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Make DFM ratio chart threshold exclusions add-only and add a current-column include-all button.",
+  "details": [
+    "Dragging ratio chart threshold lines now only excludes newly out-of-band ratios instead of clearing already excluded ratios that move back inside the band.",
+    "The ratio chart header now has an `Included All Ratios` button that clears persisted exclusions for the currently opened ratio column."
+  ]
+}

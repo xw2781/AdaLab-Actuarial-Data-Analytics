@@ -102,13 +102,14 @@ export function recordCurrentDfmObjectSnapshot() {
   return recordDfmObjectSnapshot(getCurrentDfmObjectSnapshot());
 }
 
-export async function refreshDfmMethodIndex(projectName) {
+export async function refreshDfmMethodIndex(projectName, reservingClassPath) {
   const project = String(projectName || "").trim();
-  if (!project) return null;
+  const reservingClass = String(reservingClassPath || "").trim();
+  if (!project || !reservingClass) return null;
   const response = await fetch("/dfm/method-index/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_name: project }),
+    body: JSON.stringify({ project_name: project, reserving_class: reservingClass }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");

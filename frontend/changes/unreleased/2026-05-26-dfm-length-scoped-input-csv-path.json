@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "DFM method JSON now stores input triangle CSV paths with the selected origin and development lengths.",
+  "details": [
+    "DFM input triangle and output CSV filenames now include `@<OriginLength>@<DevelopmentLength>`, matching the length-specific ArcRhoTri cache files such as `Claim Counts--CWP@12@12.csv`."
+  ]
+}

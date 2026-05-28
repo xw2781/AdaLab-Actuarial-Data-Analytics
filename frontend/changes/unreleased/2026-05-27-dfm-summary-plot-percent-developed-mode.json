@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add a percent-developed graph mode to the DFM summary table plot.",
+  "details": [
+    "The `Plot Table Data` window now includes a graph-mode toggle between rendered ratio values and `% Developed` values.",
+    "The `% Developed` mode treats each average-formula row as if it were selected across the row, computes cumulative ratios right-to-left, and plots `1 / cumulative` as percent developed."
+  ]
+}

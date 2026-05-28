@@ -1,0 +1,9 @@
+{
+  "type": "change",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Scoped DFM method indexing to each reserving class folder.",
+  "details": [
+    "DFM method indexing now writes method_index.json inside each reserving class manual data folder and records dataset_name/method_type entries from DFM method files instead of using one project-level dfm_method_index.json."
+  ]
+}

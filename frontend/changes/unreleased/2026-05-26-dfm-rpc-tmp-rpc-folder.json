@@ -1,0 +1,9 @@
+{
+  "type": "change",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "DFM RPC bridge temp responses now stage under each manual reserving-class folder's tmp_rpc directory.",
+  "details": [
+    "Remote DFM comparison JSON and SyncDFM status JSON now use `data/manual/<ReservingClassFolder>/tmp_rpc` so RPC sync follows the current manual DFM method folder structure without appearing as normal local DFM methods."
+  ]
+}

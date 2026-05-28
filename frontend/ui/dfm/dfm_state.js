@@ -53,6 +53,7 @@ export const activeRatioCols = new Set();
 export const selectedSummaryByCol = new Map();
 export const ratioChartThresholdByCol = new Map();
 export const ratioChartLowerThresholdByCol = new Map();
+export const ratioChartLeftThresholdByCol = new Map();
 
 let ratioColAllActive = false;
 let cachedRootPath = null;
@@ -279,7 +280,10 @@ export function getResultsCsvSuggestedName(options = {}) {
   const datasetNameRaw = typeof options.datasetName === "string"
     ? options.datasetName
     : (String(document.getElementById("dfmMethodName")?.value || "").trim() || getDefaultMethodName());
-  return `${sanitizeFileNamePart(datasetNameRaw, "Dataset")}.csv`;
+  const originLen = normalizePositiveIntegerText(options.originLen ?? options.originLength ?? document.getElementById("originLenSelect")?.value);
+  const devLen = normalizePositiveIntegerText(options.devLen ?? options.developmentLength ?? document.getElementById("devLenSelect")?.value);
+  const lengthSuffix = originLen && devLen ? `@${originLen}@${devLen}` : "";
+  return `${sanitizeFileNamePart(datasetNameRaw, "Dataset")}${lengthSuffix}.csv`;
 }
 
 export function getInputTriangleCsvSuggestedName(options = {}) {
@@ -295,6 +299,11 @@ export function getInputTriangleCsvSuggestedName(options = {}) {
 export async function buildInputTriangleCsvPath(options = {}) {
   const dataDir = await getRatioDataDir();
   return `${dataDir}\\${getInputTriangleCsvSuggestedName(options)}`;
+}
+
+function normalizePositiveIntegerText(value) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
 }
 
 export function escapeCsvCell(value) {
