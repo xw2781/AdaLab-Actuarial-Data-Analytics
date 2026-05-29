@@ -9,10 +9,7 @@ for path in (PROJECT_ROOT, SOURCE_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-try:
-    from core.utils import resolve_existing_path
-except ModuleNotFoundError:
-    from utils import resolve_existing_path
+from utils import resolve_existing_path
 
 png_path = resolve_existing_path(
     PROJECT_ROOT / "library" / "icon" / "ArcRho Orchestrator.png",

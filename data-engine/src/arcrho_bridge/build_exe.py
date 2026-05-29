@@ -11,10 +11,7 @@ for path in (PROJECT_ROOT, SOURCE_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-try:
-    from core.utils import component_app_name
-except ModuleNotFoundError:
-    from utils import component_app_name
+from utils import component_app_name
 
 BUILD_ROOT = PROJECT_ROOT / "builds" / BASE_DIR.name
 DEPLOY_ROOT = Path(os.environ.get("ARCRHO_DEPLOY_ROOT", r"E:\ArcRho Server"))

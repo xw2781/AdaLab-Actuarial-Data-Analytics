@@ -29,38 +29,21 @@ for _path in (_PRODUCT_ROOT, _SOURCE_ROOT, _BUNDLE_ROOT):
         sys.path.insert(0, str(_path))
 
 import pandas as pd
-try:
-    from core.utils import (
-        function_brand,
-        get_project_root,
-        is_vector_function,
-        resolve_app_path,
-    )
-    from core.arcrho_engine.general_utils import (
-        DLOOKUP,
-        _generate_period_range,
-        _parse_date_to_yyyymm,
-        get_current_time,
-        split_formula,
-        split_formula_opts,
-        write_lists_to_csv,
-    )
-except ModuleNotFoundError:
-    from utils import (
-        function_brand,
-        get_project_root,
-        is_vector_function,
-        resolve_app_path,
-    )
-    from arcrho_engine.general_utils import (
-        DLOOKUP,
-        _generate_period_range,
-        _parse_date_to_yyyymm,
-        get_current_time,
-        split_formula,
-        split_formula_opts,
-        write_lists_to_csv,
-    )
+from utils import (
+    function_brand,
+    get_project_root,
+    is_vector_function,
+    resolve_app_path,
+)
+from arcrho_engine.general_utils import (
+    DLOOKUP,
+    _generate_period_range,
+    _parse_date_to_yyyymm,
+    get_current_time,
+    split_formula,
+    split_formula_opts,
+    write_lists_to_csv,
+)
 
 debug_mode = 0
 device_name = os.environ.get("COMPUTERNAME")
