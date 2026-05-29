@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Limit Dataset clear-cache header refresh to current period lengths.",
+  "details": [
+    "Clear Cache & Reload now clears only the ArcRhoHeaders CSV caches matching the visible Origin Length and Development Length controls.",
+    "Header caches for other period-length selections are preserved."
+  ]
+}

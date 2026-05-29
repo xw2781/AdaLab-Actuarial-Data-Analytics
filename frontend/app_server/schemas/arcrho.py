@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -22,3 +24,5 @@ class ArcRhoHeadersRequest(BaseModel):
 
 class ArcRhoHeadersCacheClearRequest(BaseModel):
     ProjectName: str
+    OriginLength: Optional[int] = None
+    DevelopmentLength: Optional[int] = None

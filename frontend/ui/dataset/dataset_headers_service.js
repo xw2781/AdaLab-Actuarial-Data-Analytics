@@ -105,9 +105,23 @@ export function createDatasetHeadersService(deps) {
     lastDevHeaderKey = "";
   }
 
-  function clearLocalHeadersCache(project) {
+  function clearLocalHeadersCache(project, options = {}) {
     const p = String(project || "").trim();
     const clearAll = !p;
+    const originLen = parseInt(options?.originLen, 10);
+    const devLen = parseInt(options?.devLen, 10);
+    const hasTargetLengths = Number.isFinite(originLen) && originLen > 0 && Number.isFinite(devLen) && devLen > 0;
+
+    if (!clearAll && hasTargetLengths) {
+      try {
+        localStorage.removeItem(headerKey(p, originLen));
+        localStorage.removeItem(devHeaderKey(p, originLen, devLen));
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     const oldPrefixes = clearAll
       ? [HEADER_PREFIX_V1, DEV_HEADER_PREFIX_V1]
       : [`${HEADER_PREFIX_V1}${p}::`, `${DEV_HEADER_PREFIX_V1}${p}::`];
@@ -133,16 +147,25 @@ export function createDatasetHeadersService(deps) {
     const p = String(project || "").trim();
     const remote = !!options?.remote;
     const keepInMemory = !!options?.keepInMemory;
+    const originLen = parseInt(options?.originLen, 10);
+    const devLen = parseInt(options?.devLen, 10);
+    const hasTargetLengths = Number.isFinite(originLen) && originLen > 0 && Number.isFinite(devLen) && devLen > 0;
 
-    clearLocalHeadersCache(p);
+    clearLocalHeadersCache(p, hasTargetLengths ? { originLen, devLen } : {});
     if (!keepInMemory) clearHeaderStateMemory();
 
     if (!remote || !p) return;
 
+    const payload = { ProjectName: p };
+    if (hasTargetLengths) {
+      payload.OriginLength = originLen;
+      payload.DevelopmentLength = devLen;
+    }
+
     const resp = await fetch("/arcrho/headers/cache/clear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ProjectName: p }),
+      body: JSON.stringify(payload),
     });
     if (!resp.ok) {
       throw new Error(`headers cache clear failed: ${resp.status}`);

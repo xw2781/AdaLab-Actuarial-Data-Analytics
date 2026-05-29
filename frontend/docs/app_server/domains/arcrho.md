@@ -28,7 +28,7 @@ ArcRho calculations/precheck domain.
 <!-- MANUAL:BEGIN -->
 - Called by dataset/workflow actions requiring ArcRho processing.
 - ArcRho runtime requests are published as flat JSON `request-*.json` files under the configured requests directory. Temporary `.tmp` files are atomically renamed to `.json`, and data-engine workers process JSON requests only.
-- Includes a cache-maintenance endpoint used by Project Settings reload to clear project-scoped generated `ArcRhoHeaders*.csv` files.
+- Includes a cache-maintenance endpoint used by Project Settings reload to clear project-scoped generated `ArcRhoHeaders*.csv` files; Dataset `Clear Cache & Reload` can pass current Origin Length and Development Length so only matching header caches are cleared.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches

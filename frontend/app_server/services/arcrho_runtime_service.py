@@ -106,7 +106,41 @@ def arcrho_headers(pairs: list, timeout_sec: float) -> Dict[str, Any]:
     }
 
 
-def clear_arcrho_headers_cache(project_name: str) -> Dict[str, Any]:
+def _header_cache_pairs(project_name: str, period_type: int, transposed: bool, period_length: int) -> list:
+    return [
+        ("Function", "ArcRhoHeaders"),
+        ("periodType", str(period_type)),
+        ("Transposed", str(transposed)),
+        ("PeriodLength", str(period_length)),
+        ("ProjectName", project_name),
+        ("StoredPeriodLength", str(-1)),
+    ]
+
+
+def _target_header_cache_paths(project_name: str, origin_length: Any, development_length: Any) -> list[str]:
+    targets: list[str] = []
+    seen = set()
+    specs = (
+        (0, False, origin_length),
+        (1, True, development_length),
+    )
+    for period_type, transposed, length in specs:
+        try:
+            period_length = int(length)
+        except (TypeError, ValueError):
+            continue
+        if period_length <= 0:
+            continue
+        path = set_data_path_like_vba(_header_cache_pairs(project_name, period_type, transposed, period_length))
+        normalized = os.path.normcase(os.path.abspath(path))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        targets.append(path)
+    return targets
+
+
+def clear_arcrho_headers_cache(project_name: str, origin_length: Any = None, development_length: Any = None) -> Dict[str, Any]:
     project_name_clean = str(project_name or "").strip()
     if not project_name_clean:
         raise HTTPException(400, "ProjectName is required")
@@ -117,6 +151,28 @@ def clear_arcrho_headers_cache(project_name: str) -> Dict[str, Any]:
         raise HTTPException(404, str(e))
 
     cleared_files = []
+    target_paths = _target_header_cache_paths(project_name_clean, origin_length, development_length)
+    if target_paths:
+        try:
+            for path in target_paths:
+                if not os.path.exists(path):
+                    continue
+                os.remove(path)
+                cleared_files.append(os.path.basename(path))
+        except PermissionError:
+            raise HTTPException(423, "Cannot clear ArcRhoHeaders cache files because the project data folder is locked.")
+        except OSError as e:
+            raise HTTPException(500, f"Failed to clear ArcRhoHeaders cache files: {str(e)}")
+
+        return {
+            "ok": True,
+            "project_name": project_name_clean,
+            "data_dir": data_dir,
+            "cleared_count": len(cleared_files),
+            "cleared_files": cleared_files,
+            "targeted": True,
+        }
+
     if not os.path.isdir(data_dir):
         return {
             "ok": True,
@@ -124,6 +180,7 @@ def clear_arcrho_headers_cache(project_name: str) -> Dict[str, Any]:
             "data_dir": data_dir,
             "cleared_count": 0,
             "cleared_files": [],
+            "targeted": False,
         }
 
     try:
@@ -149,6 +206,7 @@ def clear_arcrho_headers_cache(project_name: str) -> Dict[str, Any]:
         "data_dir": data_dir,
         "cleared_count": len(cleared_files),
         "cleared_files": cleared_files,
+        "targeted": False,
     }
 
 

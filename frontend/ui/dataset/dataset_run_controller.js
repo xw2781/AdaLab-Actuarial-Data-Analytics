@@ -315,7 +315,7 @@ export function createDatasetRunController(deps) {
       }
       if (clearCache && project) {
         try {
-          await clearHeadersCacheForProject(project, { remote: true });
+          await clearHeadersCacheForProject(project, { remote: true, originLen, devLen });
         } catch (err) {
           console.warn("Failed to clear ArcRhoHeaders cache:", err);
         }

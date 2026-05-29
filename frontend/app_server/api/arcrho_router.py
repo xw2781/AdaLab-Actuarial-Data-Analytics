@@ -27,7 +27,11 @@ def arcrho_headers(req: ArcRhoHeadersRequest) -> Dict[str, Any]:
 
 @router.post("/arcrho/headers/cache/clear")
 def clear_arcrho_headers_cache(req: ArcRhoHeadersCacheClearRequest) -> Dict[str, Any]:
-    return arcrho_runtime_service.clear_arcrho_headers_cache(req.ProjectName)
+    return arcrho_runtime_service.clear_arcrho_headers_cache(
+        req.ProjectName,
+        origin_length=req.OriginLength,
+        development_length=req.DevelopmentLength,
+    )
 
 
 @router.get("/arcrho/projects")
