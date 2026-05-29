@@ -11,7 +11,7 @@ from pathlib import Path
 def start_app(
     project_dir: str | Path = Path(__file__).resolve().parent,
     host: str = "127.0.0.1",
-    port: int = 8000,
+    port: int = 28765,
     reload: bool = True,
 ) -> None:
     """
@@ -62,7 +62,7 @@ def start_app(
 
 def start_browser(
     host: str = "127.0.0.1",
-    port: int = 8000,
+    port: int = 28765,
 ) -> None:
     """
     Launch Chrome in app mode (no tabs/address bar), windowed,

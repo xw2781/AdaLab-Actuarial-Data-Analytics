@@ -18,7 +18,7 @@ function isWindows11() {
 const IS_WIN11 = isWindows11();
 
 const HOST = process.env.ARCRHO_HOST || "127.0.0.1";
-const PORT = parseInt(process.env.ARCRHO_PORT || "8000", 10);
+const PORT = parseInt(process.env.ARCRHO_PORT || "28765", 10);
 const UI_VERSION = process.env.ARCRHO_UI_VERSION || String(Date.now());
 const URL = `http://${HOST}:${PORT}/ui/?v=${encodeURIComponent(UI_VERSION)}`;
 const BACKEND_HEALTH_URL = `http://${HOST}:${PORT}/app/health`;

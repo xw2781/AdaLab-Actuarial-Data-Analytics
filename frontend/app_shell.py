@@ -110,7 +110,7 @@ def run_supervisor(host: str, port: int, reload: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="ArcRho app supervisor")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=28765)
     parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
 
