@@ -428,6 +428,8 @@ Private Function BuildDatasetRequestSpec(inputString As String) As DatasetReques
     Dim functionName As String
     Dim reservingClassPath As String
     Dim datasetName As String
+    Dim originLength As String
+    Dim developmentLength As String
     Dim projectDataPath As String
     Dim generatedDataPath As String
     Dim manualDataPath As String
@@ -468,6 +470,14 @@ Private Function BuildDatasetRequestSpec(inputString As String) As DatasetReques
                         datasetName = val
                         If Len(fullName) > 0 Then fullName = fullName & "@"
                         fullName = fullName & val
+                    Case "originlength"
+                        originLength = val
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
+                    Case "developmentlength"
+                        developmentLength = val
+                        If Len(fullName) > 0 Then fullName = fullName & "@"
+                        fullName = fullName & val
                     Case Else
                         If Len(fullName) > 0 Then fullName = fullName & "@"
                         fullName = fullName & val
@@ -498,6 +508,11 @@ Private Function BuildDatasetRequestSpec(inputString As String) As DatasetReques
         If storageKind = DATA_STORAGE_MANUAL Then
             spec.DataPath = manualDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
         Else
+            If LCase$(Trim$(functionName)) = "arcrhotri" _
+                    And Len(Trim$(originLength)) > 0 _
+                    And Len(Trim$(developmentLength)) > 0 Then
+                datasetFile = datasetFile & "@" & Trim$(originLength) & "@" & Trim$(developmentLength)
+            End If
             spec.DataPath = generatedDataPath & "\" & rcFolder & "\" & datasetFile & ".csv"
         End If
     Else
@@ -696,6 +711,17 @@ Private Function ReadUtf8TextFile(ByVal filePath As String) As String
     stream.Close
 End Function
 
+Private Sub WriteUtf8TextFile(ByVal filePath As String, ByVal text As String)
+    Dim stream As Object
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.WriteText text
+    stream.SaveToFile filePath, 2
+    stream.Close
+End Sub
+
 ' Keep this mapping in sync with data-engine/docs/filename-escaping-rules.md.
 Private Function EncodeFileNameSegment(ByVal value As String) As String
     EncodeFileNameSegment = value
@@ -740,12 +766,12 @@ End Function
 
 Public Sub SendRequest(requestInfo As String)
     Dim lines() As String
-    Dim aFile As Integer
     Dim currentTime As String
     Dim requestDir As String
     Dim tempPath As String, finalPath As String
     Dim phase As String
     Dim i As Long
+    Dim jsonText As String
 
     On Error GoTo ErrHandler
 
@@ -764,17 +790,13 @@ Public Sub SendRequest(requestInfo As String)
     End If
 
     tempPath = requestDir & "\request-" & currentTime & ".tmp"
-    finalPath = requestDir & "\request-" & currentTime & ".txt"
+    finalPath = requestDir & "\request-" & currentTime & ".json"
 
-    phase = "open temp request file"
-    aFile = FreeFile
-    Open tempPath For Output As #aFile
-        phase = "write temp request file"
-        For i = LBound(lines) To UBound(lines)
-            Print #aFile, lines(i)
-        Next
-        Print #aFile, "UserName = " & Environ$("USERNAME")
-    Close #aFile
+    phase = "build JSON request file"
+    jsonText = RequestLinesToJson(lines, Environ$("USERNAME"))
+
+    phase = "write temp request file"
+    WriteUtf8TextFile tempPath, jsonText
 
     phase = "remove existing final request file"
     If Dir(finalPath, vbNormal) <> "" Then
@@ -793,11 +815,126 @@ Public Sub SendRequest(requestInfo As String)
     Exit Sub
 
 ErrHandler:
-    On Error Resume Next
-    If aFile <> 0 Then Close #aFile
-    On Error GoTo 0
     Err.Raise Err.Number, "SendRequest", phase & " failed. RequestDir=" & requestDir & "; TempPath=" & tempPath & "; FinalPath=" & finalPath & "; " & Err.Description
 End Sub
+
+Private Function RequestLinesToJson(ByRef lines() As String, ByVal userName As String) As String
+    Dim json As String
+    Dim i As Long
+    Dim line As String
+    Dim key As String
+    Dim val As String
+    Dim sepPos As Long
+    Dim firstField As Boolean
+
+    json = "{" & vbCrLf
+    firstField = True
+
+    For i = LBound(lines) To UBound(lines)
+        line = Trim$(lines(i))
+        If Len(line) > 0 Then
+            sepPos = InStr(1, line, "=", vbTextCompare)
+            If sepPos > 0 Then
+                key = Trim$(Left$(line, sepPos - 1))
+                val = Trim$(Mid$(line, sepPos + 1))
+                If Len(key) > 0 Then
+                    AppendJsonField json, firstField, key, val
+                End If
+            End If
+        End If
+    Next i
+
+    AppendJsonField json, firstField, "UserName", userName
+    json = json & vbCrLf & "}" & vbCrLf
+    RequestLinesToJson = json
+End Function
+
+Private Sub AppendJsonField(ByRef json As String, ByRef firstField As Boolean, ByVal key As String, ByVal value As String)
+    If Not firstField Then json = json & "," & vbCrLf
+    json = json & "  " & JsonQuote(key) & ": " & JsonScalar(key, value)
+    firstField = False
+End Sub
+
+Private Function JsonScalar(ByVal key As String, ByVal value As String) As String
+    Dim normalizedKey As String
+    Dim trimmed As String
+    normalizedKey = LCase$(Trim$(key))
+    trimmed = Trim$(value)
+
+    Select Case normalizedKey
+        Case "cumulative", "transposed", "calendar", "rpcserverwriteconfirmed"
+            Select Case LCase$(trimmed)
+                Case "true", "yes", "1"
+                    JsonScalar = "true"
+                    Exit Function
+                Case "false", "no", "0"
+                    JsonScalar = "false"
+                    Exit Function
+            End Select
+        Case "originlength", "developmentlength", "periodlength", "storedperiodlength", "decimalplaces"
+            If IsJsonInteger(trimmed) Then
+                JsonScalar = trimmed
+                Exit Function
+            End If
+    End Select
+
+    JsonScalar = JsonQuote(value)
+End Function
+
+Private Function IsJsonInteger(ByVal value As String) As Boolean
+    Dim i As Long
+    Dim ch As String
+
+    If Len(value) = 0 Then Exit Function
+    If Left$(value, 1) = "-" Then
+        If Len(value) = 1 Then Exit Function
+        i = 2
+    Else
+        i = 1
+    End If
+
+    For i = i To Len(value)
+        ch = Mid$(value, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Function
+    Next i
+    IsJsonInteger = True
+End Function
+
+Private Function JsonQuote(ByVal value As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim code As Long
+    Dim out As String
+
+    out = """"
+    For i = 1 To Len(value)
+        ch = Mid$(value, i, 1)
+        code = AscW(ch)
+        Select Case ch
+            Case """"
+                out = out & "\"""
+            Case "\"
+                out = out & "\\"
+            Case vbBack
+                out = out & "\b"
+            Case vbFormFeed
+                out = out & "\f"
+            Case vbCr
+                out = out & "\r"
+            Case vbLf
+                out = out & "\n"
+            Case vbTab
+                out = out & "\t"
+            Case Else
+                If code >= 0 And code < 32 Then
+                    out = out & "\u" & Right$("0000" & Hex$(code), 4)
+                Else
+                    out = out & ch
+                End If
+        End Select
+    Next i
+    JsonQuote = out & """"
+End Function
 
 Public Function GetDataArray(dataPath As String)
 ' *----------------------------------------------*

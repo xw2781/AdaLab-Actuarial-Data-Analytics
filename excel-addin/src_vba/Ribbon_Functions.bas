@@ -343,43 +343,6 @@ Public Sub SetupConnection2()
     On Error GoTo 0
 End Sub
 
-Sub RefreshDatabase()
-
-    Dim filePath As String
-    Dim fileNumber As Integer
-    Dim maxWaitTime As Long
-    Dim startTime As Long
-    Dim currentTime As String
-    Dim resultPath As String
-
-    currentTime = Format(Now, "yyyy-mm-dd_hh-mm-ss") & Format(Timer - Int(Timer), ".000")
-    filePath = "E:\ResQ\Excel Add-ins\requests\" & "request-" & currentTime & ".txt"
-    resultPath = "E:\ResQ\Excel Add-ins\data\" & "data-" & currentTime & ".csv"
-    
-    fileNumber = FreeFile
-    Open filePath For Output As #fileNumber
-        Print #fileNumber, "Function = RefreshDatabase"
-        Print #fileNumber, "ResultPath = " & resultPath
-        Print #fileNumber, "UserName = " & Environ("USERNAME")
-    Close #fileNumber
-    
-    maxWaitTime = 3 ' Maximum wait time in seconds
-    startTime = Timer
-    Do While Timer < startTime + maxWaitTime
-        If Dir(resultPath) <> "" Then Exit Do
-        DoEvents
-    Loop
-    
-    ' Check if the output file exists
-    If Dir(resultPath) = "" Then
-        MsgBox "Unable to connect, please try again later."
-    Else
-        MsgBox "Connection Updated!"
-        ' Kill resultPath
-    End If
-    
-End Sub
-
 Sub LoadAddIn()
     errCount = 0
     skipDataProcess = False

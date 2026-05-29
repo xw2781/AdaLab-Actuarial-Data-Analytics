@@ -19,11 +19,6 @@ Sub uiRefreshWorkbook(control As IRibbonControl)
     CalculateWorkbook
 End Sub
 
-' Refresh Database
-Sub uiRefreshDatabase(control As IRibbonControl)
-    RefreshDatabase
-End Sub
-
 '+----------+
 '|  Group 2 |
 '+----------+
