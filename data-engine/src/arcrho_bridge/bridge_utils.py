@@ -14,32 +14,6 @@ def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def read_txt(path, retries=50, delay=0.02):
-    for _ in range(retries):
-        try:
-            with open(path, mode="r", encoding="utf-8") as file:
-                lines = file.readlines()
-            break
-        except PermissionError:
-            time.sleep(delay)
-    else:
-        raise PermissionError(f"Cannot open {path}")
-
-    values = {}
-    for raw in lines:
-        line = raw.strip()
-        if not line:
-            continue
-        if " = " in line:
-            key, value = line.split(" = ", 1)
-        elif "=" in line:
-            key, value = line.split("=", 1)
-        else:
-            continue
-        values[key.strip()] = value.strip()
-    return values
-
-
 def write_json(path, payload, retries=5, delay=0.1):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +104,7 @@ def _format_compact_rows(value, indent):
 def read_json(path, retries=50, delay=0.02):
     for _ in range(retries):
         try:
-            with open(path, mode="r", encoding="utf-8") as file:
+            with open(path, mode="r", encoding="utf-8-sig") as file:
                 return json.load(file)
         except (PermissionError, json.JSONDecodeError):
             time.sleep(delay)

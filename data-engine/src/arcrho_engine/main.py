@@ -46,10 +46,8 @@ from arcrho_engine.data_processing import (
 )
 from arcrho_engine.general_utils import (
     DLOOKUP,
-    convert_dict,
     get_current_time,
     read_json,
-    read_txt,
     safe_remove,
     write_json,
     write_lists_to_csv,
@@ -61,7 +59,7 @@ class RequestHandler(FileSystemEventHandler):
     def on_moved(self, event):
         if event.is_directory:
             return
-        if not event.dest_path.lower().endswith(".txt"):
+        if not event.dest_path.lower().endswith(".json"):
             return
 
         file_path = event.dest_path
@@ -80,8 +78,7 @@ class RequestHandler(FileSystemEventHandler):
 
     def process_file(self, file_path):
         try:
-            arg = convert_dict(read_txt(file_path))
-            print(arg)
+            arg = read_json(file_path)
         except:
             # print(f'\n* request sent to another agent')
             return

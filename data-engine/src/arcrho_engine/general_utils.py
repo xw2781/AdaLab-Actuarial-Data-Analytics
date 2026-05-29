@@ -170,53 +170,10 @@ def split_formula_opts(s: str):
     return split_formula_with_ops(s)[1]
 
 
-def read_txt(txt_file, retries=50, delay=0.02):
-    """
-    Reads key=value lines safely with retries.
-    Supports values that contain '='.
-    Ignores blank / malformed lines.
-    """
-    for _ in range(retries):
-        try:
-            with open(txt_file, mode='r', encoding='utf-8') as f:
-                lines = f.readlines()
-            break
-        except PermissionError:
-            time.sleep(delay)
-    else:
-        raise PermissionError(f"Cannot open {txt_file}")
-
-    arg_dict = {}
-    for raw in lines:
-        line = raw.strip()
-        if not line:
-            continue
-
-        if '= ' in line:
-            key, value = line.split(' = ', 1)
-        elif '=' in line:
-            key, value = line.split('=', 1)
-        else:
-            continue
-
-        arg_dict[key.strip()] = value.strip()
-
-    return arg_dict
-
-
-def write_txt(txt_file, arg):
-    os.makedirs(os.path.dirname(txt_file), exist_ok=True)
-    content = ''
-    for item in arg.items():
-        content += item[0] + ' = ' + item[1] + '\n'
-    with open(txt_file, "w") as file:
-        file.write(content)
-
-
 def read_json(json_file, retries=50, delay=0.02):
     for _ in range(retries):
         try:
-            with open(json_file, mode='r', encoding='utf-8') as f:
+            with open(json_file, mode='r', encoding='utf-8-sig') as f:
                 return json.load(f)
         except (PermissionError, json.JSONDecodeError):
             time.sleep(delay)
@@ -290,27 +247,3 @@ def write_lists_to_csv(csv_path, lists, overwrite=True):
 
     time.sleep(0.05)
     os.rename(tmp_csv_path, csv_path)
-
-
-def smart_convert(value: str):
-    """
-    Convert a string into int, bool, or str.
-    """
-    v = value.strip()
-
-    if v.lower() == "true":
-        return True
-    if v.lower() == "false":
-        return False
-
-    if v.isdigit() or (v.startswith("-") and v[1:].isdigit()):
-        return int(v)
-
-    return v
-
-
-def convert_dict(input_dict: dict) -> dict:
-    """
-    Apply smart_convert to all values in a dictionary.
-    """
-    return {k: smart_convert(str(v)) for k, v in input_dict.items()}

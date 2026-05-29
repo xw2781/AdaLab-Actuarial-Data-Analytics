@@ -33,7 +33,7 @@ try:
         RESQ_WINDOW_TITLE,
         heartbeat_payload,
         list_instance_files,
-        read_txt,
+        read_json,
         remove_old_instances,
         safe_remove,
         window_is_active,
@@ -46,7 +46,7 @@ except ModuleNotFoundError:
         RESQ_WINDOW_TITLE,
         heartbeat_payload,
         list_instance_files,
-        read_txt,
+        read_json,
         remove_old_instances,
         safe_remove,
         window_is_active,
@@ -186,16 +186,16 @@ class BridgeRequestHandler(FileSystemEventHandler):
         self._handle_path(event.src_path)
 
     def process_pending(self, folder):
-        for path in sorted(Path(folder).glob("*.txt"), key=lambda item: item.stat().st_mtime):
+        for path in sorted(Path(folder).glob("*.json"), key=lambda item: item.stat().st_mtime):
             self.process_file(path)
 
     def _handle_path(self, path):
-        if str(path).lower().endswith(".txt"):
+        if str(path).lower().endswith(".json"):
             self.process_file(Path(path))
 
     def process_file(self, path):
         try:
-            request = read_txt(path)
+            request = read_json(path)
         except Exception:
             return
 
