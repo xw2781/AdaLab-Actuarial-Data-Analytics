@@ -49,7 +49,14 @@ for path in (PRODUCT_ROOT, SOURCE_ROOT, BUNDLE_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-DEFAULT_PORT = 8765
+def env_int(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+DEFAULT_PORT = env_int("ARCRHO_ADMIN_PORT", 28766)
 DEFAULT_STALE_AFTER_SECONDS = 60
 ENGINE_STALE_AFTER_SECONDS = 6
 HEARTBEAT_INTERVAL_SECONDS = 2
@@ -575,15 +582,10 @@ class AdminHandler(BaseHTTPRequestHandler):
 
 
 def make_server(port):
-    for candidate in range(port, port + 20):
-        try:
-            server = ThreadingHTTPServer(("127.0.0.1", candidate), AdminHandler)
-            server.shutdown_requested = False
-            server.admin_instance_path = None
-            return server
-        except OSError:
-            continue
-    raise OSError(f"No available port found from {port} to {port + 19}")
+    server = ThreadingHTTPServer(("127.0.0.1", port), AdminHandler)
+    server.shutdown_requested = False
+    server.admin_instance_path = None
+    return server
 
 
 class StartupSplash:
@@ -606,8 +608,7 @@ class StartupSplash:
         return
 
     def _html(self):
-        port_start = int(self.port)
-        port_end = port_start + 19
+        port = int(self.port)
         return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -719,11 +720,10 @@ class StartupSplash:
     <div class="bar" aria-hidden="true"></div>
   </main>
   <script>
-    const portStart = {port_start};
-    const portEnd = {port_end};
+    const port = {port};
     const statusEl = document.getElementById("status");
 
-    async function probe(port) {{
+    async function probe() {{
       const url = `http://127.0.0.1:${{port}}/`;
       try {{
         const response = await fetch(`${{url}}api/health`, {{cache: "no-store"}});
@@ -735,16 +735,13 @@ class StartupSplash:
       return false;
     }}
 
-    async function scan() {{
-      for (let port = portStart; port <= portEnd; port += 1) {{
-        statusEl.textContent = `Looking for local server on port ${{port}}`;
-        if (await probe(port)) return;
-      }}
-      statusEl.textContent = "Waiting for local admin server";
-      setTimeout(scan, 700);
+    async function poll() {{
+      statusEl.textContent = `Waiting for local admin server on port ${{port}}`;
+      if (await probe()) return;
+      setTimeout(poll, 700);
     }}
 
-    scan();
+    poll();
   </script>
 </body>
 </html>
@@ -769,33 +766,87 @@ def request_admin_shutdown(port):
         return False
 
 
-def wait_for_admin_shutdown(ports, timeout_seconds=3.0):
+def wait_for_admin_shutdown(port, timeout_seconds=3.0):
     deadline = time.monotonic() + timeout_seconds
-    remaining = set(ports)
-
-    while remaining and time.monotonic() < deadline:
-        remaining = {port for port in remaining if is_admin_server(port)}
-        if remaining:
-            time.sleep(0.1)
-
-    return remaining
+    while time.monotonic() < deadline:
+        if not is_admin_server(port):
+            return True
+        time.sleep(0.1)
+    return not is_admin_server(port)
 
 
-def shutdown_existing_admin_servers(port, port_count=20):
-    shutdown_ports = []
-    for candidate in range(port, port + port_count):
-        if is_admin_server(candidate) and request_admin_shutdown(candidate):
-            shutdown_ports.append(candidate)
+def get_port_listener_pids(port):
+    if os.name != "nt":
+        return []
 
-    if shutdown_ports:
-        remaining = wait_for_admin_shutdown(shutdown_ports)
-        closed = sorted(set(shutdown_ports) - remaining)
-        if closed:
-            print(f"Closed previous ArcRho Admin Control server(s) on port(s): {', '.join(map(str, closed))}")
-        if remaining:
-            print(f"Warning: previous admin server(s) still responding on port(s): {', '.join(map(str, sorted(remaining)))}")
-        return remaining
-    return set()
+    try:
+        result = subprocess.run(
+            ["netstat.exe", "-ano", "-p", "tcp"],
+            capture_output=True,
+            text=True,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except OSError:
+        return []
+
+    pids = set()
+    for line in result.stdout.splitlines():
+        if "LISTENING" not in line.upper():
+            continue
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        local_address = parts[1]
+        if local_address.rsplit(":", 1)[-1] != str(port):
+            continue
+        try:
+            pid = int(parts[-1])
+        except ValueError:
+            continue
+        if pid > 0 and pid != os.getpid():
+            pids.add(pid)
+    return sorted(pids)
+
+
+def kill_port_listeners(port):
+    killed = []
+    for pid in get_port_listener_pids(port):
+        try:
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            killed.append(pid)
+        except OSError:
+            pass
+    return killed
+
+
+def wait_for_port_clear(port, timeout_seconds=3.0):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if not get_port_listener_pids(port):
+            return True
+        time.sleep(0.1)
+    return not get_port_listener_pids(port)
+
+
+def clear_existing_admin_port(port):
+    if is_admin_server(port):
+        if request_admin_shutdown(port) and wait_for_admin_shutdown(port):
+            print(f"Closed previous ArcRho Admin Control server on port {port}")
+            return
+        print(f"Previous ArcRho Admin Control server on port {port} did not close gracefully")
+
+    pids = kill_port_listeners(port)
+    if pids:
+        print(f"Killed process(es) listening on Admin Control port {port}: {', '.join(map(str, pids))}")
+    if not wait_for_port_clear(port):
+        raise OSError(f"Port {port} is still in use")
 
 
 def main():
@@ -813,10 +864,8 @@ def main():
         splash.start()
 
     try:
-        log_event(f"closing existing servers pid={os.getpid()} port={args.port}")
-        remaining_servers = shutdown_existing_admin_servers(args.port)
-        if remaining_servers:
-            raise OSError(f"Could not close previous ArcRho Admin Control server(s) on port(s): {', '.join(map(str, sorted(remaining_servers)))}")
+        log_event(f"clearing existing listener pid={os.getpid()} port={args.port}")
+        clear_existing_admin_port(args.port)
 
         log_event(f"creating server pid={os.getpid()} port={args.port}")
         server = make_server(args.port)
