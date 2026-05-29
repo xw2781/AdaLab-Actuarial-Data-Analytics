@@ -1,4 +1,4 @@
-"""DFM method index cache for project/path-scoped method name selection."""
+"""Reserving-class scoped method index cache for method-backed datasets."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,8 @@ from fastapi import HTTPException
 from app_server import config
 from app_server.helpers import sanitize_dataset_file_name, sanitize_reserving_class_folder
 
-INDEX_FILE_NAME = "dfm_method_index.json"
+INDEX_FILE_NAME = "method_index.json"
+DFM_METHOD_TYPE = "DFM"
 
 
 def _clean_text(value: Any) -> str:
@@ -32,8 +33,13 @@ def _data_dir(project_name: str) -> str:
     return os.path.join(_require_project_dir(project_name), config.PROJECT_DATA_DIR, config.MANUAL_DATA_DIR)
 
 
-def _index_path(project_name: str) -> str:
-    return os.path.join(_data_dir(project_name), INDEX_FILE_NAME)
+def _reserving_class_dir(project_name: str, reserving_class: str) -> str:
+    rc_part = sanitize_reserving_class_folder(reserving_class, "ReservingClass")
+    return os.path.join(_data_dir(project_name), rc_part)
+
+
+def _index_path(project_name: str, reserving_class: str) -> str:
+    return os.path.join(_reserving_class_dir(project_name, reserving_class), INDEX_FILE_NAME)
 
 
 def _safe_read_json(path: str) -> Dict[str, Any]:
@@ -59,10 +65,9 @@ def _safe_load_required_json(path: str) -> Dict[str, Any]:
 
 
 def _method_json_path(project_name: str, reserving_class: str, method_name: str) -> str:
-    data_dir = _data_dir(project_name)
-    rc_part = sanitize_reserving_class_folder(reserving_class, "ReservingClass")
+    rc_dir = _reserving_class_dir(project_name, reserving_class)
     name_part = sanitize_dataset_file_name(method_name, "Name")
-    return os.path.join(data_dir, rc_part, f"DFM@{name_part}.json")
+    return os.path.join(rc_dir, f"DFM@{name_part}.json")
 
 
 def _json_tab(source: Dict[str, Any], key: str) -> Dict[str, Any]:
@@ -123,14 +128,17 @@ def _method_parts_from_filename(filename: str) -> tuple[str, str] | None:
     return "", method_name
 
 
-def _method_entry(folder_name: str, filename: str) -> Dict[str, Any] | None:
-    parsed = _method_parts_from_filename(filename)
-    if not parsed:
+def _method_entry(path: str, filename: str) -> Dict[str, Any] | None:
+    if not _method_parts_from_filename(filename):
         return None
-    _unused, method_name = parsed
+    payload = _safe_load_required_json(path)
+    details_tab = _json_tab(payload, "details tab")
+    dataset_name = _clean_text(details_tab.get("output type"))
+    if not dataset_name:
+        return None
     return {
-        "path": folder_name,
-        "name": method_name,
+        "dataset_name": dataset_name,
+        "method_type": DFM_METHOD_TYPE,
     }
 
 
@@ -142,64 +150,64 @@ def _is_current_index(data: Dict[str, Any]) -> bool:
         if not isinstance(item, dict):
             return False
         keys = set(item.keys())
-        if keys != {"path", "name"}:
+        if keys != {"dataset_name", "method_type"}:
             return False
     return True
 
 
-def rebuild_index(project_name: str) -> Dict[str, Any]:
+def rebuild_index(project_name: str, reserving_class: str) -> Dict[str, Any]:
     project = _clean_text(project_name)
-    data_dir = _data_dir(project)
-    os.makedirs(data_dir, exist_ok=True)
+    rc = _clean_text(reserving_class)
+    if not rc:
+        raise HTTPException(400, "reserving_class is required.")
+    rc_dir = _reserving_class_dir(project, rc)
+    os.makedirs(rc_dir, exist_ok=True)
     methods: List[Dict[str, Any]] = []
     try:
-        for folder_name in os.listdir(data_dir):
-            if folder_name.lower() == "tmp":
+        for filename in os.listdir(rc_dir):
+            path = os.path.join(rc_dir, filename)
+            if not os.path.isfile(path):
                 continue
-            folder_path = os.path.join(data_dir, folder_name)
-            if not os.path.isdir(folder_path):
+            entry = _method_entry(path, filename)
+            if not entry:
                 continue
-            for filename in os.listdir(folder_path):
-                path = os.path.join(folder_path, filename)
-                if not os.path.isfile(path):
-                    continue
-                entry = _method_entry(folder_name, filename)
-                if not entry:
-                    continue
-                methods.append(entry)
+            methods.append(entry)
     except OSError as err:
         raise HTTPException(500, f"Failed to scan DFM methods: {str(err)}")
 
     methods.sort(key=lambda item: (
-        str(item.get("path") or "").lower(),
-        str(item.get("name") or "").lower(),
+        str(item.get("dataset_name") or "").lower(),
+        str(item.get("method_type") or "").lower(),
     ))
     data = {
         "methods": methods,
     }
-    temp_path = f"{_index_path(project)}.tmp"
+    temp_path = f"{_index_path(project, rc)}.tmp"
     try:
         with open(temp_path, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write("\n")
-        os.replace(temp_path, _index_path(project))
+        os.replace(temp_path, _index_path(project, rc))
     except OSError as err:
         try:
             os.remove(temp_path)
         except OSError:
             pass
-        raise HTTPException(500, f"Failed to write DFM method index: {str(err)}")
+        raise HTTPException(500, f"Failed to write method index: {str(err)}")
     return data
 
 
-def get_index(project_name: str, refresh: bool = False) -> Dict[str, Any]:
+def get_index(project_name: str, reserving_class: str, refresh: bool = False) -> Dict[str, Any]:
     project = _clean_text(project_name)
-    path = _index_path(project)
+    rc = _clean_text(reserving_class)
+    if not rc:
+        raise HTTPException(400, "reserving_class is required.")
+    path = _index_path(project, rc)
     if refresh or not os.path.exists(path):
-        return rebuild_index(project)
+        return rebuild_index(project, rc)
     data = _safe_read_json(path)
     if not data or not _is_current_index(data):
-        return rebuild_index(project)
+        return rebuild_index(project, rc)
     return data
 
 
