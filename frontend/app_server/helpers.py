@@ -121,14 +121,14 @@ def send_request_like_vba(request_info: str) -> str:
     current_time = now.strftime("%Y-%m-%d_%H-%M-%S") + f".{ms:03d}"
 
     temp_path = os.path.join(config.REQUEST_DIR, f"request-{current_time}.tmp")
-    final_path = os.path.join(config.REQUEST_DIR, f"request-{current_time}.txt")
+    final_path = os.path.join(config.REQUEST_DIR, f"request-{current_time}.json")
 
-    lines = request_info.split("#")
+    payload = _request_info_to_json_payload(request_info)
+    payload["UserName"] = getpass.getuser()
 
     with open(temp_path, "w", encoding="utf-8", newline="\n") as f:
-        for line in lines:
-            f.write(line.rstrip("\r\n") + "\n")
-        f.write(f"UserName = {getpass.getuser()}\n")
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 
     if os.path.exists(final_path):
         try:
@@ -142,6 +142,33 @@ def send_request_like_vba(request_info: str) -> str:
 
     os.replace(temp_path, final_path)
     return final_path
+
+
+def _request_info_to_json_payload(request_info: str) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    for raw_line in request_info.split("#"):
+        line = raw_line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key:
+            payload[key] = _native_request_value(key, value.strip())
+    return payload
+
+
+def _native_request_value(key: str, value: str) -> Any:
+    normalized_key = key.strip().lower()
+    lowered = value.lower()
+    if normalized_key in {"cumulative", "transposed", "calendar", "rpcserverwriteconfirmed"}:
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    if normalized_key in {"originlength", "developmentlength", "periodlength", "storedperiodlength", "decimalplaces"}:
+        if re.fullmatch(r"-?\d+", value):
+            return int(value)
+    return value
 
 
 def wait_for_file(path: str, timeout_sec: float, settle_ms: float = 50.0) -> bool:

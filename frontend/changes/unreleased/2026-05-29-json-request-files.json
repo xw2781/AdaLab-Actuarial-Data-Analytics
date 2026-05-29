@@ -1,0 +1,11 @@
+{
+  "type": "change",
+  "scope": "runtime",
+  "audience": "admin",
+  "summary": "Switch ArcRho request files from text to JSON.",
+  "details": [
+    "Excel add-in, app-server ArcRho routes, and DFM RPC bridge requests now publish flat `request-*.json` files with native booleans and numbers.",
+    "Data-engine request workers now scan JSON request files only.",
+    "The obsolete Excel Refresh Database ribbon action was removed."
+  ]
+}

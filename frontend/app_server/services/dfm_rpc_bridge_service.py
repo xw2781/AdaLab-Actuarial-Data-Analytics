@@ -6,7 +6,7 @@ import json
 import os
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, Iterable
+from typing import Any, Dict
 
 from fastapi import HTTPException
 
@@ -113,25 +113,27 @@ def build_paths(req: DfmRpcBridgeRequest) -> Dict[str, str]:
     }
 
 
-def _request_lines(
+def _request_payload(
     req: DfmRpcBridgeRequest,
     function_name: str,
     data_path: str,
     extra_fields: Dict[str, Any] | None = None,
-) -> Iterable[str]:
-    yield f"Function = {function_name}"
-    yield f"ProjectName = {req.project_name}"
-    yield f"Path = {req.reserving_class}"
-    yield f"MethodName = {req.method_name}"
-    yield f"OutputVector = {req.output_vector}"
-    yield f"InputTriangle = {req.input_triangle}"
-    yield f"OriginLength = {req.origin_length}"
-    yield f"DevelopmentLength = {req.development_length}"
-    yield f"DecimalPlaces = {req.decimal_places}"
-    yield f"DataPath = {data_path}"
-    yield f"UserName = {getpass.getuser()}"
-    for key, value in (extra_fields or {}).items():
-        yield f"{key} = {value}"
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "Function": function_name,
+        "ProjectName": req.project_name,
+        "Path": req.reserving_class,
+        "MethodName": req.method_name,
+        "OutputVector": req.output_vector,
+        "InputTriangle": req.input_triangle,
+        "OriginLength": req.origin_length,
+        "DevelopmentLength": req.development_length,
+        "DecimalPlaces": req.decimal_places,
+        "DataPath": data_path,
+        "UserName": getpass.getuser(),
+    }
+    payload.update(extra_fields or {})
+    return payload
 
 
 def _write_request_file(
@@ -146,12 +148,13 @@ def _write_request_file(
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S") + f".{int(now.microsecond / 1000):03d}"
     stem = f"request-{function_name}-{timestamp}"
     temp_path = os.path.join(request_dir, f"{stem}.tmp")
-    final_path = os.path.join(request_dir, f"{stem}.txt")
+    final_path = os.path.join(request_dir, f"{stem}.json")
+    payload = _request_payload(req, function_name, data_path, extra_fields)
 
     try:
         with open(temp_path, "w", encoding="utf-8", newline="\n") as fh:
-            for line in _request_lines(req, function_name, data_path, extra_fields):
-                fh.write(line.rstrip("\r\n") + "\n")
+            json.dump(payload, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
         if os.path.exists(final_path):
             raise HTTPException(409, "Request file name collision and cannot overwrite.")
         os.replace(temp_path, final_path)
@@ -688,7 +691,7 @@ def update_remote(req: DfmRpcBridgeRequest) -> Dict[str, Any]:
         paths["request_dir"],
         {
             "MethodJsonPath": paths["local_path"],
-            "RPCServerWriteConfirmed": "true",
+            "RPCServerWriteConfirmed": True,
         },
     )
     status_found = wait_for_file(paths["sync_status_path"], timeout_sec=max(0.1, float(req.timeout_sec)))

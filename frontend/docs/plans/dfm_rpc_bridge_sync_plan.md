@@ -18,7 +18,7 @@ The feature should start from a new Sync button in `dfmPathBar`.
 Relevant current behavior:
 
 1. Dataset Viewer already sends bridge request files through app-server routes under `/arcrho/tri`.
-2. The backend builds `Function = ArcRhoTri` request text, writes a `.txt` request file under the configured requests directory, and waits for the expected data file.
+2. The backend builds a flat `Function = ArcRhoTri` JSON request, writes a `.json` request file under the configured requests directory, and waits for the expected data file.
 3. DFM method save/load already persists the core method JSON locally under:
 
    ```text
@@ -152,20 +152,22 @@ Old local DFM filenames and JSON files are explicitly out of scope.
 
 ## 4. Request File Draft
 
-Use line-oriented text like the existing bridge requests. Proposed content:
+Use flat JSON like the existing bridge requests. Proposed content:
 
-```text
-Function = DFM
-ProjectName = <project_name>
-Path = <full_reserving_class_path>
-MethodName = <DFM Name>
-OutputVector = <output_vector>
-InputTriangle = <input_triangle>
-OriginLength = <origin_length>
-DevelopmentLength = <development_length>
-DecimalPlaces = <decimal_places>
-DataPath = <expected_remote_json_path>
-UserName = <current_user>
+```json
+{
+  "Function": "DFM",
+  "ProjectName": "<project_name>",
+  "Path": "<full_reserving_class_path>",
+  "MethodName": "<DFM Name>",
+  "OutputVector": "<output_vector>",
+  "InputTriangle": "<input_triangle>",
+  "OriginLength": 12,
+  "DevelopmentLength": 12,
+  "DecimalPlaces": 4,
+  "DataPath": "<expected_remote_json_path>",
+  "UserName": "<current_user>"
+}
 ```
 
 The initial `Function = DFM` request file should include Details page information plus `DataPath`. The `DataPath` value points to the expected remote DFM method JSON:
@@ -575,7 +577,7 @@ Remaining implementation assumptions:
 2. Use an 8-second default wait timeout.
 3. Show the floating compare window immediately with a waiting state.
 4. Returned DFM JSON uses canonical keys only; old files and alias spellings are intentionally out of scope.
-5. Keep request `.txt` files for audit/debug; only delete the returned RPC bridge JSON.
+5. Keep request `.json` files for audit/debug; only delete the returned RPC bridge JSON.
 
 ---
 
@@ -596,6 +598,6 @@ Use these defaults unless changed before implementation:
 9. `Update Local DFM` overwrites local JSON with the returned remote JSON and reloads the current DFM tab.
 10. Show the floating window immediately with waiting state, then update it when remote JSON arrives.
 11. Returned DFM JSON uses canonical keys only; old files and alias spellings are intentionally out of scope.
-12. Keep request `.txt` files for audit/debug and delete the returned RPC bridge JSON after final user action.
+12. Keep request `.json` files for audit/debug and delete the returned RPC bridge JSON after final user action.
 13. Equal `last modified` timestamps show `Local and remote are already in sync` with no primary action.
 14. Remote-missing state tells the user the remote DFM JSON is missing with no primary action.
