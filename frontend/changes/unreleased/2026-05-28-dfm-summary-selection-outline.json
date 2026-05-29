@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Remove blue fill from DFM average-formula summary table focus highlights.",
+  "details": [
+    "Average-formula summary table copy and right-click focus now uses an outline instead of blue cell fill, while keeping the green fill on the currently selected formula value."
+  ]
+}

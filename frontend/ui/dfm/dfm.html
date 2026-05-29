@@ -679,7 +679,7 @@
       z-index: 1;
     }
     #ratioWrap td.ratioSelectedCell {
-      background: rgba(183, 227, 86, 0.374)
+      background: rgba(183, 227, 86, 0.374);
     }
     #ratioWrap td.dfmTableSel,
     #resultsWrap td.dfmTableSel {
@@ -690,6 +690,17 @@
     #resultsWrap td.dfmTableActive {
       background: rgb(144, 170, 228);
       outline: none;
+    }
+    #ratioWrap td.summaryCell.dfmTableSel,
+    #ratioWrap td.summaryCell.dfmTableActive {
+      background: transparent;
+      outline: 1px dashed #64748b;
+      outline-offset: -2px;
+    }
+    #ratioWrap td.summaryCell.ratioSelectedCell,
+    #ratioWrap td.summaryCell.ratioSelectedCell.dfmTableSel,
+    #ratioWrap td.summaryCell.ratioSelectedCell.dfmTableActive {
+      background: rgba(183, 227, 86, 0.374);
     }
     #ratioWrap td.dfmCellNote {
       position: relative;
