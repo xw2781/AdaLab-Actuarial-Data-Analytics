@@ -40,6 +40,7 @@ RPC_APPLY_COMPONENTS = [
     ("sync", ("ratios tab", "average formulas", "custom average formula settings", "exclude")),
     ("sync", ("ratios tab", "average formulas", "selected")),
     ("merge-row-values", ("ratios tab", "average formulas", "values")),
+    ("sync", ("ratios tab", "cell notes")),
     ("sync", ("results tab", "ratio basis dataset")),
     ("sync", ("results tab", "ultimate ratio decimal places")),
     ("preserve-local", ("results tab", "ultimate vector csv path")),
@@ -48,6 +49,7 @@ RPC_APPLY_COMPONENTS = [
 ]
 RPC_OPTIONAL_MISSING_COMPONENTS = {
     ("results tab", "ultimate vector csv path"),
+    ("ratios tab", "cell notes"),
 }
 
 
@@ -368,6 +370,37 @@ def _extract_average_formula_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
+def _extract_cell_notes_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
+    ratios_tab = _json_tab(payload, "ratios tab")
+    cell_notes = ratios_tab.get("cell notes", {})
+    if not isinstance(cell_notes, dict):
+        cell_notes = {}
+    entries = []
+    for table_key, table_notes in cell_notes.items():
+        if not isinstance(table_notes, dict):
+            continue
+        for row_label, row_notes in table_notes.items():
+            if not isinstance(row_notes, dict):
+                continue
+            for col_label, note in row_notes.items():
+                text = _clean_text(note)
+                if not text:
+                    continue
+                entries.append({
+                    "table": _clean_text(table_key),
+                    "row": _clean_text(row_label),
+                    "column": _clean_text(col_label),
+                    "note": text,
+                })
+    entries.sort(key=lambda item: (item["table"].lower(), item["row"].lower(), item["column"].lower(), item["note"].lower()))
+    return {
+        "exists": bool(entries),
+        "count": len(entries),
+        "entries": entries[:50],
+        "truncated": len(entries) > 50,
+    }
+
+
 def _build_json_snapshot(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         return {
@@ -375,6 +408,7 @@ def _build_json_snapshot(path: str) -> Dict[str, Any]:
             "error": "",
             "ratio_pattern": _extract_pattern_snapshot({}),
             "average_formula_pattern": _extract_average_formula_snapshot({}),
+            "cell_notes": _extract_cell_notes_snapshot({}),
             "notes": "",
             "notes_preview": "",
             "average_formulas": [],
@@ -388,6 +422,7 @@ def _build_json_snapshot(path: str) -> Dict[str, Any]:
             "error": _clean_text(err.detail),
             "ratio_pattern": _extract_pattern_snapshot({}),
             "average_formula_pattern": _extract_average_formula_snapshot({}),
+            "cell_notes": _extract_cell_notes_snapshot({}),
             "notes": "",
             "notes_preview": "",
             "average_formulas": [],
@@ -403,6 +438,7 @@ def _build_json_snapshot(path: str) -> Dict[str, Any]:
         "error": "",
         "ratio_pattern": _extract_pattern_snapshot(payload),
         "average_formula_pattern": _extract_average_formula_snapshot(payload),
+        "cell_notes": _extract_cell_notes_snapshot(payload),
         "notes": notes,
         "notes_preview": notes[:600],
         "average_formulas": [str(item) for item in formulas],

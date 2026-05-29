@@ -1,0 +1,12 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Add editable cell notes to DFM Ratios tables.",
+  "details": [
+    "Users can right-click cells in the main ratio table or average-formula summary table to add or clear notes, hover cells with markers to edit notes in a floating note box, and save those notes in the local DFM method JSON.",
+    "Saved cell notes now use the displayed row and development-column labels instead of zero-based cell indexes, while older index-keyed notes still load.",
+    "DFM RPC bridge now imports ResQ CellNotes string output into ArcRho cell notes for remote-to-local sync and shows cell-note entries in the sync comparison.",
+    "The Python API can set and clear DFM summary-table cell notes, and the Apply Growth Adjustments macro marks the selected average cells before writing adjusted user ratios."
+  ]
+}

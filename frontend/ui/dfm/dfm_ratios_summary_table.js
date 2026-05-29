@@ -22,6 +22,11 @@ import {
 } from "/ui/shared/api.js";
 import { wireSelectableTable } from "/ui/shared/table_selection.js";
 import { openDfmSummaryPlotWindow } from "/ui/dfm/dfm_summary_plot_window.js?v=20260514g";
+import {
+  clearDfmCellNote,
+  hasDfmCellNote,
+  showDfmCellNoteEditor,
+} from "/ui/dfm/dfm_cell_notes.js";
 
 // =============================================================================
 // Excel Cell Reference Utilities
@@ -123,6 +128,7 @@ let _xlLinkAbortController = null;
 
 let _renderRatioTable = () => {};
 let _onRatioStateMutated = () => {};
+let summaryContextCellForNote = null;
 
 export function setSummaryTableCallbacks({ renderRatioTable, onRatioStateMutated } = {}) {
   if (typeof renderRatioTable === "function") _renderRatioTable = renderRatioTable;
@@ -1899,7 +1905,9 @@ export function wireSummaryContextMenu(summaryTable) {
   summaryTable.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const row = e.target?.closest?.("tr[data-row-id]");
+    const noteCell = e.target?.closest?.("td.summaryCell");
     const onLabelCell = !!e.target?.closest?.("th.summaryDragHandle");
+    summaryContextCellForNote = noteCell || null;
     setLastSummaryCtxRowId(row?.dataset?.rowId || null);
     const lastId = getLastSummaryCtxRowId();
     const cfg = summaryRowMap.get(lastId || "");
@@ -1910,12 +1918,20 @@ export function wireSummaryContextMenu(summaryTable) {
       const renameBtn = menu.querySelector('[data-action="rename-average"]');
       const deleteBtn = menu.querySelector('[data-action="delete-average"]');
       const customBtn = menu.querySelector('[data-action="custom-average"]');
+      const noteBtn = menu.querySelector('[data-action="add-summary-cell-note"]');
+      const clearNoteBtn = menu.querySelector('[data-action="clear-summary-cell-note"]');
+      const hasNote = !!(noteCell && hasDfmCellNote(noteCell));
       menu.querySelectorAll("[data-label-only], .dfmCtxSep[data-label-only]").forEach((item) => {
         item.style.display = onLabelCell ? "" : "none";
       });
       if (renameBtn) renameBtn.disabled = disableRename;
       if (deleteBtn) deleteBtn.disabled = disableDelete;
       if (customBtn) customBtn.disabled = !onLabelCell;
+      if (noteBtn) {
+        noteBtn.disabled = !noteCell;
+        noteBtn.textContent = hasNote ? "Edit Cell Notes" : "Add Cell Notes";
+      }
+      if (clearNoteBtn) clearNoteBtn.disabled = !hasNote;
     }
     showAvgMenu(e.clientX, e.clientY);
   });
@@ -1930,6 +1946,14 @@ export function wireSummaryContextMenu(summaryTable) {
       hideAvgMenu();
       if (action === "copy-summary-value") {
         await summaryCopySelection?.copySelection?.();
+        return;
+      }
+      if (action === "add-summary-cell-note") {
+        showDfmCellNoteEditor(summaryContextCellForNote, { focus: true });
+        return;
+      }
+      if (action === "clear-summary-cell-note") {
+        clearDfmCellNote(summaryContextCellForNote);
         return;
       }
       if (action === "custom-average") {

@@ -1193,6 +1193,7 @@ GROWTH_ADJUSTMENT_WORKBOOK = (
     r"E:\ResQ\Automations\Reserve Review\2026Q1\Growth Adjustment 2026Q1.xlsx"
 )
 GROWTH_ADJUSTMENT_SHEET = "Summary"
+PRE_ADJUSTMENT_CELL_NOTE = "Selected before adjustments."
 
 
 def load_adjustments_from_workbook(file_path: str = GROWTH_ADJUSTMENT_WORKBOOK) -> dict[str, list[Any]]:
@@ -1431,6 +1432,11 @@ def _display_average_label(label: str) -> str:
     return text
 
 
+def _mark_selected_before_adjustment(dfm: Any, col: int, label: str) -> None:
+    dfm.clear_cell_notes_for_development(col + 1)
+    dfm.set_cell_note(_display_average_label(label), col + 1, PRE_ADJUSTMENT_CELL_NOTE)
+
+
 def _format_adjustment_note(
     dfm: Any,
     col: int,
@@ -1531,6 +1537,7 @@ def apply_adjustments(
         final_value = average_value * adjustment["factor"] * accounting_cutoff * other_factor
         if not _has_meaningful_adjustment(adjustment["factor"], accounting_cutoff, other_factor):
             continue
+        _mark_selected_before_adjustment(dfm, col, labels[selected_row])
         dfm.set_user_ratio(round(final_value, 4), col + 1)
         changed = True
         if add_notes:

@@ -68,6 +68,10 @@ import {
   getDfmAverageFormulaValues,
 } from "/ui/dfm/dfm_average_formula_rows.js?v=20260513b";
 import {
+  applyDfmCellNotesPayload,
+  buildDfmCellNotesPayload,
+} from "/ui/dfm/dfm_cell_notes.js";
+import {
   recordCurrentDfmObjectSnapshot,
   refreshDfmMethodIndex,
 } from "/ui/dfm/dfm_startup_state.js";
@@ -729,6 +733,7 @@ function buildDfmGroupedMethodPayload(methodPayload) {
   copyExistingField(data, "excluded", ratioTriangle);
   ratiosTab["ratio triangle"] = ratioTriangle;
   copyExistingField(data, "average formulas", ratiosTab);
+  copyExistingField(data, "cell notes", ratiosTab);
   const grouped = {
     "json format": DFM_METHOD_JSON_FORMAT,
     "details tab": copyExistingFields(data, [
@@ -791,6 +796,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
   if (payload && !Array.isArray(payload)) {
     const cfgKey = getSummaryConfigKey();
     const averageFormulas = ratiosTab["average formulas"];
+    const cellNotes = ratiosTab["cell notes"];
     const formulas = getDfmAverageFormulaLabels(averageFormulas);
     const matrix = getDfmAverageFormulaSelectedIndex(averageFormulas);
     const averageFormulaValues = getDfmAverageFormulaValues(averageFormulas);
@@ -808,6 +814,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
       summaryUpdated = true;
     }
     if (summaryUpdated) buildSummaryRows();
+    applyDfmCellNotesPayload(cellNotes);
 
     const notesText = notesTab["notes"];
     const savedMethodName = getSavedMethodNameValue(payload);
@@ -829,6 +836,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
       applyAverageSelectionFromSaved(formulas, matrix);
     }
   } else {
+    applyDfmCellNotesPayload(null);
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
   }
@@ -881,6 +889,7 @@ export async function loadRatioSelectionIfExists(reason) {
     }
     ratioStrikeSet.clear();
     selectedSummaryByCol.clear();
+    applyDfmCellNotesPayload(null);
     setDfmNotesText("");
     await setResultsRatioBasisSelection("", { silent: true, render: false });
     clearMethodSavedFlag();
@@ -920,6 +929,7 @@ export function buildDfmMethodPayload(options = {}) {
   const calculatedRatioTriangleValues = buildCalculatedRatioTriangleValues();
   const pattern = trimMatrixToReferenceRowShape(buildRatioSelectionPattern(), calculatedRatioTriangleValues);
   const averageFormulaValues = buildAverageFormulaValues();
+  const cellNotes = buildDfmCellNotesPayload();
   const notesText = getDfmNotesText();
   const ratioBasisDataset = getResultsRatioBasisSelection();
   const outputVector = getTrimmedInputValue("dfmOutputVector");
@@ -939,6 +949,7 @@ export function buildDfmMethodPayload(options = {}) {
     "input data triangle csv path": String(options?.inputTriangleCsvPath || ""),
     "ratio values": calculatedRatioTriangleValues,
     "average formulas": buildDfmAverageFormulaObject(summaryRows, avgSelection.matrix, averageFormulaValues),
+    "cell notes": cellNotes,
     "ultimate vector csv path": String(options?.ultimateVectorCsvPath || ""),
     notes: notesText,
     name: methodName,

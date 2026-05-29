@@ -739,6 +739,21 @@ function getSnapshotNotes(snapshot) {
   return String(snapshot?.notes_preview || "");
 }
 
+function getSnapshotCellNotesText(snapshot) {
+  const entries = Array.isArray(snapshot?.cell_notes?.entries) ? snapshot.cell_notes.entries : [];
+  if (!entries.length) return "";
+  const lines = entries.map((entry) => {
+    const table = String(entry?.table || "").trim();
+    const row = String(entry?.row || "").trim();
+    const column = String(entry?.column || "").trim();
+    const note = String(entry?.note || "").trim();
+    const prefix = table ? `${table}: ` : "";
+    return `${prefix}Cell[${column}, ${row}] ${note}`;
+  });
+  if (snapshot?.cell_notes?.truncated) lines.push("...");
+  return lines.join("\n");
+}
+
 function tokenizeNotes(text) {
   return String(text || "").match(/(\s+|[^\s]+)/g) || [];
 }
@@ -818,6 +833,23 @@ function renderNotesPreview(version, otherVersion) {
   }
 
   const otherNotes = getSnapshotNotes(otherVersion.snapshot);
+  const oldNotes = version.age === "old" ? notes : otherNotes;
+  const newNotes = version.age === "new" ? notes : otherNotes;
+  const diff = buildNoteDiff(oldNotes, newNotes);
+  if (version.age === "old") {
+    return renderHighlightedTokens(diff.oldTokens, diff.deleted, "dfmRpcNoteDeleted");
+  }
+  return renderHighlightedTokens(diff.newTokens, diff.added, "dfmRpcNoteAdded");
+}
+
+function renderCellNotesPreview(version, otherVersion) {
+  const notes = getSnapshotCellNotesText(version.snapshot);
+  if (!notes) return escapeHtml("No cell notes");
+  if (!otherVersion || (version.age !== "old" && version.age !== "new")) {
+    return escapeHtml(notes);
+  }
+
+  const otherNotes = getSnapshotCellNotesText(otherVersion.snapshot);
   const oldNotes = version.age === "old" ? notes : otherNotes;
   const newNotes = version.age === "new" ? notes : otherNotes;
   const diff = buildNoteDiff(oldNotes, newNotes);
@@ -914,6 +946,8 @@ function renderVersionCard(version, selectedKey, versions, labelFallbacks = {}) 
         ${renderPatternPreview(snapshot.ratio_pattern || {}, otherPattern, version.age, labelFallbacks)}
         <p class="dfmRpcSnapshotTitle">Average Formulas</p>
         ${renderFormulaPatternPreview(snapshot.average_formula_pattern || {}, otherFormulaPattern, version.age, labelFallbacks)}
+        <p class="dfmRpcSnapshotTitle">Cell Notes</p>
+        <pre class="dfmRpcNotesPreview">${renderCellNotesPreview(version, otherVersion)}</pre>
         <p class="dfmRpcSnapshotTitle">Notes</p>
         <pre class="dfmRpcNotesPreview">${renderNotesPreview(version, otherVersion)}</pre>
       </div>

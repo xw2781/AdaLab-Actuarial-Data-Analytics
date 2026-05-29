@@ -11,7 +11,7 @@ Top-level sections:
 - `json format`: currently `arcrho-dfm-method-by-tab-v1`.
 - `details tab`: `name`, `output type`, `input triangle`, `origin length`, `development length`, and `decimal places`.
 - `data tab`: `origin labels`, raw Data-tab `development labels` such as `2m` and `14m`, `input data triangle values`, and length-scoped `input data triangle csv path`.
-- `ratios tab`: `ratio triangle` and `average formulas`.
+- `ratios tab`: `ratio triangle`, `average formulas`, and `cell notes`.
 - `ratios tab`.`ratio triangle`: `origin labels`, GUI-display Ratios-tab `development labels` such as `(1) 2-14`, `ratio values`, and `excluded`.
 - `results tab`: `ratio basis dataset`, `ultimate ratio decimal places`, and `ultimate vector`.
 - `notes tab`: `notes`.
@@ -24,6 +24,8 @@ The formatter writes any 2D array with one child row per JSON line.
 `ratios tab`.`average formulas` is a columnar object. `label` is the persistent formula identity and row order. `selected` is the former `average index` matrix. `values` is the former `average formula values` analysis matrix. Formula metadata arrays live under `custom average formula settings`; arrays such as `averageType`, `base`, `periods`, and `exclude` align by index with `label`.
 
 `summary rows` and `summary order` are not part of the JSON contract. Runtime-only formula row `id` values are generated after load for DOM rows, selection maps, drag handling, and other in-session UI mechanics; `id` is not saved in DFM method JSON.
+
+`ratios tab`.`cell notes` stores user-entered comments for Ratios-tab cells. Each table stores notes as a nested object keyed by the visible row label and visible development-column label, for example `ratio main table`.`2026`.`(1) 12-24` or `ratio summary table`.`Volume - all`.`(1) 12-24`. Empty notes are omitted. Older flat index keys such as `"0,0"` and `"rowId,0"` are still accepted on load and are migrated to label keys on the next save.
 
 ## Analysis Snapshots
 

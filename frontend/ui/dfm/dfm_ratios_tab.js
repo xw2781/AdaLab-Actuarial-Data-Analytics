@@ -47,6 +47,13 @@ import {
   resetRatioChartThresholds,
   setRatioChartCallbacks,
 } from "/ui/dfm/dfm_ratios_chart.js";
+import {
+  applyDfmCellNoteMarkers,
+  clearDfmCellNote,
+  hasDfmCellNote,
+  showDfmCellNoteEditor,
+  wireDfmCellNotes,
+} from "/ui/dfm/dfm_cell_notes.js";
 
 export {
   buildRatioSelectionPattern,
@@ -76,6 +83,7 @@ function getRatioMenuEl() {
 
 let ratioTableSelection = null;
 let selectedRatioTableSelection = null;
+let ratioContextCell = null;
 
 function updateRatioMenuLabel() {
   const menu = getRatioMenuEl();
@@ -103,8 +111,14 @@ export function wireRatioContextMenu() {
     onContextMenu: (event, cell, api) => {
       event.preventDefault();
       ratioTableSelection = api;
+      ratioContextCell = cell;
       const menu = getRatioMenuEl();
       if (!menu) return;
+      const hasNote = hasDfmCellNote(cell);
+      const noteBtn = menu.querySelector('[data-action="add-ratio-cell-note"]');
+      if (noteBtn) noteBtn.textContent = hasNote ? "Edit Cell Notes" : "Add Cell Notes";
+      const clearNoteBtn = menu.querySelector('[data-action="clear-ratio-cell-note"]');
+      if (clearNoteBtn) clearNoteBtn.disabled = !hasNote;
       updateRatioMenuLabel();
       openContextMenu(menu, {
         anchorEl: cell,
@@ -122,6 +136,10 @@ export function wireRatioContextMenu() {
     if (!btn) return;
     if (btn.dataset.action === "copy-ratio-value") {
       await ratioTableSelection?.copySelection?.();
+    } else if (btn.dataset.action === "add-ratio-cell-note") {
+      showDfmCellNoteEditor(ratioContextCell, { focus: true });
+    } else if (btn.dataset.action === "clear-ratio-cell-note") {
+      clearDfmCellNote(ratioContextCell);
     } else if (btn.dataset.action === "toggle-na-borders") {
       setShowNaBorders(!getShowNaBorders());
       saveNaBorders(getShowNaBorders());
@@ -583,6 +601,12 @@ export function renderRatioTable() {
   wireSummaryRowDrag(summaryBody);
   wireSummaryContextMenu(summaryTable);
   wirePercentDevelopedCurveMenu(selectedTable);
+  wireDfmCellNotes({
+    container: wrap,
+    onChange: () => {
+      markDfmDirty();
+    },
+  });
   selectedRatioTableSelection = wireSelectableTable({
     container: selectedTable,
     rowKey: "copyR",
@@ -619,6 +643,7 @@ export function renderRatioTable() {
   initDefaultSummarySelection(summaryTable);
   applySummarySelection(summaryTable, selectedTable);
   applyRatioColHighlight();
+  applyDfmCellNoteMarkers(wrap);
   wireSummarySelection(summaryTable, selectedTable);
   applyPendingExternalChangeHighlights();
 }
