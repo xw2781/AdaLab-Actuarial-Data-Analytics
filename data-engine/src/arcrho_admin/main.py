@@ -71,6 +71,7 @@ COMPONENT_DIRS = {
 }
 COMPONENT_APPS = {
     "orchestrator": ("ArcRho Orchestrator", "ADAS Master"),
+    "bridge": ("ArcRho Bridge",),
 }
 
 
@@ -140,6 +141,8 @@ def default_config():
             },
             "bridge": {
                 "kill_all": False,
+                "auto_create_instance": True,
+                "max_instances": 1,
                 "max_workers": 1,
             },
             "bridge_worker": {"kill_all": False},
@@ -147,10 +150,22 @@ def default_config():
     }
 
 
+def merge_defaults(config, defaults):
+    if not isinstance(config, dict):
+        return defaults
+    merged = dict(config)
+    for key, value in defaults.items():
+        if isinstance(value, dict):
+            merged[key] = merge_defaults(merged.get(key), value)
+        elif key not in merged:
+            merged[key] = value
+    return merged
+
+
 def load_config():
     try:
         with open(CONFIG_FILE, mode="r", encoding="utf-8") as file:
-            return json.load(file)
+            return merge_defaults(json.load(file), default_config())
     except FileNotFoundError:
         return default_config()
 
@@ -430,20 +445,44 @@ def clear_stale_instances():
     return removed
 
 
-def start_orchestrator_instance():
-    exe = resolve_app_exe("orchestrator")
+def start_component_instance(role):
+    exe = resolve_app_exe(role)
     if exe is not None and exe.exists():
         process = subprocess.Popen([str(exe)], close_fds=True)
-        log_event(f"started orchestrator exe={exe} pid={process.pid}")
-        return {"pid": process.pid, "path": str(exe)}
+        log_event(f"started {role} exe={exe} pid={process.pid}")
+        return {"started": True, "pid": process.pid, "path": str(exe)}
 
-    source_main = resolve_source_main("orchestrator")
+    source_main = resolve_source_main(role)
     if source_main is not None:
         process = subprocess.Popen([sys.executable, str(source_main)], close_fds=True)
-        log_event(f"started orchestrator source={source_main} pid={process.pid}")
-        return {"pid": process.pid, "path": str(source_main)}
+        log_event(f"started {role} source={source_main} pid={process.pid}")
+        return {"started": True, "pid": process.pid, "path": str(source_main)}
 
-    raise FileNotFoundError("Could not find ArcRho Orchestrator executable or source main.py")
+    raise FileNotFoundError(f"Could not find ArcRho {role} executable or source main.py")
+
+
+def start_orchestrator_instance():
+    return start_component_instance("orchestrator")
+
+
+def start_bridge_instance():
+    config = load_config()
+    bridge_config = config.get("apps", {}).get("bridge", {})
+    if bridge_config.get("kill_all", False):
+        return {"started": False, "message": "Bridge is stopped by config"}
+
+    max_instances = max(0, min(int(bridge_config.get("max_instances", 1)), 1))
+    if max_instances == 0:
+        return {"started": False, "message": "Bridge max instances is 0"}
+
+    active_bridge_count = sum(
+        1 for item in list_instances()
+        if item.get("role") == "bridge" and item.get("status") == "Active"
+    )
+    if active_bridge_count >= max_instances:
+        return {"started": False, "message": "Bridge instance already running"}
+
+    return start_component_instance("bridge")
 
 
 def shutdown_server(server, reason):
@@ -541,6 +580,13 @@ class AdminHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": True, **result, "instances": list_instances()})
             except (FileNotFoundError, OSError) as exc:
                 log_event(f"start orchestrator failed\n{traceback.format_exc()}")
+                self.send_error(500, str(exc))
+        elif parsed.path == "/api/start-bridge":
+            try:
+                result = start_bridge_instance()
+                self.send_json({"ok": True, **result, "instances": list_instances()})
+            except (FileNotFoundError, OSError) as exc:
+                log_event(f"start bridge failed\n{traceback.format_exc()}")
                 self.send_error(500, str(exc))
         elif parsed.path == "/api/shutdown":
             self.send_json({"ok": True})

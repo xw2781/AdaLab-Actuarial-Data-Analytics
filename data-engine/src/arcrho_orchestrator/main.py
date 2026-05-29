@@ -34,6 +34,7 @@ except ModuleNotFoundError:
     from utils import *
 
 engine_instance_path = str(resolve_app_path("engine", "instances"))
+bridge_instance_path = str(resolve_app_path("bridge", "instances"))
 orchestrator_instance_path = str(resolve_app_path("orchestrator", "instances"))
 
 device_name = os.environ.get("COMPUTERNAME")
@@ -101,6 +102,35 @@ def file_counts(FOLDER):
     return file_count
 
 
+def limit_instance_files(FOLDER, max_count):
+    if not os.path.isdir(FOLDER):
+        return
+
+    paths = []
+    for name in os.listdir(FOLDER):
+        path = os.path.join(FOLDER, name)
+        if os.path.isfile(path) and name.lower().endswith(".json"):
+            try:
+                paths.append((os.path.getmtime(path), path))
+            except OSError:
+                pass
+
+    paths.sort(reverse=True)
+    for _, path in paths[max_count:]:
+        try:
+            safe_remove(path)
+        except OSError:
+            pass
+
+
+def launch_app(role: str):
+    exe = resolve_app_exe(role)
+    if not exe.exists():
+        return False
+    subprocess.Popen([str(exe)], close_fds=True)
+    return True
+
+
 def read_json(json_file, retries=50, delay=0.02):
     for _ in range(retries):
         try:
@@ -157,14 +187,24 @@ def main():
             write_json(id_path, arg_1)
 
             remove_old_instances(engine_instance_path)
+            remove_old_instances(bridge_instance_path)
             remove_old_instances(orchestrator_instance_path)
             remove_old_instances(str(get_project_root() / "requests"), 5*60)
 
             while get_config_value('apps.orchestrator.auto_create_workers') \
               and get_config_value('apps.engine.kill_all') == False \
               and file_counts(engine_instance_path) < get_config_value('apps.orchestrator.max_workers'):
-                exe = resolve_app_exe("engine")
-                subprocess.Popen([str(exe)], close_fds=True)
+                if not launch_app("engine"):
+                    break
+                time.sleep(3)
+
+            bridge_max_instances = max(0, min(int(get_config_value('apps.bridge.max_instances', 1)), 1))
+            limit_instance_files(bridge_instance_path, bridge_max_instances)
+            while get_config_value('apps.bridge.auto_create_instance', True) \
+              and get_config_value('apps.bridge.kill_all', False) == False \
+              and file_counts(bridge_instance_path) < bridge_max_instances:
+                if not launch_app("bridge"):
+                    break
                 time.sleep(3)
 
         except Exception as e:

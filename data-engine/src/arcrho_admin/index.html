@@ -388,8 +388,19 @@
               <span class="switch"><input id="bridgeKillAll" type="checkbox" data-path="apps.bridge.kill_all"></span>
             </div>
             <div class="field">
+              <label for="autoCreateBridge">Auto Create Bridge Instance</label>
+              <span class="switch"><input id="autoCreateBridge" type="checkbox" data-path="apps.bridge.auto_create_instance"></span>
+            </div>
+            <div class="field">
+              <label for="maxBridgeInstances">Max Bridge Instances</label>
+              <input id="maxBridgeInstances" type="number" min="0" max="1" data-path="apps.bridge.max_instances">
+            </div>
+            <div class="field">
               <label for="bridgeWorkerKillAll">Stop Bridge Worker</label>
               <span class="switch"><input id="bridgeWorkerKillAll" type="checkbox" data-path="apps.bridge_worker.kill_all"></span>
+            </div>
+            <div class="panel-actions">
+              <button class="primary" id="startBridge">Start New Instance</button>
             </div>
           </div>
         </section>
@@ -705,6 +716,22 @@
       }
     }
 
+    async function startBridge() {
+      try {
+        const data = await api("/api/start-bridge", {method: "POST"});
+        latestInstances = data.instances;
+        renderInstances(latestInstances);
+        if (data.started === false) {
+          setStatus(data.message || "Bridge not started", true);
+          return;
+        }
+        setStatus(`Bridge started (PID ${data.pid})`);
+        setTimeout(loadInstances, 1500);
+      } catch (err) {
+        setStatus("Start bridge failed", true);
+      }
+    }
+
     function closeAdminPage() {
       window.close();
       document.body.innerHTML = "<main class=\"app\"><section><h1>ArcRho Admin Control Closed</h1></section></main>";
@@ -726,6 +753,7 @@
     document.getElementById("refreshInstances").addEventListener("click", loadInstances);
     document.getElementById("clearStaleInstances").addEventListener("click", clearStaleInstances);
     document.getElementById("startOrchestrator").addEventListener("click", startOrchestrator);
+    document.getElementById("startBridge").addEventListener("click", startBridge);
     groupByInstances.addEventListener("change", () => renderInstances(latestInstances));
     for (const button of document.querySelectorAll("[data-sort]")) {
       button.addEventListener("click", () => {
