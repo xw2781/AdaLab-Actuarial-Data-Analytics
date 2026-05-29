@@ -2,6 +2,7 @@
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -22,6 +23,9 @@ ICON = PROJECT_ROOT.parent / "assets" / "icons" / "ArcRho Orchestrator.ico"
 
 BUILD_DIR = BUILD_ROOT / "build"
 SPEC_DIR = BUILD_ROOT / "spec"
+DIST_DIR = BUILD_ROOT / "dist"
+STAGED_APP_DIR = DIST_DIR / APP_NAME
+DEPLOY_APP_DIR = APPS_DIR / APP_NAME
 
 
 def run(cmd, check=True):
@@ -29,12 +33,36 @@ def run(cmd, check=True):
     return subprocess.run(list(map(str, cmd)), check=check)
 
 
-def clean_build_dirs():
-    for path in (BUILD_DIR, SPEC_DIR):
+def remove_tree(path, attempts=5, delay=0.5):
+    for attempt in range(1, attempts + 1):
         try:
             shutil.rmtree(path)
+            return
         except FileNotFoundError:
-            pass
+            return
+        except PermissionError:
+            if attempt == attempts:
+                raise
+            time.sleep(delay * attempt)
+
+
+def rename_path(source, target, attempts=10, delay=0.5):
+    for attempt in range(1, attempts + 1):
+        try:
+            source.rename(target)
+            return
+        except PermissionError as exc:
+            if attempt == attempts:
+                raise PermissionError(
+                    f"Could not replace {source}. Close any running {APP_NAME} instance "
+                    "or window using that folder, then build again."
+                ) from exc
+            time.sleep(delay * attempt)
+
+
+def clean_build_dirs():
+    for path in (BUILD_DIR, SPEC_DIR, DIST_DIR):
+        remove_tree(path)
 
 
 def ensure_venv():
@@ -49,7 +77,6 @@ def install_pyinstaller():
 
 
 def build_exe():
-    APPS_DIR.mkdir(parents=True, exist_ok=True)
     cmd = [
         VENV_PYTHON,
         "-m",
@@ -74,7 +101,7 @@ def build_exe():
         "--name",
         APP_NAME,
         "--distpath",
-        APPS_DIR,
+        DIST_DIR,
         "--workpath",
         BUILD_DIR,
         ENTRY_PY,
@@ -82,12 +109,37 @@ def build_exe():
     run(cmd)
 
 
+def deploy_exe():
+    if not STAGED_APP_DIR.exists():
+        raise FileNotFoundError(f"Built app not found: {STAGED_APP_DIR}")
+
+    APPS_DIR.mkdir(parents=True, exist_ok=True)
+    temp_app_dir = APPS_DIR / f".{APP_NAME}.new"
+    backup_app_dir = APPS_DIR / f".{APP_NAME}.old"
+
+    remove_tree(temp_app_dir)
+    remove_tree(backup_app_dir)
+    shutil.copytree(STAGED_APP_DIR, temp_app_dir)
+
+    try:
+        if DEPLOY_APP_DIR.exists():
+            rename_path(DEPLOY_APP_DIR, backup_app_dir)
+        rename_path(temp_app_dir, DEPLOY_APP_DIR)
+    except Exception:
+        if backup_app_dir.exists() and not DEPLOY_APP_DIR.exists():
+            rename_path(backup_app_dir, DEPLOY_APP_DIR)
+        raise
+
+    remove_tree(backup_app_dir)
+
+
 def main():
     clean_build_dirs()
     ensure_venv()
     install_pyinstaller()
     build_exe()
-    print(f"\nBuild finished: {APPS_DIR / APP_NAME / f'{APP_NAME}.exe'}")
+    deploy_exe()
+    print(f"\nBuild finished: {DEPLOY_APP_DIR / f'{APP_NAME}.exe'}")
 
 
 if __name__ == "__main__":
@@ -96,4 +148,3 @@ if __name__ == "__main__":
     except subprocess.CalledProcessError as exc:
         print(f"\nERROR: Command failed with exit code {exc.returncode}")
         sys.exit(exc.returncode)
-
