@@ -5,10 +5,7 @@ import time
 
 import win32com.client
 
-try:
-    from core.arcrho_bridge.bridge_utils import read_json, write_json, write_json_with_compact_rows
-except ModuleNotFoundError:
-    from arcrho_bridge.bridge_utils import read_json, write_json, write_json_with_compact_rows
+from arcrho_bridge.bridge_utils import read_json, write_json, write_json_with_compact_rows
 
 
 CONNECTION_NAME = "JGO_CO1SQLWPV22"
@@ -72,6 +69,12 @@ class ResQClient:
             average_data = self._average_data(dfm)
             origin_labels, data_development_labels = self._labels(dfm)
             ratio_development_labels = self._ratio_development_labels(data_development_labels)
+            cell_notes = self._cell_notes_data(
+                dfm,
+                origin_labels,
+                ratio_development_labels,
+                average_data.get("label", []),
+            )
             payload = {
                 "json format": DFM_METHOD_JSON_FORMAT,
                 "details tab": {
@@ -96,6 +99,7 @@ class ResQClient:
                         "excluded": self._excluded_ratio_pattern(dfm),
                     },
                     "average formulas": average_data,
+                    "cell notes": cell_notes,
                 },
                 "results tab": {
                     "ratio basis dataset": self._nested_name(dfm, "SummaryRatioBasis"),
@@ -122,6 +126,7 @@ class ResQClient:
             excluded_count = self._sync_excluded_ratios(dfm, payload)
             selected_count = self._sync_selected_ratios(dfm, payload)
             notes_changed = self._sync_notes(dfm, payload)
+            cell_notes_changed = self._sync_cell_notes(dfm, payload)
             dfm.Save()
             payload = {
                 "ok": True,
@@ -131,6 +136,7 @@ class ResQClient:
                     "excluded ratios": excluded_count,
                     "selected ratios": selected_count,
                     "notes": notes_changed,
+                    "cell notes": cell_notes_changed,
                 },
             }
             write_json(request["DataPath"], payload)
@@ -253,6 +259,16 @@ class ResQClient:
         dfm.Notes = notes.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
         return True
 
+    def _sync_cell_notes(self, dfm, payload):
+        cell_notes = self._dict_path(payload, ("ratios tab", "cell notes"))
+        if not cell_notes:
+            return False
+        # ResQ exposes DFM CellNotes as a read-side formatted string. The current
+        # bridge examples do not expose a safe per-cell note setter, so remote
+        # write-back intentionally leaves cell notes unchanged.
+        _ = dfm
+        return "read-only"
+
     def _dict_path(self, payload, path):
         current = payload
         for key in path:
@@ -290,6 +306,67 @@ class ResQClient:
             ],
             "values": self._user_entry_average_formula_values(dfm, formula_rows, column_count),
         }
+
+    def _cell_notes_data(self, dfm, origin_labels, ratio_development_labels, average_labels):
+        lines = str(self._optional_value(dfm, "CellNotes", "") or "").splitlines()
+        development_label_map = self._development_note_label_map(ratio_development_labels)
+        origin_label_set = {self._label_key(label) for label in origin_labels}
+        average_label_set = {self._label_key(label) for label in average_labels}
+        out = {
+            "ratio main table": {},
+            "ratio summary table": {},
+        }
+        for line in lines:
+            parsed = self._parse_cell_note_line(line)
+            if not parsed:
+                continue
+            col_label = development_label_map.get(self._label_key(parsed["x_label"]), parsed["x_label"])
+            row_label = parsed["y_label"]
+            note = parsed["note"]
+            if not col_label or not row_label or not note:
+                continue
+            row_key = self._label_key(row_label)
+            table_key = "ratio summary table" if row_key in average_label_set and row_key not in origin_label_set else "ratio main table"
+            out.setdefault(table_key, {}).setdefault(row_label, {})[col_label] = note
+        return out
+
+    def _parse_cell_note_line(self, line):
+        text = str(line or "").strip()
+        if not text:
+            return None
+        match = re.match(
+            r'^\s*"(?P<tab>(?:[^"]|"")*)"\s*,\s*Cell\[(?P<x_label>.*?),\s*(?P<y_label>.*?)\]\s*,\s*"(?P<note>(?:[^"]|"")*)"',
+            text,
+        )
+        if not match:
+            return None
+        return {
+            "tab": self._unescape_resq_note_value(match.group("tab")),
+            "x_label": self._clean_label(match.group("x_label")),
+            "y_label": self._clean_label(match.group("y_label")),
+            "note": self._unescape_resq_note_value(match.group("note")).strip(),
+        }
+
+    def _development_note_label_map(self, ratio_development_labels):
+        out = {}
+        for label in ratio_development_labels:
+            display_label = self._clean_label(label)
+            if not display_label:
+                continue
+            out[self._label_key(display_label)] = display_label
+            without_index = re.sub(r"^\(\s*\d+\s*\)\s*", "", display_label).strip()
+            if without_index:
+                out.setdefault(self._label_key(without_index), display_label)
+        return out
+
+    def _unescape_resq_note_value(self, value):
+        return str(value or "").replace('""', '"')
+
+    def _clean_label(self, value):
+        return re.sub(r"\s+", " ", str(value or "")).strip()
+
+    def _label_key(self, value):
+        return self._clean_label(value).lower()
 
     def _average_formula_rows(self, dfm):
         rows = []
