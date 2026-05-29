@@ -15,6 +15,7 @@ from app_server.helpers import sanitize_dataset_file_name, sanitize_reserving_cl
 from app_server.schemas.dfm_rpc_bridge import DfmRpcBridgeRequest
 
 RPC_BRIDGE_DIR_NAME = "RPC bridge"
+RPC_BRIDGE_TMP_DIR_NAME = "tmp_rpc"
 DFM_FUNCTION_NAME = "DFM"
 SYNC_DFM_FUNCTION_NAME = "SyncDFM"
 RPC_APPLY_COMPONENTS = [
@@ -94,7 +95,7 @@ def build_paths(req: DfmRpcBridgeRequest) -> Dict[str, str]:
     generated_data_dir = os.path.join(data_dir, config.GENERATED_DATA_DIR)
     rc_folder = sanitize_reserving_class_folder(req.reserving_class, "ReservingClass")
     method_dir = os.path.join(manual_data_dir, rc_folder)
-    rpc_methods_dir = os.path.join(generated_data_dir, "tmp", rc_folder)
+    rpc_methods_dir = os.path.join(method_dir, RPC_BRIDGE_TMP_DIR_NAME)
     request_dir = os.path.join(config.REQUEST_DIR, RPC_BRIDGE_DIR_NAME)
     local_path = os.path.join(method_dir, _build_method_filename(req, DFM_FUNCTION_NAME, include_lengths=False))
     remote_path = os.path.join(rpc_methods_dir, _build_method_filename(req, DFM_FUNCTION_NAME))

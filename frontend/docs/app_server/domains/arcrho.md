@@ -35,7 +35,7 @@ ArcRho calculations/precheck domain.
 <!-- MANUAL:BEGIN -->
 - Integrates headers/project listing and tri execution endpoints.
 - Manages ArcRho request-result CSV caches under each project `data/generated` folder; supports targeted ArcRhoHeaders cache clearing without touching `data/manual`.
-- ArcRhoTri writes a generated `<DatasetName>.csv` plus matching `<DatasetName>.json` metadata sidecar under `data/generated/<ReservingClassFolder>`.
+- ArcRhoTri writes generated `<DatasetName>@<OriginLength>@<DevelopmentLength>.csv` caches plus a plain `<DatasetName>.json` metadata sidecar under `data/generated/<ReservingClassFolder>`.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

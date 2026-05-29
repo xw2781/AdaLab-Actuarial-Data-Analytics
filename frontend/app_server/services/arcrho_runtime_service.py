@@ -4,13 +4,14 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+import uuid
 from datetime import datetime
 from typing import Any, Dict
 
 from fastapi import HTTPException
 
 from app_server import config
-from app_server.helpers import set_data_path_like_vba, send_request_like_vba, wait_for_file
+from app_server.helpers import sanitize_dataset_file_name, set_data_path_like_vba, send_request_like_vba, wait_for_file
 from app_server.services import book_service
 
 
@@ -22,26 +23,28 @@ def _pair_value(pairs: list, key: str) -> str:
     return ""
 
 
+def _dataset_sidecar_path(data_path: str, pairs: list) -> str:
+    dataset_name = _pair_value(pairs, "DatasetName") or _pair_value(pairs, "TriangleName")
+    dataset_file = sanitize_dataset_file_name(dataset_name)
+    return os.path.join(os.path.dirname(data_path), f"{dataset_file}.json")
+
+
 def _write_dataset_sidecar(data_path: str, pairs: list) -> None:
     dataset_name = _pair_value(pairs, "DatasetName") or _pair_value(pairs, "TriangleName")
     if not dataset_name:
         return
-    origin_length = _pair_value(pairs, "OriginLength")
-    development_length = _pair_value(pairs, "DevelopmentLength")
     payload = {
         "dataset_name": dataset_name,
         "dataset_type": dataset_name,
         "instance_name": dataset_name,
         "reserving_class": _pair_value(pairs, "Path"),
         "project_name": _pair_value(pairs, "ProjectName"),
-        "origin_length": origin_length,
-        "development_length": development_length,
         "storage": "generated",
         "csv_file": os.path.basename(data_path),
         "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
-    sidecar_path = os.path.splitext(data_path)[0] + ".json"
-    tmp_path = f"{sidecar_path}.tmp"
+    sidecar_path = _dataset_sidecar_path(data_path, pairs)
+    tmp_path = f"{sidecar_path}.{uuid.uuid4()}.tmp"
     with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -51,7 +54,7 @@ def _write_dataset_sidecar(data_path: str, pairs: list) -> None:
 def arcrho_tri_cache_matches(data_path: str, pairs: list) -> bool:
     if not os.path.exists(data_path):
         return False
-    sidecar_path = os.path.splitext(data_path)[0] + ".json"
+    sidecar_path = _dataset_sidecar_path(data_path, pairs)
     if not os.path.exists(sidecar_path):
         return False
     try:
@@ -65,8 +68,6 @@ def arcrho_tri_cache_matches(data_path: str, pairs: list) -> bool:
         "dataset_name": _pair_value(pairs, "DatasetName") or _pair_value(pairs, "TriangleName"),
         "reserving_class": _pair_value(pairs, "Path"),
         "project_name": _pair_value(pairs, "ProjectName"),
-        "origin_length": _pair_value(pairs, "OriginLength"),
-        "development_length": _pair_value(pairs, "DevelopmentLength"),
     }
     return all(str(payload.get(key) or "").strip() == value for key, value in checks.items())
 
@@ -195,9 +196,6 @@ def run_arcrho_tri(pairs: list, data_path: str, timeout_sec: float, force_refres
     if (force_refresh or not cache_matches) and os.path.exists(data_path):
         try:
             os.remove(data_path)
-            sidecar_path = os.path.splitext(data_path)[0] + ".json"
-            if os.path.exists(sidecar_path):
-                os.remove(sidecar_path)
             cache_cleared = True
         except OSError as e:
             raise HTTPException(423, f"Cannot clear cached ArcRho tri file: {str(e)}")

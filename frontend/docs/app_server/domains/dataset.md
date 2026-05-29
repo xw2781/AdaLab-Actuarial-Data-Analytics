@@ -37,8 +37,8 @@ Also handles generated/manual dataset file discovery and dataset Notes persisten
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Uses in-memory dataset map and patch payloads.
-- ArcRhoTri CSV request targets are `projects/<project>/data/generated/<ReservingClassFolder>/<DatasetName>.csv`; the matching metadata sidecar is written as `<DatasetName>.json` in the same folder and records dataset type/instance labels plus shape inputs such as origin/development length. The reserving-class path is a single filename-escaped folder name using the reversible `_%XX_` rule and is not repeated in the CSV filename.
-- ArcRhoTri precheck/execution treats missing or shape-mismatched sidecar metadata as a cache miss and rebuilds the generated CSV/JSON pair.
+- ArcRhoTri CSV request targets are `projects/<project>/data/generated/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv`; the matching metadata sidecar is written as plain `<DatasetName>.json` in the same folder and records dataset type/instance labels without origin/development length fields. The reserving-class path is a single filename-escaped folder name using the reversible `_%XX_` rule and is not repeated in the CSV filename.
+- ArcRhoTri precheck/execution treats a missing length-specific CSV or missing/mismatched plain sidecar metadata as a cache miss and rebuilds the generated CSV/JSON pair.
 - Persists dataset Notes as JSON files in `projects/<project>/data/manual/<ReservingClassFolder>/ArcRhoTriNotes@<DatasetName>.json`.
 - Cached dataset lookup is read-only and scans both generated and manual folders for the selected reserving-class path, matching `.csv` and `.json` filenames/sidecars back to dataset-name candidates after applying the same server-side folder/file sanitizers used by runtime cache writes.
 <!-- MANUAL:END -->

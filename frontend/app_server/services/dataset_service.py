@@ -67,15 +67,33 @@ def _add_cached_dataset_name(names: Set[str], value: Any) -> None:
         names.add(text)
 
 
+def _split_length_scoped_stem(stem: str) -> Tuple[str, bool]:
+    parts = str(stem or "").split("@")
+    if len(parts) >= 3 and parts[-1].strip().isdigit() and parts[-2].strip().isdigit():
+        return "@".join(parts[:-2]), True
+    return str(stem or ""), False
+
+
+def _dataset_sidecar_path_for_cached_csv(csv_path: str) -> str:
+    folder = os.path.dirname(csv_path)
+    stem = os.path.splitext(os.path.basename(csv_path))[0]
+    dataset_stem, is_length_scoped = _split_length_scoped_stem(stem)
+    if is_length_scoped:
+        plain_sidecar = os.path.join(folder, f"{dataset_stem}.json")
+        if os.path.exists(plain_sidecar):
+            return plain_sidecar
+    return os.path.splitext(csv_path)[0] + ".json"
+
+
 def _cached_dataset_names_from_file(filename: str) -> Set[str]:
     stem, ext = os.path.splitext(str(filename or ""))
     ext_l = ext.lower()
     names: Set[str] = set()
     if ext_l == ".csv":
         _add_cached_dataset_name(names, stem)
-        parts = stem.split("@")
-        if len(parts) >= 3 and parts[-1].strip() and parts[-2].strip():
-            _add_cached_dataset_name(names, "@".join(parts[:-2]))
+        dataset_stem, is_length_scoped = _split_length_scoped_stem(stem)
+        if is_length_scoped:
+            _add_cached_dataset_name(names, dataset_stem)
         return names
     if ext_l != ".json":
         return names
@@ -124,7 +142,7 @@ def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str
             names.update(_cached_dataset_names_from_file(entry.name))
             metadata: Dict[str, Any] = {}
             if ext == ".csv":
-                metadata = _read_dataset_sidecar(os.path.splitext(entry.path)[0] + ".json")
+                metadata = _read_dataset_sidecar(_dataset_sidecar_path_for_cached_csv(entry.path))
             if ext == ".json":
                 metadata = _read_dataset_sidecar(entry.path)
                 names.update(_cached_dataset_names_from_sidecar(entry.path))

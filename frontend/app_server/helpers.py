@@ -58,6 +58,15 @@ def sanitize_dataset_file_name(value: Any, fallback: str = "Dataset") -> str:
     return text or fallback
 
 
+def build_length_scoped_dataset_file_name(dataset_name: Any, origin_length: Any, development_length: Any) -> str:
+    dataset_file = sanitize_dataset_file_name(dataset_name)
+    origin = str(origin_length if origin_length is not None else "").strip()
+    development = str(development_length if development_length is not None else "").strip()
+    if origin and development:
+        return f"{dataset_file}@{origin}@{development}"
+    return dataset_file
+
+
 # ---------------------------------------------------------------------------
 # VBA-compat helpers
 # ---------------------------------------------------------------------------
@@ -104,7 +113,7 @@ def set_data_path_like_vba(pairs: list[tuple[str, str]]) -> str:
 
     if function_name.strip().lower() == "arcrhotri" and reserving_class and dataset_name:
         rc_folder = sanitize_reserving_class_folder(reserving_class)
-        dataset_file = sanitize_dataset_file_name(dataset_name)
+        dataset_file = build_length_scoped_dataset_file_name(dataset_name, origin_length, development_length)
         return os.path.join(project_data_dir, rc_folder, f"{dataset_file}.csv")
 
     full_name = config.encode_filename_segment("@".join(values))
