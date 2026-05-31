@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "project-instance",
+  "audience": "user",
+  "summary": "Project Instance dataset table column dragging now shows a precise blue insertion line.",
+  "details": [
+    "Dragging a right-panel dataset table column no longer fills the target header; it displays a thin blue line where the column will be inserted."
+  ]
+}

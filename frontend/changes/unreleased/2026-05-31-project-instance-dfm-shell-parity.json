@@ -1,0 +1,11 @@
+{
+  "type": "improvement",
+  "scope": "project-instance",
+  "audience": "user",
+  "summary": "Project Instance DFM windows now participate in shell DFM commands and macros.",
+  "details": [
+    "When a floating DFM window is active inside Project Instance, DFM Edit and Help menu actions such as Undo/Redo Ratio Change and Open DFM JSON route to that nested DFM window.",
+    "Macros can now read and apply active DFM context from a Project Instance DFM window using the same message flow as standalone DFM tabs.",
+    "Project Instance now shows a dataset-toolbar reload alert when new cached instance names are detected on disk instead of reloading from the next page click."
+  ]
+}

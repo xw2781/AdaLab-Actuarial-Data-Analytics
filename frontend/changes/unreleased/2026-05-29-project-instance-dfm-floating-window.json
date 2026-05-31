@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance DFM rows now open inside the Project Instance frame.",
+  "details": [
+    "Double-clicking a DFM Method Type row opens a floating DFM window on the Ratios tab instead of opening a new main shell tab."
+  ]
+}

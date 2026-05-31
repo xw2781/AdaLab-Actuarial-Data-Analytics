@@ -4,6 +4,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -11,7 +12,7 @@ from fastapi import HTTPException
 
 from app_server import config
 
-USER_PREFS_FILE = "preferences.json"
+USER_PREFS_FILE = config.PROJECT_USER_PREFERENCES_FILE
 
 
 def _clean_text(value: Any) -> str:
@@ -98,9 +99,29 @@ def _normalize_project_user_preferences(data: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _read_project_instance_defaults() -> Dict[str, Any]:
+    defaults = _read_json(config.get_project_instance_default_preferences_path())
+    project_instance = defaults.get("projectInstance")
+    return deepcopy(project_instance) if isinstance(project_instance, dict) else {}
+
+
+def _with_project_instance_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
+    project_instance = data.get("projectInstance")
+    if isinstance(project_instance, dict) and project_instance:
+        return data
+
+    defaults = _read_project_instance_defaults()
+    if not defaults:
+        return data
+
+    out = dict(data)
+    out["projectInstance"] = defaults
+    return out
+
+
 def get_preferences(project_name: str) -> Dict[str, Any]:
     path = _prefs_path(project_name)
-    data = _normalize_project_user_preferences(_read_json(path))
+    data = _with_project_instance_defaults(_normalize_project_user_preferences(_read_json(path)))
     return {
         "ok": True,
         "project_name": _clean_text(project_name),

@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance cached dataset view is now active by default.",
+  "details": [
+    "The dataset table toolbar starts with cached dataset filtering enabled."
+  ]
+}

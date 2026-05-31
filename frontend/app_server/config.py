@@ -44,6 +44,10 @@ DEFAULT_WORKSPACE_PATHS = {
     "projects_dir": "projects",
     "requests_dir": "requests",
 }
+PROJECT_USER_PREFERENCES_FILE = "preferences.json"
+PROJECT_INSTANCE_DEFAULT_PREFS_ENV = "ARCRHO_PROJECT_INSTANCE_DEFAULT_PREFS_PATH"
+DEFAULT_PROJECT_INSTANCE_PREFS_PROJECT_NAME = "NJ_Annual_Prod_2026 Q1-Feb Test"
+DEFAULT_PROJECT_INSTANCE_PREFS_USER_NAME = "xwei"
 
 
 def _get_user_appdata_dir() -> str:
@@ -370,6 +374,19 @@ def get_scripting_prefs_path() -> str:
 
 def get_local_project_prefs_path() -> str:
     return os.path.join(_get_user_appdata_dir(), LOCAL_PROJECT_PREFS_FILE)
+
+
+def get_project_instance_default_preferences_path() -> str:
+    configured = str(os.environ.get(PROJECT_INSTANCE_DEFAULT_PREFS_ENV) or "").strip()
+    if configured:
+        return configured
+    return os.path.join(
+        PROJECT_SETTINGS_DIR,
+        DEFAULT_PROJECT_INSTANCE_PREFS_PROJECT_NAME,
+        "users",
+        DEFAULT_PROJECT_INSTANCE_PREFS_USER_NAME,
+        PROJECT_USER_PREFERENCES_FILE,
+    )
 
 
 def get_project_settings_workbook_path(project_name: str) -> str:

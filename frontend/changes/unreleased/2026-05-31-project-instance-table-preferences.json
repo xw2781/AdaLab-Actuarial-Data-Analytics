@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "project-instance",
+  "audience": "user",
+  "summary": "Project Instance now remembers dataset table layout preferences per project user.",
+  "details": [
+    "The right-panel dataset table saves column widths, column order, filters, grouping, collapsed groups, and sort state in the existing project-specific user preferences JSON."
+  ]
+}

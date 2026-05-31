@@ -7,9 +7,10 @@ Project instance workspace for browsing one project's reserving-class paths and 
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.project_instance.entry_points -->
-- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260521a`; inline imports _none_.
+- `ui/project_instance/project_instance.html`: external scripts `/ui/project_instance/project_instance.js?v=20260531d`; inline imports _none_.
 
 Detected `fetch(...)` targets in key JS files:
+- `/dfm/method-index?${query.toString()}`
 - `/reserving_class_combinations?project_name=${encodeURIComponent(projectName)}`
 - `/reserving_class_filter_spec`
 - `/reserving_class_filter_spec?project_name=${encodeURIComponent(projectName)}`
@@ -18,6 +19,10 @@ Detected `fetch(...)` targets in key JS files:
 - `/reserving_class_types?project_name=${encodeURIComponent(projectName)}`
 
 Detected `arcrho:*` message types in key JS files:
+- `arcrho:dfm-request-state`
+- `arcrho:dfm-tab-activated`
+- `arcrho:project-instance-dfm-active-state`
+- `arcrho:project-instance-dirty`
 - `arcrho:set-zoom`
 <!-- AUTO-GEN:END -->
 
@@ -52,8 +57,14 @@ Detected `arcrho:*` message types in key JS files:
 - Dataset viewer windows add a transparent parent-page drag shield during move/resize so embedded iframes do not interrupt fast mouse movement.
 - The project instance toolbar is compact, shows only the currently selected reserving-class path, omits the duplicate selected path above the tree, and sizes the path label to its content with a capped width so minimized toolbar tabs get the remaining space.
 - The left and right panel title bars are omitted so the reserving-class tree and dataset table start directly below the toolbar.
-- The dataset table has a compact toolbar above the scroll area with an eye toggle for cached dataset view. When active, the page asks the app server to resolve the selected reserving-class path to the project `data/generated` and `data/manual` folders and filters the table to dataset names with cached `.csv` files or `.json` metadata sidecars in those folders.
-- Right-clicking dataset table header cells opens a context menu with `Group by ...` choices for `Data Format` and `Category` plus a placeholder `Reset Columns` option; choosing both grouping fields creates nested compact collapsible group headers inside the same table instead of rendering separate grouped tables. Top-level group headers show record counts as low-contrast circular badges, while subgroup headers omit counts. Every table header still supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges. Per-column filters match the Project Settings Dataset Types table: no checked values means the filter is not applied, checked values narrow results, and selecting all values is treated as unfiltered. Resizing a column changes only that column and updates the total table width instead of redistributing space across other columns.
+- The dataset table has a compact toolbar above the scroll area with an eye toggle for cached dataset view, and cached dataset view is active by default. When active, the page asks the app server to resolve the selected reserving-class path to the project `data/generated` and `data/manual` folders and filters the table to dataset names with cached `.csv` files or `.json` metadata sidecars in those folders.
+- The dataset table `Method Type` column reads the selected reserving-class folder's cached `method_index.json` through the shared DFM method-index endpoint, matching rows by `dataset_name`; datasets missing from the cache display `None`.
+- Double-clicking a dataset table row whose `Method Type` is `DFM` opens a floating DFM window inside the Project Instance frame on its Ratios page, initialized with the current project, selected reserving-class path, and dataset name instead of opening the in-tab Dataset Viewer window or a main shell tab.
+- Floating Dataset and DFM windows inside Project Instance follow the main shell corner convention: 4px by default and 8px when the page is running with the Windows 11 frame style.
+- Floating DFM windows mirror standalone DFM save/dirty behavior: DFM dirty-state messages show a dirty dot on the floating titlebar and minimized tab, mark the containing Project Instance shell tab dirty while any floating DFM is dirty, closing a dirty DFM window asks for confirmation, and shell Save / Save As plus Ctrl+S / Ctrl+Shift+S route to the active floating DFM window.
+- Floating DFM windows publish their active DFM state to the shell and forward standalone DFM commands, so shell Edit/Help menu actions, ratio hotkeys, DFM JSON opening, and macro context/apply requests target the active Project Instance DFM window the same way they target a standalone DFM tab.
+- Project Instance watches the selected reserving-class `data/generated` and `data/manual` cache folders for signature changes while the page is open. When disk changes add or remove unique cached instance names, it leaves the right-panel dataset table unchanged and shows a dataset-toolbar alert; clicking that alert reloads the Project Instance page. Content-only edits that keep the same instance names update the watch baseline without prompting.
+- Right-clicking dataset table header cells opens a context menu with `Group by ...` choices for `Data Format` and `Category` plus a placeholder `Reset Columns` option; choosing both grouping fields creates nested compact collapsible group headers inside the same table instead of rendering separate grouped tables. Top-level group headers show record counts as low-contrast circular badges, while subgroup headers omit counts. Every table header still supports per-column filter dropdowns, drag-to-reorder column labels, and drag-to-resize header edges; dragging a column shows a thin blue insertion line at the target location. Per-column filters match the Project Settings Dataset Types table: no checked values means the filter is not applied, checked values narrow results, and selecting all values is treated as unfiltered. Resizing a column changes only that column and updates the total table width instead of redistributing space across other columns.
 - Dataset table initial column widths are measured from the loaded header and cell contents, with each startup width capped at `460px` so a single long value cannot create an oversized column; manual resize can still expand a column beyond the startup cap.
 - Right-clicking a dataset table group header opens `Collapse all` and `Expand all` actions for nested subgroup headers within that group.
 - Dataset table renders precompute row cell values, filter option lists, and active filter selections once per render before grouping and sorting, keeping filter/group changes responsive on larger project dataset lists.
@@ -67,8 +78,13 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Uses the shell-persisted project name/folder/table path as tab inputs.
 - Loads the project's last selected reserving-class path from project-user preferences when the tab opens; if no last path exists, it selects the first Shortcut item when available, otherwise leaving the path empty.
-- Keeps the selected reserving-class path in page memory, saves user selections back to project-user preferences, and passes it into new dataset viewer windows.
+- Keeps the selected reserving-class path in page memory, saves user selections back to project-user preferences, and passes it into new floating Dataset Viewer and DFM windows.
+- Saves the right-panel dataset table layout in the same project-user preferences JSON under `projectInstance.datasetTable`, including column order, manual column widths, column filter selections, grouping fields, collapsed group rows, and sort state. When the current project/user has no saved `projectInstance` object yet, the preference API supplies the default `projectInstance` settings from the configured default preferences JSON before the page loads.
 - Cached dataset view is page-local state; changing the selected reserving-class path refreshes the server-side cache-file lookup for the new generated/manual folders while preserving existing table column filters and grouping.
+- Method type lookup is page-local state scoped to the selected reserving-class path and refreshes from the path's cached `method_index.json` when the selection changes.
+- Floating DFM window dirty state is tracked by DFM iframe `arcrho:dfm-dirty` messages keyed by the DFM `inst`; Project Instance sends aggregate `arcrho:project-instance-dirty` messages to the shell and consumes shell-level DFM save commands before forwarding them to the active floating DFM iframe.
+- Floating DFM window active state is tracked by DFM iframe edit/history/tab messages and reported to the shell with `arcrho:project-instance-dfm-active-state`; Project Instance forwards `arcrho:assistant-context-request` and `arcrho:dfm-apply-method-payload` to the active nested DFM iframe so macros can use the same active-context contract for standalone and nested DFM pages.
+- Active-path disk-change detection compares the cached folder signature for the selected path at an interval, then compares the unique cached instance-name set before deciding whether page content is stale enough to prompt for reload.
 - Left and right panels own their scroll areas so overflowing path trees and dataset tables scroll inside the project instance tab frame.
 <!-- MANUAL:END -->
 

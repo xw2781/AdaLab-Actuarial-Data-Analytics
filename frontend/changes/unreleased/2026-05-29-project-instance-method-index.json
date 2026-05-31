@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance now shows Method Type values from the selected path's method index cache.",
+  "details": [
+    "The dataset table matches rows to `method_index.json` entries by dataset name and displays `None` when a dataset is not listed in the cache."
+  ]
+}

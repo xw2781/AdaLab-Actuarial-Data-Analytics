@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "project-instance",
+  "audience": "user",
+  "summary": "Project Instance now falls back to a default table preference layout when a project user has no saved Project Instance settings.",
+  "details": [
+    "When project-user preferences do not contain a projectInstance object, the app-server reads the default projectInstance block from the configured default preferences JSON before returning preferences to the UI."
+  ]
+}

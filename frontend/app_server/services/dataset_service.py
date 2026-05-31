@@ -74,6 +74,12 @@ def _split_length_scoped_stem(stem: str) -> Tuple[str, bool]:
     return str(stem or ""), False
 
 
+def _normalize_cached_dataset_name(value: Any) -> str:
+    text = str(value if value is not None else "").strip()
+    stem, _ = _split_length_scoped_stem(text)
+    return stem.strip()
+
+
 def _dataset_sidecar_path_for_cached_csv(csv_path: str) -> str:
     folder = os.path.dirname(csv_path)
     stem = os.path.splitext(os.path.basename(csv_path))[0]
@@ -90,10 +96,7 @@ def _cached_dataset_names_from_file(filename: str) -> Set[str]:
     ext_l = ext.lower()
     names: Set[str] = set()
     if ext_l == ".csv":
-        _add_cached_dataset_name(names, stem)
-        dataset_stem, is_length_scoped = _split_length_scoped_stem(stem)
-        if is_length_scoped:
-            _add_cached_dataset_name(names, dataset_stem)
+        _add_cached_dataset_name(names, _normalize_cached_dataset_name(stem))
         return names
     if ext_l != ".json":
         return names
@@ -102,7 +105,7 @@ def _cached_dataset_names_from_file(filename: str) -> Set[str]:
         if stem.startswith(prefix):
             _add_cached_dataset_name(names, stem[len(prefix):])
             return names
-    _add_cached_dataset_name(names, stem)
+    _add_cached_dataset_name(names, _normalize_cached_dataset_name(stem))
     return names
 
 
@@ -123,8 +126,33 @@ def _cached_dataset_names_from_sidecar(path: str) -> Set[str]:
     if not payload:
         return names
     for key in ("dataset_name", "instance_name", "dataset_type", "dataset_type_name"):
-        _add_cached_dataset_name(names, payload.get(key))
+        _add_cached_dataset_name(names, _normalize_cached_dataset_name(payload.get(key)))
     return names
+
+
+def _cached_folder_signature(files: List[Dict[str, Any]], folder_paths: Dict[str, str]) -> str:
+    source = {
+        "folders": {
+            name: {
+                "path": path,
+                "exists": os.path.isdir(path),
+            }
+            for name, path in sorted(folder_paths.items())
+        },
+        "files": [
+            {
+                "storage": str(item.get("storage") or ""),
+                "name": str(item.get("name") or ""),
+                "size": int(item.get("size") or 0),
+                "mtime_ns": int(item.get("mtime_ns") or 0),
+            }
+            for item in sorted(files, key=lambda item: (
+                str(item.get("storage") or ""),
+                str(item.get("name") or "").lower(),
+            ))
+        ],
+    }
+    return json.dumps(source, sort_keys=True, separators=(",", ":"))
 
 
 def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str], List[Dict[str, Any]]]:
@@ -139,6 +167,7 @@ def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str
             ext = os.path.splitext(entry.name)[1].lower()
             if ext not in {".csv", ".json"}:
                 continue
+            stat = entry.stat()
             names.update(_cached_dataset_names_from_file(entry.name))
             metadata: Dict[str, Any] = {}
             if ext == ".csv":
@@ -150,10 +179,13 @@ def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str
                 "name": entry.name,
                 "storage": storage,
                 "path": entry.path,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+                "mtime_ns": stat.st_mtime_ns,
             }
             if metadata:
-                file_info["dataset_name"] = str(metadata.get("dataset_name") or metadata.get("instance_name") or "").strip()
-                file_info["dataset_type"] = str(metadata.get("dataset_type") or metadata.get("dataset_type_name") or "").strip()
+                file_info["dataset_name"] = _normalize_cached_dataset_name(metadata.get("dataset_name") or metadata.get("instance_name"))
+                file_info["dataset_type"] = _normalize_cached_dataset_name(metadata.get("dataset_type") or metadata.get("dataset_type_name"))
                 file_info["csv_file"] = str(metadata.get("csv_file") or "").strip()
             files.append(file_info)
     return names, files
@@ -174,6 +206,10 @@ def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[s
     rc_folder = sanitize_reserving_class_folder(rc)
     generated_folder_path = os.path.join(generated_data_dir, rc_folder)
     manual_folder_path = os.path.join(manual_data_dir, rc_folder)
+    folder_paths = {
+        "generated": generated_folder_path,
+        "manual": manual_folder_path,
+    }
     if not os.path.isdir(generated_folder_path) and not os.path.isdir(manual_folder_path):
         return {
             "ok": True,
@@ -181,10 +217,8 @@ def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[s
             "project_name": project,
             "reserving_class": rc,
             "folder_path": generated_folder_path,
-            "folder_paths": {
-                "generated": generated_folder_path,
-                "manual": manual_folder_path,
-            },
+            "folder_paths": folder_paths,
+            "folder_signature": _cached_folder_signature([], folder_paths),
             "dataset_names": [],
             "files": [],
         }
@@ -210,10 +244,8 @@ def list_cached_dataset_names(project_name: str, reserving_class: str) -> Dict[s
         "project_name": project,
         "reserving_class": rc,
         "folder_path": generated_folder_path,
-        "folder_paths": {
-            "generated": generated_folder_path,
-            "manual": manual_folder_path,
-        },
+        "folder_paths": folder_paths,
+        "folder_signature": _cached_folder_signature(files, folder_paths),
         "dataset_names": sorted(names, key=lambda item: item.lower()),
         "files": sorted(files, key=lambda item: (str(item.get("storage") or ""), str(item.get("name") or "").lower())),
     }

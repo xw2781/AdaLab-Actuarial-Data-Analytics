@@ -1,0 +1,7 @@
+{
+  "summary": "Project Instance floating DFM windows now show dirty state and support shell save commands.",
+  "details": [
+    "Floating DFM windows inside Project Instance display an unsaved-changes dot, keep that marker when minimized, mark the containing Project Instance shell tab dirty, and ask before closing with unsaved changes.",
+    "File Save, File Save As, Ctrl+S, and Ctrl+Shift+S now route to the active floating DFM window when Project Instance is the active shell tab."
+  ]
+}

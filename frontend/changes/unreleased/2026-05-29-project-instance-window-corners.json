@@ -1,0 +1,6 @@
+{
+  "summary": "Project Instance floating windows now match the shell corner radius.",
+  "details": [
+    "Floating Dataset and DFM windows inside Project Instance use 4px corners by default and 8px corners when Windows 11 frame styling is active."
+  ]
+}

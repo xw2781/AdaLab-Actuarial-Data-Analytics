@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance DFM rows now open DFM tabs on double-click.",
+  "details": [
+    "Rows whose Method Type is `DFM` open a DFM tab initialized to the selected project path and dataset name instead of opening the Dataset Viewer."
+  ]
+}

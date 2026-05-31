@@ -31,7 +31,7 @@ Also handles generated/manual dataset file discovery and dataset Notes persisten
 <!-- MANUAL:BEGIN -->
 - Called by dataset/DFM frontend flows via `shared/api.js`.
 - Exposes Notes load/save endpoints for project-scoped dataset notes persistence.
-- Exposes a project/path cached dataset lookup for Project Instance; the server resolves `project_name` plus selected reserving-class path to both `projects/<project>/data/generated/<ReservingClassFolder>` and `projects/<project>/data/manual/<ReservingClassFolder>`, then returns dataset names inferred from `.csv` files and metadata `.json` sidecars.
+- Exposes a project/path cached dataset lookup for Project Instance; the server resolves `project_name` plus selected reserving-class path to both `projects/<project>/data/generated/<ReservingClassFolder>` and `projects/<project>/data/manual/<ReservingClassFolder>`, then returns dataset names inferred from `.csv` files and metadata `.json` sidecars plus a folder signature derived from cache-file names, sizes, modification times, and folder existence. Length-scoped cache filenames such as `<DatasetName>@12@12.csv` or older `<DatasetName>@12@12.json` sidecars are normalized to the base dataset instance name.
 <!-- MANUAL:END -->
 
 ## Data/State/Caches
@@ -40,7 +40,7 @@ Also handles generated/manual dataset file discovery and dataset Notes persisten
 - ArcRhoTri CSV request targets are `projects/<project>/data/generated/<ReservingClassFolder>/<DatasetName>@<OriginLength>@<DevelopmentLength>.csv`; the matching metadata sidecar is written as plain `<DatasetName>.json` in the same folder and records dataset type/instance labels without origin/development length fields. The reserving-class path is a single filename-escaped folder name using the reversible `_%XX_` rule and is not repeated in the CSV filename.
 - ArcRhoTri precheck/execution treats a missing length-specific CSV or missing/mismatched plain sidecar metadata as a cache miss and rebuilds the generated CSV/JSON pair.
 - Persists dataset Notes as JSON files in `projects/<project>/data/manual/<ReservingClassFolder>/ArcRhoTriNotes@<DatasetName>.json`.
-- Cached dataset lookup is read-only and scans both generated and manual folders for the selected reserving-class path, matching `.csv` and `.json` filenames/sidecars back to dataset-name candidates after applying the same server-side folder/file sanitizers used by runtime cache writes.
+- Cached dataset lookup is read-only and scans both generated and manual folders for the selected reserving-class path, matching `.csv` and `.json` filenames/sidecars back to dataset-name candidates after applying the same server-side folder/file sanitizers used by runtime cache writes. The response includes per-file `size`, `mtime`, and `mtime_ns` fields plus a `folder_signature` for frontend stale-content detection.
 <!-- MANUAL:END -->
 
 ## Common Change Tasks

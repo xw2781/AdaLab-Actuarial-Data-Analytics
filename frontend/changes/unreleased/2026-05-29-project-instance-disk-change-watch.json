@@ -1,0 +1,11 @@
+{
+  "type": "feature",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance now warns when active cache folder changes add or remove instances.",
+  "details": [
+    "The selected reserving-class generated/manual cache folders are checked while the page is open.",
+    "When disk changes add or remove unique cached instance names, Project Instance shows a floating warning and reloads after the next page click.",
+    "Content-only edits that keep the same instance names update the watch baseline without prompting."
+  ]
+}

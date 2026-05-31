@@ -1,0 +1,9 @@
+{
+  "type": "feature",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance DFM rows now open directly on the Ratios tab.",
+  "details": [
+    "Double-clicking a DFM Method Type row opens the DFM object with Ratios selected by default."
+  ]
+}

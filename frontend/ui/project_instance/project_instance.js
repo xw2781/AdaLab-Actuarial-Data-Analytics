@@ -26,6 +26,7 @@ const els = {
   hiddenDropBanner: document.getElementById("hiddenDropBanner"),
   cachedDatasetToggle: document.getElementById("cachedDatasetToggle"),
   cachedDatasetStatus: document.getElementById("cachedDatasetStatus"),
+  diskChangeReloadAlert: document.getElementById("diskChangeReloadAlert"),
   pageLoadingOverlay: document.getElementById("pageLoadingOverlay"),
   pageLoadingTitle: document.getElementById("pageLoadingTitle"),
   pageLoadingMessage: document.getElementById("pageLoadingMessage"),
@@ -80,6 +81,7 @@ const DATASET_WINDOW_RESTORE_ANIMATION_MS = 280;
 const DATASET_WINDOW_EDGE_VISIBLE_WIDTH = 80;
 const DATASET_WINDOW_TITLEBAR_HEIGHT = 30;
 const HIDDEN_TABS_HOVER_CLOSE_MS = 1000;
+const ACTIVE_PATH_FOLDER_WATCH_INTERVAL_MS = 8000;
 let selectedPath = "";
 let datasetRows = [];
 let nextWindowZ = 1;
@@ -97,6 +99,8 @@ let hiddenTabsMenuPinned = false;
 let minimizedTabTooltip = null;
 let pageLoadingFrameTimer = 0;
 let pageLoadingStartedAt = 0;
+let datasetTablePreferencesLoaded = false;
+const datasetTablePreferenceWidthKeys = new Set();
 const datasetTableView = {
   groupBy: [],
   columns: DATASET_TABLE_COLUMNS.map((col) => col.key),
@@ -109,12 +113,27 @@ const datasetTableView = {
   },
 };
 const cachedDatasetFilter = {
-  enabled: false,
+  enabled: true,
   loading: false,
   loadedPath: "",
   names: new Set(),
   error: "",
   requestSeq: 0,
+};
+const methodIndexState = {
+  loading: false,
+  loadedPath: "",
+  typesByDatasetName: new Map(),
+  error: "",
+  requestSeq: 0,
+};
+const activePathFolderWatch = {
+  timer: 0,
+  path: "",
+  signature: "",
+  instanceSignature: "",
+  requestSeq: 0,
+  noticeShown: false,
 };
 let datasetTableFilterColumn = "";
 let datasetTableFilterAnchor = null;
@@ -170,6 +189,10 @@ async function applyHostFrameCornerStyle() {
 
 function toText(value) {
   return String(value ?? "").trim();
+}
+
+function normalizeLookupKey(value) {
+  return toText(value).replace(/\s+/g, " ").toLowerCase();
 }
 
 function normalizePath(value) {
@@ -229,6 +252,12 @@ function syncCachedDatasetToolbar() {
   els.cachedDatasetStatus.textContent = count === 1 ? "1 cached dataset" : `${count} cached datasets`;
 }
 
+function syncDiskChangeToolbarAlert() {
+  const alert = els.diskChangeReloadAlert;
+  if (!alert) return;
+  alert.hidden = !activePathFolderWatch.noticeShown;
+}
+
 function shouldUseCachedDatasetFilter() {
   return (
     cachedDatasetFilter.enabled
@@ -243,6 +272,154 @@ function isDatasetRecordCached(record) {
   if (!shouldUseCachedDatasetFilter()) return true;
   const key = getCachedDatasetKey(record?.datasetName || getDatasetName(record?.row));
   return !!key && cachedDatasetFilter.names.has(key);
+}
+
+function getCachedDatasetSnapshotSignature(payload) {
+  const direct = toText(payload?.folder_signature);
+  if (direct) return direct;
+  const files = Array.isArray(payload?.files) ? payload.files : [];
+  return JSON.stringify({
+    exists: payload?.exists !== false,
+    files: files
+      .map((item) => ({
+        storage: toText(item?.storage),
+        name: toText(item?.name),
+        size: Number(item?.size) || 0,
+        mtime_ns: Number(item?.mtime_ns) || 0,
+      }))
+      .sort((a, b) => `${a.storage}\u0001${a.name}`.localeCompare(`${b.storage}\u0001${b.name}`, undefined, { sensitivity: "base" })),
+  });
+}
+
+function getCachedDatasetInstanceSignature(payload) {
+  const names = Array.isArray(payload?.dataset_names) ? payload.dataset_names : [];
+  const keys = Array.from(new Set(names.map((name) => getCachedDatasetKey(name)).filter(Boolean)));
+  keys.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+  return JSON.stringify(keys);
+}
+
+async function fetchCachedDatasetSnapshot(path) {
+  const normalizedPath = normalizePath(path);
+  const url = new URL("/datasets/cached", window.location.origin);
+  url.searchParams.set("project_name", projectName);
+  url.searchParams.set("reserving_class", normalizedPath);
+  const resp = await fetch(url.toString(), { cache: "no-store" });
+  const payload = await resp.json().catch(() => ({}));
+  if (!resp.ok || payload?.ok === false) {
+    throw new Error(payload?.detail || `Cached dataset lookup failed (${resp.status})`);
+  }
+  return payload;
+}
+
+function rememberActivePathFolderSignature(payload, path = selectedPath) {
+  const normalizedPath = normalizePath(path);
+  if (!normalizedPath || normalizePath(selectedPath).toLowerCase() !== normalizedPath.toLowerCase()) return;
+  if (activePathFolderWatch.noticeShown) return;
+  const signature = getCachedDatasetSnapshotSignature(payload);
+  if (!signature) return;
+  const instanceSignature = getCachedDatasetInstanceSignature(payload);
+  if (normalizePath(activePathFolderWatch.path).toLowerCase() !== normalizedPath.toLowerCase()) {
+    activePathFolderWatch.path = normalizedPath;
+    activePathFolderWatch.signature = signature;
+    activePathFolderWatch.instanceSignature = instanceSignature;
+    return;
+  }
+  if (!activePathFolderWatch.signature) activePathFolderWatch.signature = signature;
+  if (!activePathFolderWatch.instanceSignature) activePathFolderWatch.instanceSignature = instanceSignature;
+}
+
+function clearDiskChangeNotice() {
+  syncDiskChangeToolbarAlert();
+}
+
+function reloadProjectInstanceAfterDiskChange() {
+  if (!activePathFolderWatch.noticeShown) return;
+  window.location.reload();
+}
+
+function showDiskChangeNotice() {
+  if (activePathFolderWatch.noticeShown) return;
+  activePathFolderWatch.noticeShown = true;
+  if (activePathFolderWatch.timer) {
+    window.clearInterval(activePathFolderWatch.timer);
+    activePathFolderWatch.timer = 0;
+  }
+  syncDiskChangeToolbarAlert();
+  setStatus("New dataset instances were detected on disk. Reload the Project Instance page to update the table.");
+}
+
+async function checkActivePathFolderSnapshot() {
+  const path = normalizePath(selectedPath);
+  if (!projectName || !path || activePathFolderWatch.noticeShown) return;
+  if (normalizePath(activePathFolderWatch.path).toLowerCase() !== path.toLowerCase()) {
+    activePathFolderWatch.path = path;
+    activePathFolderWatch.signature = "";
+  }
+  const seq = activePathFolderWatch.requestSeq + 1;
+  activePathFolderWatch.requestSeq = seq;
+  try {
+    const payload = await fetchCachedDatasetSnapshot(path);
+    if (seq !== activePathFolderWatch.requestSeq) return;
+    const signature = getCachedDatasetSnapshotSignature(payload);
+    if (!signature) return;
+    const instanceSignature = getCachedDatasetInstanceSignature(payload);
+    if (!activePathFolderWatch.signature) {
+      activePathFolderWatch.signature = signature;
+      activePathFolderWatch.instanceSignature = instanceSignature;
+      return;
+    }
+    if (signature !== activePathFolderWatch.signature) {
+      if (instanceSignature !== activePathFolderWatch.instanceSignature) {
+        showDiskChangeNotice();
+        return;
+      }
+      activePathFolderWatch.signature = signature;
+      activePathFolderWatch.instanceSignature = instanceSignature;
+    }
+  } catch (err) {
+    if (seq !== activePathFolderWatch.requestSeq) return;
+    console.warn("Failed to check active reserving-class folder:", err);
+  }
+}
+
+function resetActivePathFolderWatch(path = selectedPath) {
+  activePathFolderWatch.path = normalizePath(path);
+  activePathFolderWatch.signature = "";
+  activePathFolderWatch.instanceSignature = "";
+  activePathFolderWatch.requestSeq += 1;
+  activePathFolderWatch.noticeShown = false;
+  clearDiskChangeNotice();
+  if (!projectName || !activePathFolderWatch.path) {
+    if (activePathFolderWatch.timer) {
+      window.clearInterval(activePathFolderWatch.timer);
+      activePathFolderWatch.timer = 0;
+    }
+    return;
+  }
+  ensureActivePathFolderWatch();
+  void checkActivePathFolderSnapshot();
+}
+
+function ensureActivePathFolderWatch() {
+  if (activePathFolderWatch.noticeShown) return;
+  if (activePathFolderWatch.timer) return;
+  activePathFolderWatch.timer = window.setInterval(() => {
+    void checkActivePathFolderSnapshot();
+  }, ACTIVE_PATH_FOLDER_WATCH_INTERVAL_MS);
+}
+
+async function refreshActivePathFolderWatchBaseline(path = selectedPath) {
+  const normalizedPath = normalizePath(path);
+  if (!projectName || !normalizedPath || activePathFolderWatch.noticeShown) return;
+  try {
+    const payload = await fetchCachedDatasetSnapshot(normalizedPath);
+    if (normalizePath(selectedPath).toLowerCase() !== normalizedPath.toLowerCase()) return;
+    activePathFolderWatch.path = normalizedPath;
+    activePathFolderWatch.signature = getCachedDatasetSnapshotSignature(payload);
+    activePathFolderWatch.instanceSignature = getCachedDatasetInstanceSignature(payload);
+  } catch (err) {
+    console.warn("Failed to refresh active reserving-class folder baseline:", err);
+  }
 }
 
 async function loadCachedDatasetFilterForSelectedPath() {
@@ -265,21 +442,15 @@ async function loadCachedDatasetFilterForSelectedPath() {
   renderDatasetTable();
 
   try {
-    const url = new URL("/datasets/cached", window.location.origin);
-    url.searchParams.set("project_name", projectName);
-    url.searchParams.set("reserving_class", path);
-    const resp = await fetch(url.toString());
-    const payload = await resp.json().catch(() => ({}));
+    const payload = await fetchCachedDatasetSnapshot(path);
     if (seq !== cachedDatasetFilter.requestSeq) return;
-    if (!resp.ok || payload?.ok === false) {
-      throw new Error(payload?.detail || `Cached dataset lookup failed (${resp.status})`);
-    }
     const names = Array.isArray(payload?.dataset_names) ? payload.dataset_names : [];
     cachedDatasetFilter.names = new Set(
       names.map((name) => getCachedDatasetKey(name)).filter(Boolean)
     );
     cachedDatasetFilter.loadedPath = path;
     cachedDatasetFilter.error = "";
+    rememberActivePathFolderSignature(payload, path);
   } catch (err) {
     if (seq !== cachedDatasetFilter.requestSeq) return;
     cachedDatasetFilter.names = new Set();
@@ -289,6 +460,67 @@ async function loadCachedDatasetFilterForSelectedPath() {
     if (seq !== cachedDatasetFilter.requestSeq) return;
     cachedDatasetFilter.loading = false;
     syncCachedDatasetToolbar();
+    renderDatasetTable();
+  }
+}
+
+function normalizeMethodIndexTypes(payload) {
+  const out = new Map();
+  for (const item of Array.isArray(payload?.methods) ? payload.methods : []) {
+    const name = toText(item?.dataset_name);
+    if (!name) continue;
+    const methodType = toText(item?.method_type) || "None";
+    out.set(normalizeLookupKey(name), methodType);
+  }
+  return out;
+}
+
+async function loadMethodIndexForSelectedPath() {
+  const path = normalizePath(selectedPath);
+  const seq = methodIndexState.requestSeq + 1;
+  methodIndexState.requestSeq = seq;
+  methodIndexState.error = "";
+  methodIndexState.typesByDatasetName = new Map();
+  methodIndexState.loadedPath = path;
+
+  if (!projectName || !path) {
+    methodIndexState.loading = false;
+    renderDatasetTable();
+    return;
+  }
+
+  methodIndexState.loading = true;
+  renderDatasetTable();
+
+  try {
+    const query = new URLSearchParams({
+      project_name: projectName,
+      reserving_class: path,
+      refresh: "false",
+    });
+    const resp = await fetch(`/dfm/method-index?${query.toString()}`);
+    if (seq !== methodIndexState.requestSeq) return;
+    if (!resp.ok) {
+      let detail = "";
+      try {
+        detail = toText(await resp.text());
+      } catch {}
+      throw new Error(detail || `Method index lookup failed (${resp.status})`);
+    }
+    const payload = await resp.json().catch(() => ({}));
+    if (seq !== methodIndexState.requestSeq) return;
+    methodIndexState.typesByDatasetName = normalizeMethodIndexTypes(payload);
+    methodIndexState.loadedPath = path;
+    methodIndexState.error = "";
+    void refreshActivePathFolderWatchBaseline(path);
+  } catch (err) {
+    if (seq !== methodIndexState.requestSeq) return;
+    methodIndexState.typesByDatasetName = new Map();
+    methodIndexState.error = toText(err?.message) || "Method index lookup failed.";
+    setStatus(methodIndexState.error, true);
+  } finally {
+    if (seq !== methodIndexState.requestSeq) return;
+    methodIndexState.loading = false;
     renderDatasetTable();
   }
 }
@@ -333,6 +565,115 @@ async function loadLastSelectedPath() {
 
 function getDatasetWindowKey(datasetName, path = selectedPath) {
   return `${normalizePath(path)}\u0001${toText(datasetName).toLowerCase()}`;
+}
+
+function getDatasetTablePreferencePayload() {
+  const known = new Set(DATASET_TABLE_COLUMNS.map((col) => col.key));
+  const columns = datasetTableView.columns.filter((key) => known.has(key));
+  const widths = {};
+  for (const col of DATASET_TABLE_COLUMNS) {
+    const width = Number(datasetTableView.widths[col.key]);
+    if (Number.isFinite(width)) widths[col.key] = Math.round(Math.max(col.minWidth || 80, width));
+  }
+  const filters = {};
+  for (const [key, selected] of datasetTableView.filters.entries()) {
+    if (!known.has(key) || !(selected instanceof Set) || selected.size === 0) continue;
+    const options = getDatasetColumnOptions(key);
+    if (options.length && selected.size === options.length && options.every((opt) => selected.has(opt.key))) continue;
+    filters[key] = Array.from(selected).map((value) => String(value)).sort();
+  }
+  const groupBy = getDatasetGroupByKeys();
+  const collapsedGroups = Array.from(datasetTableView.collapsedGroups || [])
+    .map((id) => String(id || ""))
+    .filter(Boolean)
+    .sort();
+  const sortKey = toText(datasetTableView.sort?.key);
+  const sort = known.has(sortKey)
+    ? { key: sortKey, dir: datasetTableView.sort?.dir === "desc" ? "desc" : "asc" }
+    : { key: "", dir: "asc" };
+  return { columns, widths, filters, groupBy, collapsedGroups, sort };
+}
+
+function saveDatasetTablePreferences() {
+  if (!datasetTablePreferencesLoaded || !projectName) return;
+  scheduleProjectUserPreferencesSave(projectName, {
+    projectInstance: {
+      datasetTable: getDatasetTablePreferencePayload(),
+    },
+  }, 500);
+}
+
+function getDatasetTablePreferencesSource(prefs) {
+  const candidates = [
+    prefs?.projectInstance?.datasetTable,
+    prefs?.project_instance?.dataset_table,
+    prefs?.datasetTableView,
+  ];
+  return candidates.find((item) => item && typeof item === "object" && !Array.isArray(item)) || null;
+}
+
+function applyDatasetTablePreferences(source) {
+  datasetTablePreferenceWidthKeys.clear();
+  const prefs = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+  const known = new Set(DATASET_TABLE_COLUMNS.map((col) => col.key));
+  if (Array.isArray(prefs.columns)) {
+    const columns = [];
+    prefs.columns.forEach((key) => {
+      const normalized = toText(key);
+      if (known.has(normalized) && !columns.includes(normalized)) columns.push(normalized);
+    });
+    DATASET_TABLE_COLUMNS.forEach((col) => {
+      if (!columns.includes(col.key)) columns.push(col.key);
+    });
+    if (columns.length) datasetTableView.columns = columns;
+  }
+  const widths = prefs.widths && typeof prefs.widths === "object" && !Array.isArray(prefs.widths) ? prefs.widths : {};
+  for (const col of DATASET_TABLE_COLUMNS) {
+    const width = Number(widths[col.key]);
+    if (!Number.isFinite(width)) continue;
+    datasetTableView.widths[col.key] = Math.max(col.minWidth || 80, Math.round(width));
+    datasetTablePreferenceWidthKeys.add(col.key);
+  }
+  datasetTableView.filters.clear();
+  const filters = prefs.filters && typeof prefs.filters === "object" && !Array.isArray(prefs.filters) ? prefs.filters : {};
+  Object.entries(filters).forEach(([key, values]) => {
+    const normalized = toText(key);
+    if (!known.has(normalized) || !Array.isArray(values)) return;
+    const selected = new Set(values.map((value) => String(value)).filter(Boolean));
+    if (selected.size) datasetTableView.filters.set(normalized, selected);
+  });
+  if (Array.isArray(prefs.groupBy)) {
+    datasetTableView.groupBy = prefs.groupBy.map(toText).filter((key) => ["dataFormat", "category"].includes(key)).slice(0, 2);
+  }
+  datasetTableView.collapsedGroups = new Set(
+    Array.isArray(prefs.collapsedGroups)
+      ? prefs.collapsedGroups.map((id) => String(id || "")).filter(Boolean)
+      : []
+  );
+  const sortKey = toText(prefs.sort?.key);
+  datasetTableView.sort = {
+    key: known.has(sortKey) ? sortKey : "",
+    dir: prefs.sort?.dir === "desc" ? "desc" : "asc",
+  };
+}
+
+async function loadDatasetTablePreferences() {
+  if (!projectName || datasetTablePreferencesLoaded) {
+    datasetTablePreferencesLoaded = true;
+    return;
+  }
+  try {
+    const prefs = await loadProjectUserPreferences(projectName);
+    applyDatasetTablePreferences(getDatasetTablePreferencesSource(prefs));
+  } catch (err) {
+    console.warn("Failed to load project instance dataset table preferences:", err);
+  } finally {
+    datasetTablePreferencesLoaded = true;
+  }
+}
+
+function getDfmWindowKey(datasetName, path = selectedPath) {
+  return `dfm\u0001${normalizePath(path)}\u0001${toText(datasetName).toLowerCase()}`;
 }
 
 function getFrameRect(frame) {
@@ -416,6 +757,7 @@ function updateHiddenTabsArea() {
       const fullTitle = item.fullTitle || item.title;
       const tab = document.createElement("div");
       tab.className = "pi-minimized-tab";
+      tab.classList.toggle("dirty", item.frame?.dataset?.dirty === "1");
       tab.dataset.windowId = id;
       tab.dataset.fullTitle = fullTitle;
       tab.addEventListener("mouseenter", () => showMinimizedTabTooltip(tab, fullTitle));
@@ -474,6 +816,7 @@ function updateHiddenTabsArea() {
   for (const [id, item] of hiddenWindows) {
     const row = document.createElement("div");
     row.className = "pi-hidden-tab-row";
+    row.classList.toggle("dirty", item.frame?.dataset?.dirty === "1");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "pi-hidden-tab-item";
@@ -666,6 +1009,7 @@ async function hideDatasetWindow(frame, restoreRect) {
   updateHiddenTabsArea();
   await animateWindowToDock(frame);
   frame.style.display = "none";
+  notifyActiveDfmWindowState();
   setStatus(`Hidden ${title}`);
 }
 
@@ -694,8 +1038,17 @@ function closeHiddenWindow(id) {
 }
 
 function closeAllHiddenWindows() {
-  const count = hiddenWindows.size;
+  const ids = Array.from(hiddenWindows.keys());
+  const count = ids.length;
   if (!count) return;
+  const dirtyCount = ids.reduce((total, id) => {
+    const frame = hiddenWindows.get(id)?.frame;
+    return total + (frame?.dataset?.dirty === "1" ? 1 : 0);
+  }, 0);
+  if (dirtyCount) {
+    const ok = window.confirm(`${dirtyCount} hidden DFM ${dirtyCount === 1 ? "window has" : "windows have"} unsaved changes. Close anyway?`);
+    if (!ok) return;
+  }
   for (const id of Array.from(hiddenWindows.keys())) {
     const item = hiddenWindows.get(id);
     if (!item?.frame) {
@@ -708,6 +1061,8 @@ function closeAllHiddenWindows() {
   }
   updateHiddenTabsArea();
   setHiddenTabsMenuOpen(false, { pinned: false });
+  notifyProjectInstanceDirtyState();
+  notifyActiveDfmWindowState();
   setStatus(`Closed ${count} hidden ${count === 1 ? "tab" : "tabs"}`);
 }
 
@@ -806,10 +1161,11 @@ function getDatasetName(row) {
 }
 
 function getMethodType(row) {
-  const formula = toText(row?.[4]);
-  const calculated = row?.[3] === true || String(row?.[3] || "").trim().toLowerCase() === "true";
-  if (formula || calculated) return "Calculated";
-  return "Source";
+  if (!selectedPath) return "None";
+  if (normalizePath(methodIndexState.loadedPath).toLowerCase() !== normalizePath(selectedPath).toLowerCase()) {
+    return "None";
+  }
+  return methodIndexState.typesByDatasetName.get(normalizeLookupKey(getDatasetName(row))) || "None";
 }
 
 function getDatasetColumn(key) {
@@ -852,6 +1208,7 @@ function setDatasetGroupByKey(key) {
   datasetTableView.groupBy = next;
   datasetTableView.collapsedGroups.clear();
   closeDatasetTableContextMenu();
+  saveDatasetTablePreferences();
   renderDatasetTable();
 }
 
@@ -903,6 +1260,16 @@ function getDatasetRecordValue(record, key) {
   return toText(record?.values?.[key] ?? getDatasetCellValue(record?.row, key));
 }
 
+function isDfmDatasetRecord(record) {
+  return normalizeLookupKey(getDatasetRecordValue(record, "methodType")) === "dfm";
+}
+
+function openDfmTabForDataset(record) {
+  const datasetName = toText(record?.datasetName);
+  if (!datasetName || !selectedPath) return;
+  openDfmWindow(datasetName);
+}
+
 function measureDatasetTableText(text) {
   if (!datasetTableMeasureCanvas) {
     datasetTableMeasureCanvas = document.createElement("canvas");
@@ -934,6 +1301,7 @@ function getInitialDatasetTableColumnWidth(col, rows = datasetRows) {
 
 function autoFitInitialDatasetTableWidths(rows = datasetRows) {
   for (const col of DATASET_TABLE_COLUMNS) {
+    if (datasetTablePreferenceWidthKeys.has(col.key)) continue;
     datasetTableView.widths[col.key] = getInitialDatasetTableColumnWidth(col, rows);
   }
 }
@@ -996,6 +1364,7 @@ function toggleDatasetTableSort(key) {
     key,
     dir: currentKey === key && currentDir === "asc" ? "desc" : "asc",
   };
+  saveDatasetTablePreferences();
   renderDatasetTable();
 }
 
@@ -1097,18 +1466,34 @@ function getDatasetTableRecords(context) {
   return records.filter((item) => item.datasetName && isDatasetRecordCached(item) && rowMatchesDatasetTableFilters(item, context));
 }
 
+function clearDatasetColumnDragIndicators() {
+  for (const header of els.datasetTableSurface?.querySelectorAll?.(".pi-table th.pi-col-drag-before, .pi-table th.pi-col-drag-after") || []) {
+    header.classList.remove("pi-col-drag-before", "pi-col-drag-after");
+  }
+}
+
+function updateDatasetColumnDragIndicator(targetHeader, sourceKey, targetKey) {
+  clearDatasetColumnDragIndicators();
+  if (!targetHeader || !sourceKey || !targetKey || sourceKey === targetKey) return;
+  const columns = datasetTableView.columns.slice();
+  const sourceIndex = columns.indexOf(sourceKey);
+  const targetIndex = columns.indexOf(targetKey);
+  if (sourceIndex < 0 || targetIndex < 0) return;
+  targetHeader.classList.add(sourceIndex < targetIndex ? "pi-col-drag-after" : "pi-col-drag-before");
+}
+
 function createDatasetTableHeaderCell(col, colIndex, context = null) {
   const th = document.createElement("th");
   th.dataset.colKey = col.key;
   th.addEventListener("dragover", (event) => {
     if (!event.dataTransfer?.types?.includes("text/x-pi-column")) return;
     event.preventDefault();
-    th.classList.add("pi-col-drag-over");
+    updateDatasetColumnDragIndicator(th, event.dataTransfer?.getData("text/x-pi-column") || "", col.key);
   });
-  th.addEventListener("dragleave", () => th.classList.remove("pi-col-drag-over"));
+  th.addEventListener("dragleave", () => th.classList.remove("pi-col-drag-before", "pi-col-drag-after"));
   th.addEventListener("drop", (event) => {
     const sourceKey = event.dataTransfer?.getData("text/x-pi-column") || "";
-    th.classList.remove("pi-col-drag-over");
+    clearDatasetColumnDragIndicators();
     if (!sourceKey || sourceKey === col.key) return;
     event.preventDefault();
     moveDatasetTableColumn(sourceKey, col.key);
@@ -1141,6 +1526,7 @@ function createDatasetTableHeaderCell(col, colIndex, context = null) {
     event.dataTransfer.effectAllowed = "move";
   });
   label.addEventListener("dragend", () => {
+    clearDatasetColumnDragIndicators();
     window.setTimeout(() => {
       datasetTableColumnDragStarted = false;
     }, 0);
@@ -1194,6 +1580,10 @@ function createDatasetRecordRow(item, columns) {
     tr.appendChild(td);
   }
   tr.addEventListener("dblclick", () => {
+    if (isDfmDatasetRecord(item)) {
+      openDfmTabForDataset(item);
+      return;
+    }
     openDatasetWindow(item.datasetName);
   });
   return tr;
@@ -1235,6 +1625,7 @@ function createDatasetGroupRow(part, depth, columns) {
   btn.addEventListener("click", () => {
     if (datasetTableView.collapsedGroups.has(groupId)) datasetTableView.collapsedGroups.delete(groupId);
     else datasetTableView.collapsedGroups.add(groupId);
+    saveDatasetTablePreferences();
     renderDatasetTable();
   });
   btn.addEventListener("contextmenu", (event) => {
@@ -1342,6 +1733,7 @@ function moveDatasetTableColumn(sourceKey, targetKey) {
   columns.splice(from, 1);
   columns.splice(to, 0, sourceKey);
   datasetTableView.columns = columns;
+  saveDatasetTablePreferences();
   renderDatasetTable();
 }
 
@@ -1361,6 +1753,8 @@ function startDatasetTableColumnResize(event, key) {
     document.body.classList.remove("pi-resizing-table-column");
     document.removeEventListener("mousemove", onMove, true);
     document.removeEventListener("mouseup", onUp, true);
+    datasetTablePreferenceWidthKeys.add(key);
+    saveDatasetTablePreferences();
   };
   document.addEventListener("mousemove", onMove, true);
   document.addEventListener("mouseup", onUp, true);
@@ -1390,6 +1784,8 @@ function autoFitDatasetTableColumn(key, colIndex) {
     )
   );
   setDatasetTableColumnWidth(key, width);
+  datasetTablePreferenceWidthKeys.add(key);
+  saveDatasetTablePreferences();
 }
 
 function renderDatasetTable() {
@@ -1538,6 +1934,7 @@ function applyDatasetGroupContextAction(action) {
     for (const id of ids) datasetTableView.collapsedGroups.delete(id);
   }
   closeDatasetGroupContextMenu();
+  saveDatasetTablePreferences();
   renderDatasetTable();
 }
 
@@ -1586,6 +1983,7 @@ function openDatasetTableFilterPopover(key, anchor) {
     cb.addEventListener("change", () => {
       if (cb.checked) selected.add(opt.key);
       else selected.delete(opt.key);
+      saveDatasetTablePreferences();
       renderDatasetTable();
       const nextAnchor = findDatasetFilterButton(key);
       if (nextAnchor) openDatasetTableFilterPopover(key, nextAnchor);
@@ -1675,6 +2073,7 @@ function initDatasetTableInteractions() {
 
 function setSelectedPath(path, options = {}) {
   selectedPath = normalizePath(path);
+  resetActivePathFolderWatch(selectedPath);
   if (els.selectedPathText) {
     els.selectedPathText.textContent = selectedPath || "Select a reserving class path.";
     els.selectedPathText.title = selectedPath;
@@ -1684,6 +2083,7 @@ function setSelectedPath(path, options = {}) {
   } else {
     syncCachedDatasetToolbar();
   }
+  void loadMethodIndexForSelectedPath();
   renderDatasetTable();
   if (options?.persist !== false) saveLastSelectedPath(selectedPath);
 }
@@ -2087,6 +2487,7 @@ function raiseWindow(frame) {
   if (frame?.classList?.contains("pi-window") && frame.dataset.hidden !== "1") {
     activeDatasetWindow = frame;
   }
+  notifyActiveDfmWindowState();
 }
 
 function getActiveDatasetWindow() {
@@ -2113,13 +2514,175 @@ function getActiveDatasetWindow() {
 
 function closeDatasetWindow(frame, { status = true } = {}) {
   if (!frame?.isConnected) return false;
+  if (frame.dataset.dirty === "1") {
+    const titleForPrompt = frame.dataset.windowDatasetName || frame.dataset.windowTitle || "DFM window";
+    const ok = window.confirm(`${titleForPrompt} has unsaved changes. Close it anyway?`);
+    if (!ok) return false;
+  }
   const title = frame.dataset.windowDatasetName || frame.dataset.windowTitle || frame.getAttribute("aria-label") || "dataset window";
   hiddenWindows.delete(frame.dataset.windowId || "");
   datasetWindows.delete(frame.dataset.windowKey || "");
   if (activeDatasetWindow === frame) activeDatasetWindow = null;
   frame.remove();
   updateHiddenTabsArea();
+  notifyProjectInstanceDirtyState();
+  notifyActiveDfmWindowState();
   if (status) setStatus(`Closed ${title}`);
+  return true;
+}
+
+function isDfmWindow(frame) {
+  return frame?.dataset?.windowKind === "dfm";
+}
+
+function findWindowByInstance(inst) {
+  const id = toText(inst);
+  if (!id) return null;
+  for (const frame of datasetWindows.values()) {
+    if (frame?.dataset?.windowId === id) return frame;
+  }
+  return null;
+}
+
+function findWindowByMessageSource(source) {
+  if (!source) return null;
+  for (const frame of datasetWindows.values()) {
+    const iframe = getWindowIframe(frame);
+    if (iframe?.contentWindow === source) return frame;
+  }
+  return null;
+}
+
+function getWindowIframe(frame) {
+  return frame?.querySelector?.(".pi-window-body iframe") || null;
+}
+
+function setWindowDirtyState(frame, dirty) {
+  if (!frame || !isDfmWindow(frame)) return;
+  frame.dataset.dirty = dirty ? "1" : "0";
+  frame.classList.toggle("dirty", !!dirty);
+  const closeBtn = frame.querySelector(".pi-window-close");
+  if (closeBtn) {
+    closeBtn.title = dirty ? "Unsaved changes (close)" : "Close";
+    closeBtn.setAttribute("aria-label", dirty ? "Unsaved changes (close)" : "Close");
+  }
+  if (frame.dataset.hidden === "1") updateHiddenTabsArea();
+  notifyProjectInstanceDirtyState();
+}
+
+function hasDirtyDfmWindow() {
+  for (const frame of datasetWindows.values()) {
+    if (isDfmWindow(frame) && frame?.dataset?.dirty === "1") return true;
+  }
+  return false;
+}
+
+function notifyProjectInstanceDirtyState() {
+  try {
+    window.parent?.postMessage({
+      type: "arcrho:project-instance-dirty",
+      dirty: hasDirtyDfmWindow(),
+    }, "*");
+  } catch {}
+}
+
+function notifyActiveDfmWindowState() {
+  const frame = getActiveDfmWindow();
+  try {
+    window.parent?.postMessage({
+      type: "arcrho:project-instance-dfm-active-state",
+      active: !!frame,
+      inst: frame?.dataset?.windowId || "",
+      title: frame?.dataset?.windowTitle || "",
+      tab: frame?.dataset?.dfmTab || "",
+      canUndo: frame?.dataset?.dfmCanUndo === "1",
+      canRedo: frame?.dataset?.dfmCanRedo === "1",
+      editEnabled: frame?.dataset?.dfmEditEnabled === "1",
+    }, "*");
+  } catch {}
+}
+
+function getActiveDfmWindow() {
+  const active = getActiveDatasetWindow();
+  if (isDfmWindow(active)) return active;
+  let topDfm = null;
+  let topZ = -1;
+  for (const frame of datasetWindows.values()) {
+    if (!isDfmWindow(frame) || !frame?.isConnected || frame.dataset.hidden === "1" || frame.style.display === "none") continue;
+    const z = Number.parseInt(frame.style.zIndex || "0", 10);
+    if (z >= topZ) {
+      topZ = z;
+      topDfm = frame;
+    }
+  }
+  return topDfm;
+}
+
+function routeDfmWindowCommand(type) {
+  let command = toText(type);
+  const frame = getActiveDfmWindow();
+  if (!frame) {
+    setStatus("No active DFM window.", true);
+    return false;
+  }
+  if (command === "arcrho:dfm-save-as" && toText(frame.dataset.dfmTab).toLowerCase() === "details") {
+    command = "arcrho:dfm-save-template";
+  }
+  const iframe = getWindowIframe(frame);
+  try {
+    iframe?.contentWindow?.postMessage({ type: command }, "*");
+    const statusByCommand = {
+      "arcrho:dfm-save": "Saving DFM...",
+      "arcrho:dfm-save-as": "Saving DFM as...",
+      "arcrho:dfm-save-template": "Saving DFM template...",
+      "arcrho:dfm-open-method-json": "Opening DFM JSON...",
+      "arcrho:dfm-undo": "Undoing ratio change...",
+      "arcrho:dfm-redo": "Redoing ratio change...",
+      "arcrho:dfm-exclude-high": "Excluding highest ratio...",
+      "arcrho:dfm-exclude-low": "Excluding lowest ratio...",
+      "arcrho:dfm-include-all": "Including ratios...",
+    };
+    setStatus(statusByCommand[command] || "Sent DFM command.");
+    return true;
+  } catch {
+    setStatus("Failed to send command to the DFM window.", true);
+    return false;
+  }
+}
+
+function forwardRequestToActiveDfm(message, resultType, fallbackContext, timeoutMs = 3000) {
+  const requestId = toText(message?.requestId) || `pi_dfm_request_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const frame = getActiveDfmWindow();
+  const iframe = getWindowIframe(frame);
+  if (!frame || !iframe?.contentWindow) {
+    try {
+      window.parent?.postMessage({ type: resultType, requestId, ...fallbackContext }, "*");
+    } catch {}
+    return false;
+  }
+  let done = false;
+  const finish = (payload) => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("message", onMessage);
+    try {
+      window.parent?.postMessage(payload, "*");
+    } catch {}
+  };
+  const onMessage = (event) => {
+    if (event.source !== iframe.contentWindow) return;
+    const msg = event.data || {};
+    if (msg.type !== resultType || toText(msg.requestId) !== requestId) return;
+    finish(msg);
+  };
+  window.addEventListener("message", onMessage);
+  try {
+    iframe.contentWindow.postMessage({ ...message, requestId }, "*");
+  } catch {
+    finish({ type: resultType, requestId, ...fallbackContext });
+    return false;
+  }
+  window.setTimeout(() => finish({ type: resultType, requestId, ...fallbackContext }), timeoutMs);
   return true;
 }
 
@@ -2129,6 +2692,25 @@ function isCloseActiveWindowShortcut(event) {
     && !event.metaKey
     && !event.shiftKey
     && String(event.key || "").toLowerCase() === "w";
+}
+
+function routeDfmRatioHotkey(event) {
+  if (!event?.ctrlKey || event.altKey || event.metaKey) return false;
+  const tag = event.target?.tagName?.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select" || event.target?.isContentEditable) return false;
+  const key = String(event.key || "").toLowerCase();
+  const commandByKey = {
+    h: "arcrho:dfm-exclude-high",
+    l: "arcrho:dfm-exclude-low",
+    i: "arcrho:dfm-include-all",
+    z: "arcrho:dfm-undo",
+    y: "arcrho:dfm-redo",
+  };
+  const command = commandByKey[key];
+  if (!command) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  return routeDfmWindowCommand(command);
 }
 
 function closeActiveDatasetWindowFromShortcut(event, frame = getActiveDatasetWindow()) {
@@ -2232,6 +2814,19 @@ function wireDatasetViewerWindowShortcuts(iframe, frame) {
   doc.addEventListener("mousedown", () => raiseWindow(frame), true);
   doc.addEventListener("focusin", () => raiseWindow(frame), true);
   doc.addEventListener("keydown", (event) => {
+    if (isDfmWindow(frame) && routeDfmRatioHotkey(event)) return;
+    if (
+      isDfmWindow(frame)
+      && event.ctrlKey
+      && !event.altKey
+      && !event.metaKey
+      && String(event.key || "").toLowerCase() === "s"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      routeDfmWindowCommand(event.shiftKey ? "arcrho:dfm-save-as" : "arcrho:dfm-save");
+      return;
+    }
     closeActiveDatasetWindowFromShortcut(event, frame);
   }, true);
 }
@@ -2245,6 +2840,19 @@ function buildDatasetViewerUrl(datasetName, inst) {
   params.set("project_instance", "1");
   params.set("v", String(Date.now()));
   return `/ui/dataset/dataset_viewer.html?${params.toString()}`;
+}
+
+function buildDfmViewerUrl(datasetName, inst) {
+  const params = new URLSearchParams();
+  params.set("project", projectName);
+  params.set("class", selectedPath);
+  params.set("method_name", datasetName);
+  params.set("output_type", datasetName);
+  params.set("tab", "ratios");
+  params.set("inst", inst);
+  params.set("project_instance", "1");
+  params.set("v", String(Date.now()));
+  return `/ui/dfm/dfm.html?${params.toString()}`;
 }
 
 function beginWindowDragCapture(mode) {
@@ -2342,34 +2950,34 @@ function startResize(frame, event, corner = "se") {
   event.preventDefault();
 }
 
-function openDatasetWindow(datasetName) {
-  const name = toText(datasetName);
-  if (!name) return;
-  if (!selectedPath) {
-    setStatus("Select a reserving class path before opening a dataset.", true);
-    return;
-  }
+function createFloatingContentWindow(options = {}) {
+  const name = toText(options.name);
+  const title = toText(options.title) || name;
+  const windowKey = toText(options.windowKey);
+  const inst = toText(options.inst) || `pi_window_${Date.now()}_${windowSeq++}`;
+  const iframeSrc = toText(options.iframeSrc);
+  if (!name || !title || !windowKey || !iframeSrc) return null;
 
-  const windowKey = getDatasetWindowKey(name);
   const existing = datasetWindows.get(windowKey);
   if (existing?.isConnected) {
-    activateDatasetWindow(existing);
-    return;
+    void activateDatasetWindow(existing);
+    return existing;
   }
   datasetWindows.delete(windowKey);
 
-  const title = `${selectedPath}\\${name}`;
-  const inst = `pi_ds_${Date.now()}_${windowSeq++}`;
   const frame = document.createElement("section");
   frame.className = "pi-window";
   frame.dataset.windowId = inst;
   frame.dataset.windowKey = windowKey;
   frame.dataset.windowDatasetName = name;
   frame.dataset.windowTitle = title;
+  frame.dataset.windowKind = toText(options.kind) || "dataset";
+  if (frame.dataset.windowKind === "dfm") frame.dataset.dfmTab = "ratios";
   frame.setAttribute("aria-label", title);
   frame.innerHTML = `
     <header class="pi-window-titlebar">
       <span class="pi-window-title"></span>
+      <span class="pi-window-dirty" title="Unsaved changes" aria-hidden="true"></span>
       <div class="pi-window-titlebar-controls">
         <button class="pi-window-titlebar-btn pi-window-minimize" type="button" title="Minimize" aria-label="Minimize">
           <svg class="pi-window-titlebar-icon" viewBox="0 0 10 10" aria-hidden="true">
@@ -2406,12 +3014,17 @@ function openDatasetWindow(datasetName) {
 
   const body = frame.querySelector(".pi-window-body");
   const iframe = document.createElement("iframe");
-  iframe.src = buildDatasetViewerUrl(name, inst);
+  iframe.src = iframeSrc;
   iframe.addEventListener("load", () => {
     wireDatasetViewerWindowShortcuts(iframe, frame);
-    lockDatasetViewerInputs(iframe, name);
     postZoomToDatasetFrame(iframe);
-    window.setTimeout(() => lockDatasetViewerInputs(iframe, name), 250);
+    if (isDfmWindow(frame)) {
+      try { iframe.contentWindow?.postMessage({ type: "arcrho:dfm-request-state" }, "*"); } catch {}
+      notifyActiveDfmWindowState();
+    }
+    if (typeof options.onIframeLoad === "function") {
+      options.onIframeLoad(iframe, frame);
+    }
   });
   body.appendChild(iframe);
 
@@ -2452,6 +3065,53 @@ function openDatasetWindow(datasetName) {
   applyWindowRect(frame, getNextDatasetWindowRect(offset));
   raiseWindow(frame);
   setStatus(`Opened ${title}`);
+  return frame;
+}
+
+function openDatasetWindow(datasetName) {
+  const name = toText(datasetName);
+  if (!name) return;
+  if (!selectedPath) {
+    setStatus("Select a reserving class path before opening a dataset.", true);
+    return;
+  }
+
+  const windowKey = getDatasetWindowKey(name);
+  const title = `${selectedPath}\\${name}`;
+  const inst = `pi_ds_${Date.now()}_${windowSeq++}`;
+  createFloatingContentWindow({
+    kind: "dataset",
+    name,
+    title,
+    windowKey,
+    inst,
+    iframeSrc: buildDatasetViewerUrl(name, inst),
+    onIframeLoad: (iframe) => {
+      lockDatasetViewerInputs(iframe, name);
+      window.setTimeout(() => lockDatasetViewerInputs(iframe, name), 250);
+    },
+  });
+}
+
+function openDfmWindow(datasetName) {
+  const name = toText(datasetName);
+  if (!name) return;
+  if (!selectedPath) {
+    setStatus("Select a reserving class path before opening a DFM object.", true);
+    return;
+  }
+
+  const windowKey = getDfmWindowKey(name);
+  const title = `${selectedPath}\\DFM\\${name}`;
+  const inst = `pi_dfm_${Date.now()}_${windowSeq++}`;
+  createFloatingContentWindow({
+    kind: "dfm",
+    name: `DFM: ${name}`,
+    title,
+    windowKey,
+    inst,
+    iframeSrc: buildDfmViewerUrl(name, inst),
+  });
 }
 
 function initHiddenTabsArea() {
@@ -2488,8 +3148,12 @@ function initCachedDatasetToolbar() {
   if (!els.cachedDatasetToggle || els.cachedDatasetToggle.dataset.wired === "1") return;
   els.cachedDatasetToggle.dataset.wired = "1";
   syncCachedDatasetToolbar();
+  syncDiskChangeToolbarAlert();
   els.cachedDatasetToggle.addEventListener("click", () => {
     setCachedDatasetFilterEnabled(!cachedDatasetFilter.enabled);
+  });
+  els.diskChangeReloadAlert?.addEventListener("click", () => {
+    reloadProjectInstanceAfterDiskChange();
   });
 }
 
@@ -2498,6 +3162,18 @@ function initDatasetWindowShortcuts() {
   document.body.dataset.piWindowShortcutsWired = "1";
   window.__arcrho_consume_close_shortcut = consumeCloseShortcutFromShell;
   document.addEventListener("keydown", (event) => {
+    if (routeDfmRatioHotkey(event)) return;
+    if (
+      event.ctrlKey
+      && !event.altKey
+      && !event.metaKey
+      && String(event.key || "").toLowerCase() === "s"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      routeDfmWindowCommand(event.shiftKey ? "arcrho:dfm-save-as" : "arcrho:dfm-save");
+      return;
+    }
     closeActiveDatasetWindowFromShortcut(event);
   }, true);
 }
@@ -2505,6 +3181,116 @@ function initDatasetWindowShortcuts() {
 window.addEventListener("message", (event) => {
   const msg = event.data;
   if (!msg || typeof msg !== "object") return;
+  if (msg.type === "arcrho:tab-activated") {
+    notifyActiveDfmWindowState();
+    const frame = getActiveDfmWindow();
+    const iframe = getWindowIframe(frame);
+    try { iframe?.contentWindow?.postMessage({ type: "arcrho:dfm-tab-activated" }, "*"); } catch {}
+    return;
+  }
+  if (
+    msg.type === "arcrho:dfm-save"
+    || msg.type === "arcrho:dfm-save-as"
+    || msg.type === "arcrho:dfm-save-template"
+    || msg.type === "arcrho:dfm-open-method-json"
+    || msg.type === "arcrho:dfm-exclude-high"
+    || msg.type === "arcrho:dfm-exclude-low"
+    || msg.type === "arcrho:dfm-include-all"
+    || msg.type === "arcrho:dfm-undo"
+    || msg.type === "arcrho:dfm-redo"
+  ) {
+    routeDfmWindowCommand(msg.type);
+    return;
+  }
+  if (msg.type === "arcrho:assistant-context-request") {
+    forwardRequestToActiveDfm(msg, "arcrho:assistant-context-result", {
+      context: {
+        available: false,
+        pageType: "project_instance",
+        error: "No active DFM window is available in the Project Instance page.",
+      },
+    }, 1500);
+    return;
+  }
+  if (msg.type === "arcrho:dfm-apply-method-payload") {
+    forwardRequestToActiveDfm(msg, "arcrho:dfm-apply-method-payload-result", {
+      ok: false,
+      error: "No active DFM window is available in the Project Instance page.",
+    }, 3000);
+    return;
+  }
+  if (msg.type === "arcrho:dfm-edit-state") {
+    const frame = findWindowByMessageSource(event.source);
+    if (frame && isDfmWindow(frame)) {
+      frame.dataset.dfmEditEnabled = msg.enabled ? "1" : "0";
+      notifyActiveDfmWindowState();
+    }
+    return;
+  }
+  if (msg.type === "arcrho:dfm-history-state") {
+    const frame = findWindowByInstance(msg.inst) || findWindowByMessageSource(event.source);
+    if (frame && isDfmWindow(frame)) {
+      frame.dataset.dfmCanUndo = msg.canUndo ? "1" : "0";
+      frame.dataset.dfmCanRedo = msg.canRedo ? "1" : "0";
+      notifyActiveDfmWindowState();
+    }
+    return;
+  }
+  if (msg.type === "arcrho:dfm-history-session") {
+    const frame = findWindowByInstance(msg.inst) || findWindowByMessageSource(event.source);
+    if (frame && isDfmWindow(frame)) {
+      frame.dataset.dfmHistoryDir = toText(msg.dir);
+      notifyActiveDfmWindowState();
+    }
+    return;
+  }
+  if (msg.type === "arcrho:dfm-dirty") {
+    const frame = findWindowByInstance(msg.inst);
+    if (frame) {
+      setWindowDirtyState(frame, !!msg.dirty);
+      notifyActiveDfmWindowState();
+    }
+    return;
+  }
+  if (msg.type === "arcrho:dfm-tab-changed") {
+    const frame = findWindowByInstance(msg.inst);
+    if (frame) {
+      frame.dataset.dfmTab = toText(msg.tab || "");
+      notifyActiveDfmWindowState();
+    }
+    return;
+  }
+  if (msg.type === "arcrho:hotkey") {
+    const action = toText(msg.action);
+    if (action === "file_save") {
+      routeDfmWindowCommand("arcrho:dfm-save");
+      return;
+    }
+    if (action === "file_save_as") {
+      routeDfmWindowCommand("arcrho:dfm-save-as");
+      return;
+    }
+    if (action === "dfm_undo") {
+      routeDfmWindowCommand("arcrho:dfm-undo");
+      return;
+    }
+    if (action === "dfm_redo") {
+      routeDfmWindowCommand("arcrho:dfm-redo");
+      return;
+    }
+    if (action === "dfm_exclude_high") {
+      routeDfmWindowCommand("arcrho:dfm-exclude-high");
+      return;
+    }
+    if (action === "dfm_exclude_low") {
+      routeDfmWindowCommand("arcrho:dfm-exclude-low");
+      return;
+    }
+    if (action === "dfm_include_all") {
+      routeDfmWindowCommand("arcrho:dfm-include-all");
+      return;
+    }
+  }
   if (msg.type === "arcrho:status" || msg.type === "arcrho:tooltip") {
     try { window.parent.postMessage(msg, "*"); } catch {}
   }
@@ -2525,6 +3311,7 @@ async function boot() {
     finishPageLoading();
     return;
   }
+  await loadDatasetTablePreferences();
   await Promise.all([loadPathTree(), loadDatasets()]);
 }
 
