@@ -28,6 +28,7 @@ Document path/config setup, AppData-backed workspace path persistence, and runti
   - `get_path`
   - `get_project_data_dir`
   - `get_project_generated_data_dir`
+  - `get_project_instance_default_preferences_path`
   - `get_project_manual_data_dir`
   - `get_project_settings_workbook_path`
   - `get_reserving_class_combinations_path`
