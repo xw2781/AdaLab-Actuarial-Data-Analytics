@@ -33,6 +33,7 @@ import {
   roundRatio,
   computeAverageForColumn,
   buildExcludedSetForColumn,
+  setDfmDirtyEvaluator,
 } from "/ui/dfm/dfm_state.js";
 import {
   getSummaryConfigKey,
@@ -88,9 +89,22 @@ const DFM_LOCAL_LOOKUP_DEBUG_STATUS = true; // Temporary debug aid.
 const DFM_ANALYSIS_DECIMALS = 4;
 const DFM_METHOD_JSON_FORMAT = "arcrho-dfm-method-by-tab-v1";
 const DFM_METHOD_FILE_WATCH_INTERVAL_MS = 2000;
+let lastCleanDfmDirtySnapshot = "";
+
+function splitLengthScopedDatasetName(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(.*)@(\d+)@(\d+)$/);
+  return match ? match[1] : text;
+}
+
+function getCanonicalDatasetSidecarPath(csvPath) {
+  const path = String(csvPath || "");
+  const match = path.match(/^(.*?)(?:@\d+@\d+)?\.csv$/i);
+  return match ? `${match[1]}.json` : path.replace(/\.csv$/i, ".json");
+}
 
 function buildDatasetSidecarJson(csvPath, datasetName) {
-  const name = String(datasetName || "").trim();
+  const name = splitLengthScopedDatasetName(datasetName);
   const outputType = String(document.getElementById("dfmOutputVector")?.value || "").trim();
   return JSON.stringify({
     dataset_name: name,
@@ -107,7 +121,7 @@ function buildDatasetSidecarJson(csvPath, datasetName) {
 
 async function saveDatasetSidecar(hostApi, csvPath, datasetName) {
   if (!hostApi || typeof hostApi.saveTextFile !== "function" || !csvPath) return { ok: true };
-  const jsonPath = String(csvPath).replace(/\.csv$/i, ".json");
+  const jsonPath = getCanonicalDatasetSidecarPath(csvPath);
   const out = await hostApi.saveTextFile({
     path: jsonPath,
     data: buildDatasetSidecarJson(csvPath, datasetName),
@@ -761,6 +775,71 @@ function buildDfmGroupedMethodPayload(methodPayload) {
   return grouped;
 }
 
+function canonicalizeForDirtySnapshot(value) {
+  if (Array.isArray(value)) return value.map((item) => canonicalizeForDirtySnapshot(item));
+  if (!value || typeof value !== "object") return value;
+  const out = {};
+  Object.keys(value)
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+    .forEach((key) => {
+      const item = canonicalizeForDirtySnapshot(value[key]);
+      if (typeof item !== "undefined") out[key] = item;
+    });
+  return out;
+}
+
+function buildDfmDirtySnapshot(payload) {
+  const source = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload
+    : buildDfmMethodPayload();
+  const detailsTab = getDfmDetailsTab(source);
+  const ratiosTab = getDfmRatiosTab(source);
+  const ratioTriangle = getDfmRatioTriangleTab(source);
+  const resultsTab = getDfmResultsTab(source);
+  const notesTab = getDfmNotesTab(source);
+  return {
+    "details tab": copyExistingFields(detailsTab, [
+      "name",
+      "output type",
+      "input triangle",
+      "origin length",
+      "development length",
+      "decimal places",
+    ]),
+    "ratios tab": {
+      "ratio triangle": copyExistingFields(ratioTriangle, [
+        "excluded",
+      ]),
+      ...copyExistingFields(ratiosTab, [
+        "average formulas",
+        "cell notes",
+      ]),
+    },
+    "results tab": copyExistingFields(resultsTab, [
+      "ratio basis dataset",
+      "ultimate ratio decimal places",
+    ]),
+    "notes tab": copyExistingFields(notesTab, [
+      "notes",
+    ]),
+  };
+}
+
+function serializeDfmDirtySnapshot(payload) {
+  return JSON.stringify(canonicalizeForDirtySnapshot(buildDfmDirtySnapshot(payload)));
+}
+
+function recordCleanDfmDirtySnapshot(payload = null) {
+  lastCleanDfmDirtySnapshot = serializeDfmDirtySnapshot(payload || buildDfmMethodPayload());
+}
+
+function isCurrentDfmDirtyComparedToCleanSnapshot() {
+  if (!lastCleanDfmDirtySnapshot) return true;
+  return serializeDfmDirtySnapshot(buildDfmMethodPayload()) !== lastCleanDfmDirtySnapshot;
+}
+
+setDfmDirtyEvaluator(isCurrentDfmDirtyComparedToCleanSnapshot);
+
 export async function buildDfmAssistantContextPayload(options = {}) {
   return buildDfmMethodPayloadWithPaths(options);
 }
@@ -853,6 +932,7 @@ export async function applyDfmMethodPayload(payload, options = {}) {
     renderResultsTable();
   }
   if (applied && options.markClean !== false) {
+    recordCleanDfmDirtySnapshot();
     markMethodSaved();
     markDfmClean();
   }
@@ -1177,10 +1257,6 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
               csvErrors.push(`${aggPath}: ${aggOut?.error ? String(aggOut.error) : "unknown error"}`);
               continue;
             }
-            const aggSidecarOut = await saveDatasetSidecar(hostApi, aggPath, aggName.replace(/\.csv$/i, ""));
-            if (!aggSidecarOut.ok) {
-              csvErrors.push(`${aggPath.replace(/\.csv$/i, ".json")}: ${aggSidecarOut.error}`);
-            }
             aggregatedCsvPaths.push(aggPath);
           }
         }
@@ -1192,6 +1268,7 @@ export async function saveRatioSelectionPattern(forceSaveAs) {
       csvError = "desktop host does not support csv save";
     }
     markMethodSaved();
+    recordCleanDfmDirtySnapshot(data);
     markDfmClean();
     emitDfmInstancePresence("found");
     await refreshDfmMethodFileRevision(result.path);

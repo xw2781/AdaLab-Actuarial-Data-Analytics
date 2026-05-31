@@ -147,16 +147,19 @@ async function loadMacros() {
 }
 
 function getActiveDfmTab() {
-  return shell.state?.tabs?.find?.((tab) => tab.id === shell.state.activeId && tab.type === "dfm") || null;
+  return shell.state?.tabs?.find?.((tab) => (
+    tab.id === shell.state.activeId
+    && (tab.type === "dfm" || (tab.type === "project_instance" && tab.piDfmActive))
+  )) || null;
 }
 
 function requestActiveDfmContext() {
   const tab = getActiveDfmTab();
-  if (!tab) return Promise.resolve({ available: false, error: "Open a DFM tab before running a macro." });
+  if (!tab) return Promise.resolve({ available: false, error: "Open or activate a DFM tab/window before running a macro." });
   shell.ensureIframe?.(tab);
   const iframe = tab.iframe;
   if (!iframe?.contentWindow) {
-    return Promise.resolve({ available: false, error: "The active DFM tab is not ready yet." });
+    return Promise.resolve({ available: false, error: "The active DFM target is not ready yet." });
   }
   return new Promise((resolve) => {
     const requestId = `macro_context_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -186,11 +189,11 @@ function requestActiveDfmContext() {
 
 function applyPayloadToActiveDfm(payload) {
   const tab = getActiveDfmTab();
-  if (!tab) return Promise.resolve({ ok: false, error: "Open a DFM tab before running a macro." });
+  if (!tab) return Promise.resolve({ ok: false, error: "Open or activate a DFM tab/window before running a macro." });
   shell.ensureIframe?.(tab);
   const iframe = tab.iframe;
   if (!iframe?.contentWindow) {
-    return Promise.resolve({ ok: false, error: "The active DFM tab is not ready yet." });
+    return Promise.resolve({ ok: false, error: "The active DFM target is not ready yet." });
   }
   return new Promise((resolve) => {
     const requestId = `macro_apply_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -226,7 +229,7 @@ async function runSelectedMacro() {
     return;
   }
   if (!getActiveDfmTab()) {
-    setMacroStatus("Open a DFM tab before running a macro.", "error", { statusBar: true });
+    setMacroStatus("Open or activate a DFM tab/window before running a macro.", "error", { statusBar: true });
     return;
   }
   setMacroStatus(`Running macro: ${macro.name || macro.id}...`, "", { statusBar: true });

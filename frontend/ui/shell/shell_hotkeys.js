@@ -27,7 +27,6 @@ function shouldIgnoreHotkey(e) {
 }
 
 const hotkeys = {
-  "Ctrl+F5": "custom_refresh",
   "Ctrl+R": "custom_refresh",
   "Ctrl+Shift+R": "custom_hard_refresh",
   "Ctrl+Shift+K": "clear_test_data",
@@ -35,6 +34,8 @@ const hotkeys = {
   "Ctrl+H": "dfm_exclude_high",
   "Ctrl+L": "dfm_exclude_low",
   "Ctrl+I": "dfm_include_all",
+  "Ctrl+Z": "dfm_undo",
+  "Ctrl+Y": "dfm_redo",
   "Ctrl+S": "file_save",
   "Ctrl+Shift+S": "file_save_as",
   "Ctrl+O": "file_import",
@@ -66,9 +67,12 @@ export function runHotkeyAction(action) {
   if (action === "dfm_exclude_high") { if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-exclude-high"); return; }
   if (action === "dfm_exclude_low") { if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-exclude-low"); return; }
   if (action === "dfm_include_all") { if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-include-all"); return; }
+  if (action === "dfm_undo") { if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-undo"); return; }
+  if (action === "dfm_redo") { if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-redo"); return; }
   if (action === "file_save") {
     if (shell.isActiveWorkflowTab?.()) shell.sendWorkflowCommand?.("arcrho:workflow-save");
     else if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.("arcrho:dfm-save");
+    else if (shell.isActiveProjectInstanceTab?.()) shell.sendProjectInstanceCommand?.("arcrho:dfm-save");
     else if (shell.isActiveScriptingTab?.()) shell.sendScriptingCommand?.("arcrho:scripting-save");
     else if (shell.isActiveProjectSettingsReservingClassTypesTab?.()) shell.sendProjectSettingsCommand?.("arcrho:project-settings-reserving-class-types-save-local");
     else if (shell.isActiveProjectSettingsDatasetTypesTab?.()) shell.sendProjectSettingsCommand?.("arcrho:project-settings-dataset-types-save-local");
@@ -77,6 +81,7 @@ export function runHotkeyAction(action) {
   if (action === "file_save_as") {
     if (shell.isActiveWorkflowTab?.()) shell.sendWorkflowCommand?.("arcrho:workflow-save-as");
     else if (shell.isActiveDFMTab?.()) shell.sendDFMCommand?.(shell.isActiveDFMDetailsTab?.() ? "arcrho:dfm-save-template" : "arcrho:dfm-save-as");
+    else if (shell.isActiveProjectInstanceTab?.()) shell.sendProjectInstanceCommand?.("arcrho:dfm-save-as");
     else if (shell.isActiveScriptingTab?.()) shell.sendScriptingCommand?.("arcrho:scripting-save-as");
     else if (shell.isActiveProjectSettingsReservingClassTypesTab?.()) shell.sendProjectSettingsCommand?.("arcrho:project-settings-reserving-class-types-load-local");
     else if (shell.isActiveProjectSettingsDatasetTypesTab?.()) shell.sendProjectSettingsCommand?.("arcrho:project-settings-dataset-types-load-local");
@@ -106,6 +111,11 @@ export function initHotkeys() {
       if (e.key === "-" || e.key === "_") { e.preventDefault(); shell.setZoomPercent?.((shell.getZoomPercent?.() || 100) - shell.ZOOM_STEP, true); return; }
       if (e.key === "=" || e.key === "+") { e.preventDefault(); shell.setZoomPercent?.((shell.getZoomPercent?.() || 100) + shell.ZOOM_STEP, true); return; }
       if (e.key === "0") { e.preventDefault(); shell.setZoomPercent?.(100, true); return; }
+    }
+    if (!e.altKey && e.key === "F5") {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
     }
     if (shouldIgnoreHotkey(e)) return;
     const combo = normalizeKeyCombo(e);

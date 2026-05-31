@@ -38,7 +38,7 @@ import {
   setSummaryTableCallbacks,
   resetSummaryFormulaEditState,
   refreshAllExcelLinks,
-} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260513b";
+} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260529a";
 import {
   wireRatioChartModal,
   isRatioChartOpen,
@@ -54,6 +54,11 @@ import {
   showDfmCellNoteEditor,
   wireDfmCellNotes,
 } from "/ui/dfm/dfm_cell_notes.js";
+import {
+  beginRatioHistoryAction,
+  cancelRatioHistoryAction,
+  commitRatioHistoryAction,
+} from "/ui/dfm/dfm_ratio_history.js";
 
 export {
   buildRatioSelectionPattern,
@@ -63,7 +68,7 @@ export {
   applyAverageSelectionFromSaved,
   updateRatioSummary,
   scheduleRatioSummaryUpdate,
-} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260513b";
+} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260529a";
 export {
   wireRatioChartModal,
   isRatioChartOpen,
@@ -214,6 +219,7 @@ function applyRatioPatternsFromClipboard() {
     alert(`Invalid triangle size. Stored pattern is ${storedShape.rows}x${storedShape.cols}, but current compact triangle is ${expectedShape.rows}x${expectedShape.cols}.`);
     return;
   }
+  beginRatioHistoryAction("apply-ratio-patterns");
   const activeCols = getActiveRatioCols(model);
   const ratioColCount = Math.max(0, devs.length - 1);
   if (activeCols.length > 0) {
@@ -236,6 +242,7 @@ function applyRatioPatternsFromClipboard() {
   renderRatioTable();
   scheduleRatioSummaryUpdate();
   onRatioStateMutated();
+  commitRatioHistoryAction("apply-ratio-patterns");
 }
 
 // =============================================================================
@@ -307,9 +314,11 @@ export function excludeExtremeInActiveCol(mode) {
   if (!model || !Array.isArray(model.values) || !Array.isArray(model.mask)) return;
   const cols = getActiveRatioCols(model);
   if (!cols.length) return;
+  beginRatioHistoryAction(`exclude-${mode}`);
   cols.forEach((col) => excludeExtremeInCol(model, col, mode));
   scheduleRatioSummaryUpdate();
   onRatioStateMutated();
+  commitRatioHistoryAction(`exclude-${mode}`);
 }
 
 export function includeAllInActiveCol() {
@@ -320,6 +329,7 @@ export function includeAllInActiveCol() {
   const allCols = cols.length
     ? cols
     : Array.from({ length: Math.max(0, getEffectiveDevLabelsForModel(model).length - 1) }, (_, i) => i);
+  beginRatioHistoryAction("include-all");
   allCols.forEach((col) => {
     for (let r = 0; r < origins.length; r++) {
       const key = `${r},${col}`;
@@ -332,6 +342,7 @@ export function includeAllInActiveCol() {
   });
   scheduleRatioSummaryUpdate();
   onRatioStateMutated();
+  commitRatioHistoryAction("include-all");
 }
 
 // =============================================================================
@@ -367,6 +378,12 @@ function normalizeHighlightCells(cells) {
       label: String(cell?.label || "").trim(),
     }))
     .filter((cell) => Number.isFinite(cell.c) && cell.c >= 0 && (cell.r || cell.label));
+}
+
+export function restoreRatioHistoryUi() {
+  renderRatioTable();
+  scheduleRatioSummaryUpdate();
+  onRatioStateMutated();
 }
 
 function restartCellFlash(cell) {
@@ -500,6 +517,8 @@ export function renderRatioTable() {
     const tr = document.createElement("tr");
     const rowHead = document.createElement("th");
     rowHead.textContent = String(origins[r] ?? "");
+    rowHead.dataset.r = String(r);
+    rowHead.classList.add("ratioRowHeader");
     tr.appendChild(rowHead);
 
     for (let c = 0; c < ratioLabels.length; c++) {
@@ -659,6 +678,37 @@ export function wireRatioStrikeToggle() {
   let lastKey = null;
   const isDataRow = (rowId) => /^\d+$/.test(String(rowId || ""));
 
+  const toggleRatioRowExclusions = (rowHead) => {
+    if (!rowHead) return;
+    const rRaw = rowHead.dataset.r;
+    if (!isDataRow(rRaw)) return;
+    const r = Number(rRaw);
+    if (!Number.isInteger(r) || r < 0) return;
+    const row = rowHead.closest("tr");
+    if (!row) return;
+    const cells = Array.from(row.querySelectorAll("td.ratioCell")).filter((cell) => {
+      if (cell.classList.contains("na") || cell.classList.contains("ratioPlaceholder")) return false;
+      const c = Number(cell.dataset.c);
+      return Number.isFinite(c);
+    });
+    if (!cells.length) return;
+    const allExcluded = cells.every((cell) => ratioStrikeSet.has(`${r},${cell.dataset.c}`));
+    beginRatioHistoryAction("ratio-row-click");
+    cells.forEach((cell) => {
+      const key = `${r},${cell.dataset.c}`;
+      if (allExcluded) {
+        ratioStrikeSet.delete(key);
+        cell.classList.remove("strike");
+      } else {
+        ratioStrikeSet.add(key);
+        cell.classList.add("strike");
+      }
+    });
+    scheduleRatioSummaryUpdate();
+    onRatioStateMutated();
+    commitRatioHistoryAction("ratio-row-click");
+  };
+
   const toggleStrike = (cell) => {
     if (!cell || cell.classList.contains("na") || cell.classList.contains("ratioPlaceholder")) return;
     const r = cell.dataset.r;
@@ -689,6 +739,7 @@ export function wireRatioStrikeToggle() {
     if (cell.dataset.r === "sum") return;
     e.preventDefault();
     dragActive = true;
+    beginRatioHistoryAction("ratio-cell-click");
     const key = `${cell.dataset.r},${cell.dataset.c}`;
     lastKey = key;
     toggleStrike(cell);
@@ -707,22 +758,35 @@ export function wireRatioStrikeToggle() {
   });
 
   window.addEventListener("mouseup", () => {
+    if (dragActive) {
+      commitRatioHistoryAction("ratio-cell-click");
+    }
     dragActive = false;
     lastKey = null;
   });
 
   wrap.addEventListener("click", (e) => {
     if (e.detail > 1) return;
+    const rowHead = e.target?.closest?.("tbody th.ratioRowHeader[data-r]");
+    if (rowHead) {
+      e.preventDefault();
+      toggleRatioRowExclusions(rowHead);
+      return;
+    }
     const th = e.target?.closest?.("th[data-col]");
     if (!th) return;
     e.preventDefault();
     const colRaw = th.dataset.col;
+    beginRatioHistoryAction("ratio-column-click");
     if (colRaw === "all") {
       setRatioColAllActive(!getRatioColAllActive());
       activeRatioCols.clear();
     } else {
       const col = Number(colRaw);
-      if (!Number.isFinite(col)) return;
+      if (!Number.isFinite(col)) {
+        cancelRatioHistoryAction();
+        return;
+      }
       setRatioColAllActive(false);
       if (e.ctrlKey || e.metaKey) {
         if (activeRatioCols.has(col)) {
@@ -753,6 +817,7 @@ export function wireRatioStrikeToggle() {
       });
     }
     notifyDfmEditState();
+    commitRatioHistoryAction("ratio-column-click");
   });
 
   wrap.addEventListener("dblclick", (e) => {

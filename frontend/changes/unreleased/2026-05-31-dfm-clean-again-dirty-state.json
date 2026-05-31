@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "DFM tabs now return to clean when edits match the last saved method JSON again.",
+  "details": [
+    "Ratios and Notes edits that are undone back to the stored DFM JSON no longer leave the DFM tab marked dirty."
+  ]
+}

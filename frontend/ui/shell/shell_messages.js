@@ -28,6 +28,26 @@ export function initShellMessages() {
     if (!msg) return;
     if (msg.type === "arcrho:close-shell-menus") return shell.closeAllShellMenus?.();
     if (msg.type === "arcrho:dfm-edit-state") return shell.setDfmEditEnabled?.(!!msg.enabled);
+    if (msg.type === "arcrho:dfm-history-state") {
+      const inst = String(msg.inst || "");
+      const tab = shell.state.tabs.find(t => t.type === "dfm" && ((inst && t.dsInst === inst) || t.iframe?.contentWindow === e.source));
+      if (tab) {
+        tab.dfmCanUndo = !!msg.canUndo;
+        tab.dfmCanRedo = !!msg.canRedo;
+      }
+      const active = shell.state.tabs.find(t => t.id === shell.state.activeId);
+      if (active && active.type === "dfm" && (!tab || active.id === tab.id)) {
+        shell.setDfmHistoryEnabled?.({ canUndo: !!msg.canUndo, canRedo: !!msg.canRedo });
+      }
+      return;
+    }
+    if (msg.type === "arcrho:dfm-history-session") {
+      const inst = String(msg.inst || "");
+      const dir = String(msg.dir || "").trim();
+      const tab = shell.state.tabs.find(t => t.type === "dfm" && ((inst && t.dsInst === inst) || t.iframe?.contentWindow === e.source));
+      if (tab) tab.dfmRatioHistoryDir = dir || "";
+      return;
+    }
     if (msg.type === "arcrho:project-settings-ribbon-changed") {
       const ribbon = String(msg.ribbon || "").trim().toLowerCase();
       let updated = false;
@@ -82,6 +102,39 @@ export function initShellMessages() {
       if (dirty) shell.clearSavedStatusOnDirty?.();
       refreshDirtyIndicators();
       shell.saveState?.();
+      return;
+    }
+    if (msg.type === "arcrho:project-instance-dirty") {
+      const tab = shell.state.tabs.find(t => t.type === "project_instance" && t.iframe?.contentWindow === e.source);
+      if (!tab) return;
+      const dirty = !!msg.dirty;
+      if (tab.isDirty === dirty) return;
+      tab.isDirty = dirty;
+      if (dirty) shell.clearSavedStatusOnDirty?.();
+      refreshDirtyIndicators();
+      shell.saveState?.();
+      return;
+    }
+    if (msg.type === "arcrho:project-instance-dfm-active-state") {
+      const tab = shell.state.tabs.find(t => t.type === "project_instance" && t.iframe?.contentWindow === e.source);
+      if (!tab) return;
+      tab.piDfmActive = !!msg.active;
+      tab.piDfmInst = String(msg.inst || "");
+      tab.piDfmTitle = String(msg.title || "");
+      tab.dfmTab = String(msg.tab || "");
+      tab.dfmCanUndo = !!msg.canUndo;
+      tab.dfmCanRedo = !!msg.canRedo;
+      tab.dfmEditEnabled = !!msg.editEnabled;
+      if (tab.id === shell.state.activeId) {
+        shell.setDfmEditEnabled?.(tab.piDfmActive && tab.dfmEditEnabled);
+        shell.setDfmHistoryEnabled?.({
+          canUndo: tab.piDfmActive && tab.dfmCanUndo,
+          canRedo: tab.piDfmActive && tab.dfmCanRedo,
+        });
+        shell.updateFileMenuState?.();
+        shell.updateEditMenuState?.();
+        shell.updateHelpMenuState?.();
+      }
       return;
     }
     if (msg.type === "arcrho:dfm-tab-changed") {
@@ -174,6 +227,11 @@ export function initShellMessages() {
       return;
     }
     if (msg.type === "arcrho:open-dataset-from-history") { const entry = normalizeBrowsingHistoryEntry(msg?.entry || null); if (entry) shell.openDatasetTab?.({ datasetInputs: entry }); return; }
+    if (msg.type === "arcrho:open-dfm") {
+      const dfmInputs = msg?.dfmInputs && typeof msg.dfmInputs === "object" ? msg.dfmInputs : {};
+      shell.openDFMTab?.({ dfmInputs, dfmTab: msg?.dfmTab });
+      return;
+    }
     if (msg.type === "arcrho:open-project-instance") {
       const project = msg?.project && typeof msg.project === "object" ? msg.project : {};
       shell.openProjectInstanceTab?.(project);

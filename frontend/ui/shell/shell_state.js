@@ -26,6 +26,22 @@ function getSavedShellStateRaw() {
   return "";
 }
 
+function normalizeDfmInitialInputs(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const project = String(source.project || source.projectName || source.project_name || "").trim();
+  const reservingClass = String(source.reservingClass || source.reserving_class || source.path || source.class || "").trim();
+  const methodName = String(source.methodName || source.method_name || source.name || "").trim();
+  const outputType = String(source.outputType || source.output_type || source.outputVector || source.output_vector || "").trim();
+  const inputTriangle = String(source.inputTriangle || source.input_triangle || source.datasetName || source.dataset_name || "").trim();
+  const out = {};
+  if (project) out.project = project;
+  if (reservingClass) out.reservingClass = reservingClass;
+  if (methodName) out.methodName = methodName;
+  if (outputType) out.outputType = outputType;
+  if (inputTriangle) out.inputTriangle = inputTriangle;
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function getFirstDockedTabId() {
   const docked = state.tabs.find(t => t.id !== "home" && !isFloatingTab(t));
   return docked?.id || "home";
@@ -58,6 +74,7 @@ export function loadState() {
       type: t.type,
       datasetId: t.datasetId,
       datasetInputs: normalizeBrowsingHistoryEntry(t.datasetInputs || null) || undefined,
+      dfmInputs: t.type === "dfm" ? normalizeDfmInitialInputs(t.dfmInputs || null) : undefined,
       dsInst: t.dsInst || (t.type === "dataset" ? `ds_${t.id}` : undefined),
       wfInst: t.wfInst,
       wfFresh: t.wfFresh,
@@ -122,6 +139,7 @@ export function saveState() {
           type: t.type,
           datasetId: t.datasetId,
           datasetInputs: t.datasetInputs || undefined,
+          dfmInputs: t.type === "dfm" ? normalizeDfmInitialInputs(t.dfmInputs || null) : undefined,
           dsInst: t.dsInst,
           wfInst: t.wfInst,
           wfFresh: t.wfFresh,

@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "shell",
+  "audience": "user",
+  "summary": "F5 and Ctrl+F5 no longer refresh the ArcRho desktop app.",
+  "details": [
+    "Ctrl+R remains available for the explicit shell refresh action."
+  ]
+}

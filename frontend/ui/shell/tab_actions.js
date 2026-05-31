@@ -11,7 +11,12 @@ export function setActive(id) {
   shell.state.activeId = tab.id;
   if (isFloatingTab(tab)) tab.floatZ = shell.state.nextFloatZ++;
   else shell.state.lastDockedActiveId = tab.id;
-  if (tab.type !== "dfm") shell.setDfmEditEnabled?.(false);
+  if (tab.type !== "dfm") {
+    shell.setDfmEditEnabled?.(false);
+    shell.setDfmHistoryEnabled?.({ canUndo: false, canRedo: false });
+  } else {
+    shell.setDfmHistoryEnabled?.({ canUndo: !!tab.dfmCanUndo, canRedo: !!tab.dfmCanRedo });
+  }
   shell.render?.();
   shell.saveState?.();
 }
@@ -60,6 +65,7 @@ export function closeTab(id, skipConfirm = false) {
     if (!confirmed) return;
   }
   const wasActive = shell.state.activeId === id;
+  cleanupDfmRatioHistory(tab);
   if (tab.iframe && tab.iframe.parentNode) tab.iframe.parentNode.removeChild(tab.iframe);
   shell.state.tabs.splice(idx, 1);
   if (wasActive) {
@@ -91,16 +97,58 @@ export function openDatasetTab(options = {}) {
   shell.saveState?.();
 }
 
-export function openDFMTab() {
+function cleanupDfmRatioHistory(tab) {
+  if (!tab || tab.type !== "dfm") return;
+  try {
+    tab.iframe?.contentWindow?.postMessage({ type: "arcrho:dfm-tab-closing" }, "*");
+  } catch {}
+  const dir = String(tab.dfmRatioHistoryDir || "").trim();
+  if (!dir) return;
+  tab.dfmRatioHistoryDir = "";
+  const hostApi = shell.getHostApi?.();
+  if (typeof hostApi?.clearDfmRatioUndoSession === "function") {
+    Promise.resolve(hostApi.clearDfmRatioUndoSession({ dir })).catch(() => {});
+  }
+}
+
+const ALLOWED_DFM_TAB_IDS = new Set(["details", "data", "ratios", "results", "notes"]);
+
+function normalizeDfmInitialInputs(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const project = String(source.project || source.projectName || source.project_name || "").trim();
+  const reservingClass = String(
+    source.reservingClass
+    || source.reserving_class
+    || source.path
+    || source.class
+    || "",
+  ).trim();
+  const methodName = String(source.methodName || source.method_name || source.name || "").trim();
+  const outputType = String(source.outputType || source.output_type || source.outputVector || source.output_vector || "").trim();
+  const inputTriangle = String(source.inputTriangle || source.input_triangle || source.datasetName || source.dataset_name || "").trim();
+  const out = {};
+  if (project) out.project = project;
+  if (reservingClass) out.reservingClass = reservingClass;
+  if (methodName) out.methodName = methodName;
+  if (outputType) out.outputType = outputType;
+  if (inputTriangle) out.inputTriangle = inputTriangle;
+  return Object.keys(out).length ? out : null;
+}
+
+export function openDFMTab(options = {}) {
+  const dfmInputs = normalizeDfmInitialInputs(options?.dfmInputs || options?.inputs || null);
+  const requestedDfmTab = String(options?.dfmTab || "").trim().toLowerCase();
+  const dfmTab = ALLOWED_DFM_TAB_IDS.has(requestedDfmTab) ? requestedDfmTab : "details";
   const id = `dfm_${shell.state.nextId++}`;
   shell.state.tabs.push({
     id,
-    title: "DFM",
+    title: dfmInputs?.methodName || dfmInputs?.outputType || "DFM",
     type: "dfm",
     iframe: null,
     layout: "docked",
     dsInst: `dfm_${id}_${Date.now()}`,
-    dfmTab: "details",
+    dfmTab,
+    dfmInputs: dfmInputs || undefined,
     isDirty: false,
   });
   setDockedActive(id);
@@ -248,6 +296,7 @@ function removeTabById(id) {
   const idx = shell.state.tabs.findIndex(t => t.id === id);
   if (idx < 0) return;
   const tab = shell.state.tabs[idx];
+  cleanupDfmRatioHistory(tab);
   if (tab.iframe && tab.iframe.parentNode) tab.iframe.parentNode.removeChild(tab.iframe);
   shell.state.tabs.splice(idx, 1);
 }

@@ -76,6 +76,7 @@ let ratioChartHoverKey = null;
 let ratioChartTooltipVisible = false;
 let ratioSyncChannel = null;
 let ratioSyncMuted = false;
+let dfmDirtyEvaluator = null;
 
 export let summaryRowConfigs = [];
 export let summaryRowMap = new Map();
@@ -85,6 +86,10 @@ export function getRatioColAllActive() { return ratioColAllActive; }
 export function setRatioColAllActive(v) { ratioColAllActive = v; }
 
 export function getDfmIsDirty() { return dfmIsDirty; }
+
+export function setDfmDirtyEvaluator(evaluator) {
+  dfmDirtyEvaluator = typeof evaluator === "function" ? evaluator : null;
+}
 
 export function getShowNaBorders() { return showNaBorders; }
 export function setShowNaBorders(v) { showNaBorders = v; }
@@ -156,6 +161,16 @@ function notifyDfmDirtyState(dirty) {
 }
 
 export function markDfmDirty() {
+  if (typeof dfmDirtyEvaluator === "function") {
+    let dirty = true;
+    try {
+      dirty = !!dfmDirtyEvaluator();
+    } catch {
+      dirty = true;
+    }
+    notifyDfmDirtyState(dirty);
+    return;
+  }
   notifyDfmDirtyState(true);
 }
 

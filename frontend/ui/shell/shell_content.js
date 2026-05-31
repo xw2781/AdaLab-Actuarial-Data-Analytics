@@ -131,6 +131,9 @@ export function notifyTabActivated(tab) {
   if (tab.type === "dfm") {
     try { tab.iframe.contentWindow.postMessage({ type: "arcrho:dfm-tab-activated" }, "*"); } catch {}
   }
+  if (tab.type === "project_instance") {
+    try { tab.iframe.contentWindow.postMessage({ type: "arcrho:tab-activated" }, "*"); } catch {}
+  }
   if (tab.type === "browsing_history") {
     try { tab.iframe.contentWindow.postMessage({ type: "arcrho:tab-activated" }, "*"); } catch {}
   }

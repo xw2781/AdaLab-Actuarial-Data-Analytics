@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "DFM Ratios cells no longer show blue fill or a dashed border when focused for copy or context-menu actions.",
+  "details": [
+    "The Ratios triangle now preserves selected-ratio and active-column fills without adding a separate focus decoration."
+  ]
+}

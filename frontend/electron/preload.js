@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld("ADAHost", {
   readJsonFile: (payload) => invoke("read-json-file", payload),
   getFileRevision: (payload) => invoke("get-file-revision", payload),
   renameFile: (payload) => invoke("rename-file", payload),
+  createDfmRatioUndoSession: (payload) => invoke("dfm-ratio-undo-session-create", payload),
+  saveDfmRatioUndoStep: (payload) => invoke("dfm-ratio-undo-step-save", payload),
+  clearDfmRatioUndoSession: (payload) => invoke("dfm-ratio-undo-session-clear", payload),
   getPathForFile: (file) => {
     try {
       if (webUtils && typeof webUtils.getPathForFile === "function") {

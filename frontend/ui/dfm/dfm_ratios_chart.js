@@ -30,7 +30,12 @@ import {
   isUserEntryConfig,
   getUserEntryValueForCol,
   scheduleRatioSummaryUpdate,
-} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260513b";
+} from "/ui/dfm/dfm_ratios_summary_table.js?v=20260529a";
+import {
+  beginRatioHistoryAction,
+  cancelRatioHistoryAction,
+  commitRatioHistoryAction,
+} from "/ui/dfm/dfm_ratio_history.js";
 
 let _onRatioStateMutated = () => {};
 let ratioChartProtectedExclusionKeys = new Set();
@@ -340,6 +345,7 @@ function includeAllRatiosForChartColumn(col) {
   const rowCount = Array.isArray(model.origin_labels) ? model.origin_labels.length : model.values.length;
 
   let changed = false;
+  beginRatioHistoryAction("chart-include-all");
   for (let r = 0; r < rowCount; r++) {
     const key = `${r},${col}`;
     if (!ratioStrikeSet.has(key)) continue;
@@ -348,10 +354,14 @@ function includeAllRatiosForChartColumn(col) {
   }
 
   clearRatioChartSessionExclusionMemory();
-  if (!changed) return;
+  if (!changed) {
+    cancelRatioHistoryAction();
+    return;
+  }
   syncRatioColumnStrikeCells(col);
   scheduleRatioSummaryUpdate();
   _onRatioStateMutated();
+  commitRatioHistoryAction("chart-include-all");
   scheduleRatioChartRender();
 }
 
@@ -1113,6 +1123,9 @@ export function wireRatioChartModal() {
     setRatioChartDragActive(true);
     setRatioChartDragMoved(false);
     setRatioChartDragTarget(hit);
+    if (hit !== "axis-max" && hit !== "axis-min") {
+      beginRatioHistoryAction("chart-threshold-drag");
+    }
     ratioChartDragAxisRange = {
       yMin: scale.yMin,
       yMax: scale.yMax,
@@ -1251,9 +1264,13 @@ export function wireRatioChartModal() {
     if (getRatioChartDragMoved() && chartCol != null) {
       if (target === "axis-max" || target === "axis-min") {
         setCustomYAxisBoundForCol(chartCol, target, ratioChartAxisDragPreview?.value);
+        cancelRatioHistoryAction();
       } else {
         applyCurrentThresholdExclusions(chartCol);
+        commitRatioHistoryAction("chart-threshold-drag");
       }
+    } else if (target !== "axis-max" && target !== "axis-min") {
+      cancelRatioHistoryAction();
     }
     ratioChartAxisDragPreview = null;
     ratioChartAxisDragStart = null;
@@ -1289,6 +1306,7 @@ export function wireRatioChartModal() {
     const hitRadius = 8;
     if (!best || bestDist > hitRadius * hitRadius) return;
     const key = `${best.rowIndex},${chartCol}`;
+    beginRatioHistoryAction("chart-point-click");
     if (ratioStrikeSet.has(key)) {
       ratioStrikeSet.delete(key);
     } else {
@@ -1301,6 +1319,7 @@ export function wireRatioChartModal() {
     if (cell) cell.classList.toggle("strike", ratioStrikeSet.has(key));
     scheduleRatioSummaryUpdate();
     _onRatioStateMutated();
+    commitRatioHistoryAction("chart-point-click");
     scheduleRatioChartRender();
   });
   window.addEventListener("keydown", (e) => {

@@ -28,6 +28,7 @@ import {
   includeAllInActiveCol,
   isRatioChartOpen,
   scheduleRatioChartRender,
+  restoreRatioHistoryUi,
 } from "/ui/dfm/dfm_ratios_tab.js";
 import {
   renderResultsTable,
@@ -51,10 +52,17 @@ import {
   buildDfmAssistantContextPayload,
   startDfmMethodFileWatcher,
   stopDfmMethodFileWatcher,
-} from "/ui/dfm/dfm_persistence.js?v=20260517a";
+} from "/ui/dfm/dfm_persistence.js?v=20260531a";
 import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/dfm/dfm_sync.js";
 import { wireDfmRpcBridgePathBar } from "/ui/dfm/dfm_rpc_bridge_pathbar.js?v=20260514a";
 import { wireDfmTabPopoutWindows } from "/ui/dfm/dfm_tab_popout_window.js";
+import {
+  clearRatioHistoryTempSession,
+  getRatioHistoryState,
+  initRatioHistory,
+  runRatioRedo,
+  runRatioUndo,
+} from "/ui/dfm/dfm_ratio_history.js";
 
 const DEFAULT_TOKEN = "__DEFAULT__";
 
@@ -274,8 +282,17 @@ export function initDfmRatios() {
   });
   wireRatioSyncChannel();
   requestRatioStateSync();
+  initRatioHistory({
+    afterRestore: () => {
+      restoreRatioHistoryUi();
+      if (isRatioChartOpen()) scheduleRatioChartRender();
+    },
+  });
   startDfmMethodFileWatcher();
-  window.addEventListener("beforeunload", stopDfmMethodFileWatcher, { once: true });
+  window.addEventListener("beforeunload", () => {
+    stopDfmMethodFileWatcher();
+    clearRatioHistoryTempSession();
+  }, { once: true });
 
   window.addEventListener("arcrho:dataset-updated", handleDatasetUpdated);
 
@@ -283,11 +300,17 @@ export function initDfmRatios() {
   const _qs = new URLSearchParams(window.location.search);
   const _urlProject = _qs.get("project") || "";
   const _urlClass = _qs.get("class") || "";
-  if (_urlProject || _urlClass) {
+  const _urlMethodName = _qs.get("method_name") || "";
+  const _urlInputTriangle = _qs.get("input_triangle") || "";
+  if (_urlProject || _urlClass || _urlMethodName || _urlInputTriangle) {
     const projEl = document.getElementById("projectSelect");
     const classEl = document.getElementById("pathInput");
+    const methodEl = document.getElementById("dfmMethodName");
+    const triEl = document.getElementById("triInput");
     if (_urlProject && projEl) projEl.value = _urlProject;
     if (_urlClass && classEl) classEl.value = _urlClass;
+    if (_urlMethodName && methodEl) methodEl.value = _urlMethodName;
+    if (_urlInputTriangle && triEl) triEl.value = _urlInputTriangle;
     syncMethodNameFromInputs();
     syncOutputTypeFromProject({ forceReload: true });
     updatePathBar();
@@ -379,10 +402,24 @@ export function initDfmRatios() {
     }
     if (e?.data?.type === "arcrho:dfm-request-state") {
       notifyDfmEditState();
+      const history = getRatioHistoryState();
+      window.parent.postMessage({
+        type: "arcrho:dfm-history-state",
+        inst: getDfmInst(),
+        canUndo: history.canUndo,
+        canRedo: history.canRedo,
+      }, "*");
       return;
     }
     if (e?.data?.type === "arcrho:dfm-tab-activated") {
       notifyDfmEditState();
+      const history = getRatioHistoryState();
+      window.parent.postMessage({
+        type: "arcrho:dfm-history-state",
+        inst: getDfmInst(),
+        canUndo: history.canUndo,
+        canRedo: history.canRedo,
+      }, "*");
       return;
     }
     if (e?.data?.type === "arcrho:dfm-exclude-high") {
@@ -401,6 +438,22 @@ export function initDfmRatios() {
       const ratiosPage = document.getElementById("dfmRatiosPage");
       if (!ratiosPage || ratiosPage.style.display === "none") return;
       includeAllInActiveCol();
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-undo") {
+      const ratiosPage = document.getElementById("dfmRatiosPage");
+      if (!ratiosPage || ratiosPage.style.display === "none") return;
+      runRatioUndo();
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-redo") {
+      const ratiosPage = document.getElementById("dfmRatiosPage");
+      if (!ratiosPage || ratiosPage.style.display === "none") return;
+      runRatioRedo();
+      return;
+    }
+    if (e?.data?.type === "arcrho:dfm-tab-closing") {
+      clearRatioHistoryTempSession();
       return;
     }
     if (e?.data?.type === "arcrho:dfm-open-method-json") {
@@ -424,7 +477,7 @@ export function initDfmRatios() {
   window.addEventListener("keydown", (e) => {
     if (!e.ctrlKey || e.altKey || e.metaKey) return;
     const key = (e.key || "").toLowerCase();
-    if (key !== "h" && key !== "l" && key !== "i") return;
+    if (key !== "h" && key !== "l" && key !== "i" && key !== "z" && key !== "y") return;
     const tag = e.target?.tagName?.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
     const ratiosPage = document.getElementById("dfmRatiosPage");
@@ -433,5 +486,7 @@ export function initDfmRatios() {
     if (key === "h") excludeExtremeInActiveCol("high");
     if (key === "l") excludeExtremeInActiveCol("low");
     if (key === "i") includeAllInActiveCol();
+    if (key === "z") runRatioUndo();
+    if (key === "y") runRatioRedo();
   }, { capture: true });
 }

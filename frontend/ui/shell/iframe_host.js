@@ -130,6 +130,12 @@ export function createIframeHost(deps) {
       params.set("inst", inst);
       params.set("v", uiVersionParam);
       if (tab.dfmTab) params.set("tab", tab.dfmTab);
+      const inputs = tab.dfmInputs && typeof tab.dfmInputs === "object" ? tab.dfmInputs : {};
+      if (inputs.project) params.set("project", String(inputs.project));
+      if (inputs.reservingClass) params.set("class", String(inputs.reservingClass));
+      if (inputs.methodName) params.set("method_name", String(inputs.methodName));
+      if (inputs.outputType) params.set("output_type", String(inputs.outputType));
+      if (inputs.inputTriangle) params.set("input_triangle", String(inputs.inputTriangle));
       iframe.src = `/ui/dfm/dfm.html?${params.toString()}`;
     } else if (tab.type === "workflow") {
       const inst = tab.wfInst || tab.id || `wf_${Date.now()}`;

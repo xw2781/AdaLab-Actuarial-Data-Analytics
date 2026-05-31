@@ -43,6 +43,25 @@ const ARCBOT_SERVER_INSTRUCTION_PLACEHOLDERS = [
   ["scripting_console.md", "# Scripting Console\n\nAdd notebook and scripting-console usage guidance.\n"],
   ["excel_addin.md", "# Excel Add-in\n\nAdd Excel add-in, UDF, and request-handler workflow guidance.\n"],
 ];
+
+function getDfmRatioUndoRoot() {
+  return path.join(app.getPath("temp"), "ArcRho", "dfm-ratio-undo");
+}
+
+function sanitizeDfmRatioUndoSessionId(value) {
+  const text = String(value || "").trim().replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "");
+  return text || `dfm_${Date.now()}`;
+}
+
+function resolveDfmRatioUndoDir(dirPath) {
+  const root = path.resolve(getDfmRatioUndoRoot());
+  const resolved = path.resolve(String(dirPath || ""));
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error("Invalid DFM ratio undo temp path.");
+  }
+  return resolved;
+}
+
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
 const MAIN_WINDOW_PREFS_FILE = "main_window_prefs.json";
 const SCRIPTING_SHORTCUTS_FILE = "scripting_shortcuts.json";
@@ -2639,12 +2658,12 @@ function createWindow() {
       return;
     }
 
-    // Refresh shortcuts
+    // Block F5-based refresh shortcuts app-wide.
     if (!alt && key === "F5") {
       event.preventDefault();
-      sendHotkey("custom_refresh");
       return;
     }
+    // Refresh shortcuts
     if (ctrl && !alt && key === "R" && shift) {
       event.preventDefault();
       sendHotkey("custom_hard_refresh");
@@ -2959,6 +2978,43 @@ ipcMain.handle("rename-file", async (_event, payload) => {
     return { ok: true, path: targetPath, revision: { path: targetPath, size: nextStat.size, mtimeMs: nextStat.mtimeMs, hash } };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
+  }
+});
+
+ipcMain.handle("dfm-ratio-undo-session-create", async (_event, payload) => {
+  try {
+    const root = getDfmRatioUndoRoot();
+    const sessionId = sanitizeDfmRatioUndoSessionId(payload?.inst || payload?.sessionId || "");
+    const dir = path.join(root, `${sessionId}-${Date.now()}`);
+    const resolved = resolveDfmRatioUndoDir(dir);
+    fs.rmSync(resolved, { recursive: true, force: true });
+    fs.mkdirSync(resolved, { recursive: true });
+    return { ok: true, dir: resolved };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err || "Could not create DFM ratio undo temp session.") };
+  }
+});
+
+ipcMain.handle("dfm-ratio-undo-step-save", async (_event, payload) => {
+  try {
+    const dir = resolveDfmRatioUndoDir(payload?.dir);
+    fs.mkdirSync(dir, { recursive: true });
+    const index = Math.max(0, Math.min(9999, Number.parseInt(String(payload?.index ?? "0"), 10) || 0));
+    const filePath = path.join(dir, `step-${String(index).padStart(4, "0")}.json`);
+    fs.writeFileSync(filePath, formatJsonForSave(payload?.data ?? null), "utf8");
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err || "Could not save DFM ratio undo step.") };
+  }
+});
+
+ipcMain.handle("dfm-ratio-undo-session-clear", async (_event, payload) => {
+  try {
+    const dir = resolveDfmRatioUndoDir(payload?.dir);
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err || "Could not clear DFM ratio undo temp session.") };
   }
 });
 

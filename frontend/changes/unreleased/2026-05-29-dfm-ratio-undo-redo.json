@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "DFM Ratios now supports undo and redo for recent Ratios-tab mouse changes.",
+  "details": [
+    "Ratios changes are captured in a per-tab temporary JSON undo session, with Edit menu actions and Ctrl+Z/Ctrl+Y shortcuts capped at 20 undo and 20 redo steps.",
+    "Closing the DFM tab clears that tab's temporary undo JSON copies."
+  ]
+}

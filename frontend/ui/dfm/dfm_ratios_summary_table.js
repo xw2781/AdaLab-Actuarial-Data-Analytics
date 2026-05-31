@@ -27,6 +27,10 @@ import {
   hasDfmCellNote,
   showDfmCellNoteEditor,
 } from "/ui/dfm/dfm_cell_notes.js";
+import {
+  beginRatioHistoryAction,
+  commitRatioHistoryAction,
+} from "/ui/dfm/dfm_ratio_history.js";
 
 // =============================================================================
 // Excel Cell Reference Utilities
@@ -2140,6 +2144,7 @@ export function selectSummaryCell(summaryTable, rowId, col) {
   if (!rowKey || !Number.isFinite(colIndex) || colIndex < 0) return false;
   const cell = summaryTable.querySelector(`td.summaryCell[data-r="${CSS.escape(rowKey)}"][data-col="${colIndex}"]`);
   if (!cell) return false;
+  beginRatioHistoryAction("summary-cell-click");
   const selectedTable = summaryTable.closest("#ratioWrap")?.querySelector("table.ratioSelectedTable");
   selectedSummaryByCol.set(colIndex, rowKey);
   summaryTable.querySelectorAll(`td.summaryCell[data-col="${colIndex}"]`)
@@ -2152,6 +2157,7 @@ export function selectSummaryCell(summaryTable, rowId, col) {
   ensureSelectedRowValues(summaryTable, selectedTable);
   updateSummaryFormulaBarForCell(cell);
   _onRatioStateMutated();
+  commitRatioHistoryAction("summary-cell-click");
   return true;
 }
 
@@ -2338,6 +2344,40 @@ export function wireSummarySelection(summaryTable, selectedTable) {
     updateSummaryFormulaBarForCell(cell);
   };
 
+  const selectFormulaRow = (row) => {
+    if (!row || isSummaryEditSessionActive()) return;
+    const rowId = String(row.dataset.rowId || "");
+    if (!rowId) return;
+    const cells = Array.from(row.querySelectorAll("td.summaryCell[data-col]"));
+    if (!cells.length) return;
+    const selectedCells = [];
+    let changed = false;
+    cells.forEach((cell) => {
+      const col = Number(cell.dataset.col);
+      if (!Number.isFinite(col)) return;
+      selectedCells.push(cell);
+      if (selectedSummaryByCol.get(col) !== rowId) changed = true;
+    });
+    const firstCell = selectedCells[0] || null;
+    if (!changed) {
+      setActiveCell(firstCell, false);
+      return;
+    }
+    beginRatioHistoryAction("summary-row-click");
+    selectedCells.forEach((cell) => {
+      const col = Number(cell.dataset.col);
+      if (!Number.isFinite(col)) return;
+      selectedSummaryByCol.set(col, rowId);
+    });
+    summaryTable.querySelectorAll("td.summaryCell.ratioSelectedCell")
+      .forEach((el) => el.classList.remove("ratioSelectedCell"));
+    selectedCells.forEach((cell) => cell.classList.add("ratioSelectedCell"));
+    ensureSelectedRowValues(summaryTable, selectedTable);
+    setActiveCell(firstCell, false);
+    _onRatioStateMutated();
+    commitRatioHistoryAction("summary-row-click");
+  };
+
   const getCurrentActiveCell = () => {
     const { rowId, col } = summaryActiveCellState;
     if (rowId && Number.isFinite(col) && col >= 0) {
@@ -2377,6 +2417,7 @@ export function wireSummarySelection(summaryTable, selectedTable) {
     if (!cell) return;
     e.preventDefault();
     dragActive = true;
+    beginRatioHistoryAction("summary-cell-click");
     const key = `${cell.dataset.r || ""},${cell.dataset.col || ""}`;
     lastKey = key;
     setActiveCell(cell, true);
@@ -2395,6 +2436,9 @@ export function wireSummarySelection(summaryTable, selectedTable) {
   });
 
   window.addEventListener("mouseup", () => {
+    if (dragActive) {
+      commitRatioHistoryAction("summary-cell-click");
+    }
     dragActive = false;
     lastKey = null;
   });
@@ -2403,6 +2447,12 @@ export function wireSummarySelection(summaryTable, selectedTable) {
     if (e.defaultPrevented) return;
     if (dragActive) return;
     if (e.target?.closest?.("input.summaryCellEditInput")) return;
+    const rowHead = e.target?.closest?.("th.summaryDragHandle");
+    if (rowHead) {
+      e.preventDefault();
+      selectFormulaRow(rowHead.closest("tr[data-row-id]"));
+      return;
+    }
     const cell = e.target?.closest?.("td.summaryCell");
     if (!cell) return;
     setActiveCell(cell, true);
