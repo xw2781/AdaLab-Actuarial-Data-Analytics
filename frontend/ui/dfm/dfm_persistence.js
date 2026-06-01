@@ -103,9 +103,10 @@ function getCanonicalDatasetSidecarPath(csvPath) {
   return match ? `${match[1]}.json` : path.replace(/\.csv$/i, ".json");
 }
 
-function buildDatasetSidecarJson(csvPath, datasetName) {
+function buildDatasetSidecarJson(csvPath, datasetName, userName = "") {
   const name = splitLengthScopedDatasetName(datasetName);
   const outputType = String(document.getElementById("dfmOutputVector")?.value || "").trim();
+  const user = String(userName || "").trim();
   return JSON.stringify({
     dataset_name: name,
     dataset_type: outputType || name,
@@ -115,6 +116,8 @@ function buildDatasetSidecarJson(csvPath, datasetName) {
     storage: "manual",
     source: "dfm",
     csv_file: String(csvPath || "").split(/[\\/]/).pop() || "",
+    user,
+    modified_by: user,
     updated_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
   }, null, 2) + "\n";
 }
@@ -122,9 +125,17 @@ function buildDatasetSidecarJson(csvPath, datasetName) {
 async function saveDatasetSidecar(hostApi, csvPath, datasetName) {
   if (!hostApi || typeof hostApi.saveTextFile !== "function" || !csvPath) return { ok: true };
   const jsonPath = getCanonicalDatasetSidecarPath(csvPath);
+  let userName = "";
+  if (typeof hostApi.getWindowsUserName === "function") {
+    try {
+      userName = String(await hostApi.getWindowsUserName() || "").trim();
+    } catch {
+      userName = "";
+    }
+  }
   const out = await hostApi.saveTextFile({
     path: jsonPath,
-    data: buildDatasetSidecarJson(csvPath, datasetName),
+    data: buildDatasetSidecarJson(csvPath, datasetName, userName),
   });
   if (!out || out.error) {
     return { ok: false, error: out?.error ? String(out.error) : "unknown error" };
@@ -563,7 +574,16 @@ function getSummaryRowsForPersistence(cfgKey) {
       formulas: _legacyFormulas,
       ...baseRow
     } = rowWithoutId;
-    return { ...baseRow };
+    const rowInputs = Array.isArray(_inputs)
+      ? _inputs
+      : Array.isArray(_legacyFormulas)
+        ? _legacyFormulas
+        : null;
+    const nextRow = { ...baseRow };
+    if (Array.isArray(rowInputs) && rowInputs.some((value) => String(value ?? "").trim())) {
+      nextRow.inputs = rowInputs.map((value) => String(value ?? "").trim());
+    }
+    return nextRow;
   });
 }
 
@@ -1406,9 +1426,14 @@ export async function loadDfmTemplate() {
   const averageFormulas = ratiosTab["average formulas"];
   const formulas = getDfmAverageFormulaLabels(averageFormulas);
   const matrix = getDfmAverageFormulaSelectedIndex(averageFormulas);
+  const averageFormulaValues = getDfmAverageFormulaValues(averageFormulas);
   const averageFormulaRows = buildDfmSummaryRowsFromAverageFormulaObject(averageFormulas);
   const resolvedSummary = buildDfmSummaryRowsFromAverageFormulas(averageFormulaRows, formulas);
-  const summaryRows = resolvedSummary.rows;
+  const summaryRows = hydrateUserEntryValuesFromAverageFormulaValues(
+    resolvedSummary.rows,
+    formulas,
+    averageFormulaValues,
+  );
   if (Array.isArray(summaryRows) && cfgKey) {
     saveCustomSummaryRows(cfgKey, summaryRows);
   }

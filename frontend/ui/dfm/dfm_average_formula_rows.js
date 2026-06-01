@@ -36,15 +36,26 @@ export function buildDfmAverageFormulaObject(summaryRows, matrix, values) {
     },
   };
   const settings = out[AVERAGE_FORMULA_SETTINGS_KEY];
+  const inputs = [];
+  let hasInputs = false;
   rows.forEach((row) => {
     out.label.push(normalizeLabel(row?.label || row?.id));
     settings.averageType.push(row?.averageType ?? "");
     settings.base.push(row?.base ?? "");
     settings.periods.push(row?.periods ?? "");
     settings.exclude.push(row?.exclude ?? 0);
+    const rowInputs = Array.isArray(row?.inputs)
+      ? row.inputs
+      : Array.isArray(row?.formulas)
+        ? row.formulas
+        : null;
+    const normalizedInputs = Array.isArray(rowInputs) ? rowInputs.map((value) => String(value ?? "").trim()) : [];
+    if (normalizedInputs.some((value) => value)) hasInputs = true;
+    inputs.push(normalizedInputs);
   });
   if (Array.isArray(matrix)) out.selected = matrix;
   if (Array.isArray(values)) out.values = values;
+  if (hasInputs) out.inputs = inputs;
   return out;
 }
 
@@ -69,6 +80,16 @@ export function getDfmAverageFormulaValues(averageFormulas) {
   return [];
 }
 
+export function getDfmAverageFormulaInputs(averageFormulas) {
+  if (averageFormulas && typeof averageFormulas === "object" && Array.isArray(averageFormulas.inputs)) {
+    return averageFormulas.inputs;
+  }
+  if (averageFormulas && typeof averageFormulas === "object" && Array.isArray(averageFormulas.formulas)) {
+    return averageFormulas.formulas;
+  }
+  return [];
+}
+
 function getDfmAverageFormulaSettings(averageFormulas) {
   const settings = averageFormulas?.[AVERAGE_FORMULA_SETTINGS_KEY];
   return settings && typeof settings === "object" && !Array.isArray(settings) ? settings : {};
@@ -79,10 +100,11 @@ export function buildDfmSummaryRowsFromAverageFormulaObject(averageFormulas) {
   const labels = getDfmAverageFormulaLabels(averageFormulas);
   if (!labels.length) return null;
   const settings = getDfmAverageFormulaSettings(averageFormulas);
+  const inputs = getDfmAverageFormulaInputs(averageFormulas);
   return labels.map((label, index) => {
     const normalized = normalizeLabel(label);
     const inferred = resolveDfmAverageFormulaRowFromLabel(normalized) || {};
-    return {
+    const row = {
       ...inferred,
       label: normalized,
       averageType: settings.averageType?.[index] ?? inferred.averageType ?? "custom",
@@ -90,6 +112,9 @@ export function buildDfmSummaryRowsFromAverageFormulaObject(averageFormulas) {
       periods: settings.periods?.[index] ?? inferred.periods ?? "all",
       exclude: settings.exclude?.[index] ?? inferred.exclude ?? 0,
     };
+    const rowInputs = Array.isArray(inputs?.[index]) ? inputs[index].map((value) => String(value ?? "").trim()) : null;
+    if (rowInputs && rowInputs.some((value) => value)) row.inputs = rowInputs;
+    return row;
   });
 }
 

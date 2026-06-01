@@ -1,0 +1,6 @@
+{
+  "type": "fix",
+  "scope": "dfm notes",
+  "audience": "user",
+  "summary": "Fixed DFM Notes file-link detection so Excel workbook links stop at the workbook extension and added a read-only open option for workbook links."
+}

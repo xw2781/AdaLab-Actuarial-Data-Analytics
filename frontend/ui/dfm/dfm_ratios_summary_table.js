@@ -133,6 +133,9 @@ let _xlLinkAbortController = null;
 let _renderRatioTable = () => {};
 let _onRatioStateMutated = () => {};
 let summaryContextCellForNote = null;
+let formulaBarResizeObserver = null;
+let formulaBarResizeWired = false;
+let formulaBarResizeRaf = 0;
 
 export function setSummaryTableCallbacks({ renderRatioTable, onRatioStateMutated } = {}) {
   if (typeof renderRatioTable === "function") _renderRatioTable = renderRatioTable;
@@ -620,6 +623,126 @@ function evaluateSimpleMathExpression(raw, referenceValues) {
   }
 }
 
+function stripFormulaEquals(raw) {
+  const text = String(raw || "").trim();
+  return text.startsWith("=") ? text.slice(1).trim() : text;
+}
+
+function splitFormulaTopLevel(raw, separator) {
+  const text = String(raw || "");
+  const parts = [];
+  let current = "";
+  let quote = "";
+  let depthParen = 0;
+  let depthBrace = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === "\"" || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === "(") {
+      depthParen += 1;
+      current += ch;
+      continue;
+    }
+    if (ch === ")") {
+      depthParen = Math.max(0, depthParen - 1);
+      current += ch;
+      continue;
+    }
+    if (ch === "{") {
+      depthBrace += 1;
+      current += ch;
+      continue;
+    }
+    if (ch === "}") {
+      depthBrace = Math.max(0, depthBrace - 1);
+      current += ch;
+      continue;
+    }
+    if (ch === separator && depthParen === 0 && depthBrace === 0) {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current.trim());
+  return parts;
+}
+
+function stripSingleOuterParens(raw) {
+  const text = String(raw || "").trim();
+  if (!text.startsWith("(") || !text.endsWith(")")) return null;
+  let quote = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === "\"" || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "(") depth += 1;
+    if (ch === ")") depth -= 1;
+    if (depth === 0 && i < text.length - 1) return null;
+  }
+  return depth === 0 ? text.slice(1, -1).trim() : null;
+}
+
+function parseArrayConstant(raw) {
+  const text = String(raw || "").trim();
+  if (!text.startsWith("{") || !text.endsWith("}")) {
+    return { ok: false, error: "Array formulas must use an Excel-style array constant like ={1,2,3}." };
+  }
+  const inner = text.slice(1, -1).trim();
+  if (!inner) return { ok: false, error: "Array formula is empty." };
+  const rows = splitFormulaTopLevel(inner, ";").map((rowText) => splitFormulaTopLevel(rowText, ","));
+  if (!rows.length || rows.some((row) => !row.length || row.some((item) => !String(item || "").trim()))) {
+    return { ok: false, error: "Array formula contains an empty item." };
+  }
+  const width = rows[0].length;
+  if (rows.some((row) => row.length !== width)) {
+    return { ok: false, error: "Array formula rows must have the same length." };
+  }
+  return { ok: true, rows };
+}
+
+function parseSummaryArrayFormula(raw) {
+  const expr = stripFormulaEquals(raw);
+  if (!expr) return null;
+  const transposeMatch = /^TRANSPOSE\s*/i.exec(expr);
+  if (transposeMatch) {
+    const args = stripSingleOuterParens(expr.slice(transposeMatch[0].length).trim());
+    if (args == null) {
+      return { ok: false, error: "TRANSPOSE array formulas must look like =TRANSPOSE({1;2;3})." };
+    }
+    const parsed = parseArrayConstant(args);
+    if (!parsed.ok) return parsed;
+    if (!parsed.rows.length || parsed.rows.some((row) => row.length !== 1)) {
+      return { ok: false, error: "TRANSPOSE array formulas must contain a single-column array, like =TRANSPOSE({1;2;3})." };
+    }
+    return { ok: true, expressions: parsed.rows.map((row) => row[0]) };
+  }
+  if (!expr.startsWith("{")) return null;
+  const parsed = parseArrayConstant(expr);
+  if (!parsed.ok) return parsed;
+  if (parsed.rows.length !== 1) {
+    return { ok: false, error: "Use a 1-row array like ={1,2,3}, or wrap a single-column array with TRANSPOSE({1;2;3})." };
+  }
+  return { ok: true, expressions: parsed.rows[0] };
+}
+
 function normalizeUserEntryValues(values, minLength = 0) {
   const arr = Array.isArray(values) ? values.slice() : [];
   for (let i = 0; i < arr.length; i++) arr[i] = sanitizeUserEntryValue(arr[i]);
@@ -747,7 +870,9 @@ function formatFormulaText(rawText) {
       out += tok.text;
     }
   }
-  return out.replace(/\s+$/, "");
+  const formatted = out.replace(/\s+$/, "");
+  if (formatted.startsWith("=")) return `= ${formatted.slice(1).trimStart()}`;
+  return formatted;
 }
 
 /**
@@ -809,14 +934,39 @@ function updateFormulaBarDisplayMode(barEl, isEditing) {
 
 function syncSummaryFormulaBarWidth(barEl, summaryTable) {
   if (!barEl || !summaryTable) return;
-  const rectW = Number(summaryTable.getBoundingClientRect?.().width || 0);
-  const scrollW = Number(summaryTable.scrollWidth || 0);
-  const tableWidth = Math.max(0, Math.ceil(Math.max(rectW, scrollW)));
-  if (!tableWidth) return;
-  const px = `${tableWidth}px`;
+  const host = summaryTable.closest("#ratioWrapHost") || document.getElementById("ratioWrapHost");
+  const hostWidth = Number(host?.clientWidth || 0);
+  const tableWidth = Number(summaryTable.getBoundingClientRect?.().width || 0);
+  const visibleWidth = Math.max(0, Math.ceil(hostWidth || tableWidth));
+  if (!visibleWidth) return;
+  const px = `${visibleWidth}px`;
   barEl.style.width = px;
   barEl.style.minWidth = px;
   barEl.style.maxWidth = px;
+}
+
+function scheduleSummaryFormulaBarResizeRefresh() {
+  if (formulaBarResizeRaf) return;
+  formulaBarResizeRaf = window.requestAnimationFrame(() => {
+    formulaBarResizeRaf = 0;
+    refreshSummaryFormulaBar();
+  });
+}
+
+function wireSummaryFormulaBarResizeWatcher(summaryTable) {
+  const host = summaryTable?.closest?.("#ratioWrapHost") || document.getElementById("ratioWrapHost");
+  if (host && window.ResizeObserver) {
+    if (formulaBarResizeObserver?.target !== host) {
+      formulaBarResizeObserver?.observer?.disconnect?.();
+      const observer = new ResizeObserver(scheduleSummaryFormulaBarResizeRefresh);
+      observer.observe(host);
+      formulaBarResizeObserver = { observer, target: host };
+    }
+  }
+  if (!formulaBarResizeWired) {
+    formulaBarResizeWired = true;
+    window.addEventListener("resize", scheduleSummaryFormulaBarResizeRefresh);
+  }
 }
 
 function ensureSummaryFormulaBarEl(summaryTable) {
@@ -1013,6 +1163,7 @@ function ensureSummaryFormulaBarEl(summaryTable) {
   } else if (parent && summaryTable && el.nextElementSibling !== summaryTable) {
     parent.insertBefore(el, summaryTable);
   }
+  wireSummaryFormulaBarResizeWatcher(summaryTable);
   return el;
 }
 
@@ -1269,6 +1420,75 @@ function setUserEntryCellDisplayValue(cell, value) {
   cell.title = "";
 }
 
+function commitUserEntryArrayFormula(summaryTable, selectedTable, rowId, startCol, raw) {
+  const parsedArray = parseSummaryArrayFormula(raw);
+  if (!parsedArray) return { handled: false, ok: true };
+  if (!parsedArray.ok) return { handled: true, ok: false, error: parsedArray.error };
+  if (containsExcelRef(raw)) {
+    return {
+      handled: true,
+      ok: false,
+      error: "Array formulas currently support numbers and DFM row-reference math, but not Excel cell links inside the array.",
+    };
+  }
+
+  const row = summaryTable?.querySelector(`tr[data-row-id="${CSS.escape(String(rowId))}"]`);
+  const availableCells = Array.from(row?.querySelectorAll("td.summaryCell[data-col]") || [])
+    .map((cell) => ({ cell, col: Number(cell.dataset.col) }))
+    .filter((item) => Number.isFinite(item.col) && item.col >= startCol)
+    .sort((a, b) => a.col - b.col);
+  const applyCount = Math.min(parsedArray.expressions.length, availableCells.length);
+  if (applyCount <= 0) {
+    return { handled: true, ok: false, error: "Array formula has no cells available to fill." };
+  }
+
+  const nextEntries = [];
+  for (let i = 0; i < applyCount; i++) {
+    const targetCol = availableCells[i].col;
+    const expr = String(parsedArray.expressions[i] || "").trim();
+    const refValues = buildSummaryReferenceValues(summaryTable, targetCol);
+    const value = evaluateSimpleMathExpression(expr, refValues);
+    if (!Number.isFinite(value) || value <= 0) {
+      return {
+        handled: true,
+        ok: false,
+        error: "Each array formula item must evaluate to a number > 0.",
+      };
+    }
+    const nextValue = roundRatio(value, 6);
+    nextEntries.push({
+      cell: availableCells[i].cell,
+      col: targetCol,
+      value: nextValue,
+      input: i === 0 ? String(raw || "").trim() : String(nextValue),
+    });
+  }
+
+  nextEntries.forEach((entry) => {
+    setUserEntryCellEntry(rowId, entry.col, entry.input, entry.value, { persist: false });
+    setUserEntryCellDisplayValue(entry.cell, entry.value);
+    selectedSummaryByCol.set(entry.col, String(rowId));
+    summaryTable.querySelectorAll(`td.summaryCell[data-col="${entry.col}"]`)
+      .forEach((el) => el.classList.remove("ratioSelectedCell"));
+    entry.cell.classList.add("ratioSelectedCell");
+  });
+  persistUserEntryRowsFromState();
+
+  const firstCell = nextEntries[0]?.cell || null;
+  summaryTable.querySelectorAll("td.summaryCell.summaryActiveCell")
+    .forEach((el) => el.classList.remove("summaryActiveCell"));
+  if (firstCell) {
+    firstCell.classList.add("summaryActiveCell");
+    summaryCopySelection?.selectCell?.(firstCell, false);
+    summaryActiveCellState = { rowId: String(rowId), col: nextEntries[0].col };
+  }
+  if (selectedTable) ensureSelectedRowValues(summaryTable, selectedTable);
+  summaryFormulaEditState = null;
+  updateSummaryFormulaBarForCell(firstCell);
+  _onRatioStateMutated();
+  return { handled: true, ok: true };
+}
+
 function commitSummaryFormulaInput(inputEl) {
   const summaryTable = document.querySelector("#ratioWrap table.ratioSummaryTable");
   const selectedTable = document.querySelector("#ratioWrap table.ratioSelectedTable");
@@ -1279,6 +1499,11 @@ function commitSummaryFormulaInput(inputEl) {
   const cfg = summaryRowMap.get(rowId);
   if (!cfg || !isUserEntryConfig(cfg)) return true;
   const raw = String(inputEl.value || "").trim();
+  const arrayCommit = commitUserEntryArrayFormula(summaryTable, selectedTable, rowId, col, raw);
+  if (arrayCommit.handled) {
+    if (!arrayCommit.ok) alert(arrayCommit.error || "Could not apply array formula.");
+    return !!arrayCommit.ok;
+  }
   // Check if expression contains any Excel references (standalone or inline)
   if (containsExcelRef(raw)) {
     commitExcelFormulaAsync(inputEl, rowId, col, raw);
@@ -2214,6 +2439,17 @@ function beginUserEntryCellEdit(cell, summaryTable, selectedTable) {
       return;
     }
     const raw = String(input.value || "").trim();
+    const arrayCommit = commitUserEntryArrayFormula(summaryTable, selectedTable, rowId, col, raw);
+    if (arrayCommit.handled) {
+      if (!arrayCommit.ok) {
+        alert(arrayCommit.error || "Could not apply array formula.");
+        finished = false;
+        beginSummaryFormulaEditSession(summaryTable, cell, input, col);
+        input.focus();
+        input.select();
+      }
+      return;
+    }
     const refValues = buildSummaryReferenceValues(summaryTable, col);
     const parsed = raw ? evaluateSimpleMathExpression(raw, refValues) : 1;
     if (!Number.isFinite(parsed) || parsed <= 0) {

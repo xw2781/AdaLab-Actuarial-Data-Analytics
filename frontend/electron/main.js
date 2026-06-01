@@ -666,6 +666,110 @@ async function openPathInVsCode(targetPath) {
   }
 }
 
+function isExcelWorkbookPath(targetPath) {
+  return /\.(xlsx|xlsm|xlsb|xls)$/iu.test(String(targetPath || "").trim());
+}
+
+function getExcelCommand() {
+  const configured = String(process.env.ARCRHO_EXCEL_CMD || "").trim();
+  if (configured) return configured;
+  if (process.platform !== "win32") {
+    return findExecutableOnPath(["excel"]) || "";
+  }
+  const officeVersions = ["Office16", "Office15", "Office14", "Office12"];
+  const roots = [
+    process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "Microsoft Office", "root") : "",
+    process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "Microsoft Office", "root") : "",
+    process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "Microsoft Office") : "",
+    process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "Microsoft Office") : "",
+  ].filter(Boolean);
+  const candidates = [];
+  for (const root of roots) {
+    for (const version of officeVersions) {
+      candidates.push(path.join(root, version, "EXCEL.EXE"));
+    }
+  }
+  candidates.push(findExecutableOnPath(["EXCEL.EXE", "excel.exe"]));
+  for (const candidate of candidates.filter(Boolean)) {
+    try {
+      if (fs.existsSync(candidate) && !isWindowsAppsPath(candidate)) return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return "";
+}
+
+function quotePowerShellString(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function spawnDetachedOpen(command, args = []) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let child = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      try {
+        child?.unref?.();
+      } catch {
+        // ignore
+      }
+      resolve(result);
+    };
+    try {
+      child = spawn(command, args, {
+        cwd: APP_ROOT,
+        detached: true,
+        shell: false,
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } catch (err) {
+      finish({ ok: false, error: String(err?.message || err) });
+      return;
+    }
+    child.once("spawn", () => finish({ ok: true }));
+    child.once("error", (err) => finish({ ok: false, error: String(err?.message || err) }));
+  });
+}
+
+async function openExcelWorkbookReadOnly(targetPath) {
+  if (!isExcelWorkbookPath(targetPath)) {
+    return { ok: false, error: "Read-only open is only available for Excel workbook files." };
+  }
+  if (process.platform !== "win32") {
+    return { ok: false, error: "Excel read-only open is only supported on Windows." };
+  }
+
+  const excelCommand = getExcelCommand();
+  if (excelCommand) {
+    const directResult = await spawnDetachedOpen(excelCommand, ["/r", targetPath]);
+    if (directResult?.ok) return { ok: true, opener: "excel-read-only" };
+  }
+
+  const excelReadOnlyArgs = `/r "${targetPath}"`;
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `Start-Process -FilePath 'excel.exe' -ArgumentList ${quotePowerShellString(excelReadOnlyArgs)}`,
+  ].join("; ");
+  const result = await runHostCommand("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    script,
+  ], {
+    cwd: APP_ROOT,
+    shell: false,
+    timeoutMs: 10000,
+  });
+  if (result?.ok) return { ok: true, opener: "excel-read-only" };
+  const detail = String(result?.stderr || result?.stdout || result?.error || "").trim();
+  return { ok: false, error: detail || "Excel read-only open failed." };
+}
+
 function getArcBotCodexEnv(env = process.env) {
   const nextEnv = { ...env };
   if (fs.existsSync(PYTHON_API_SRC)) {
@@ -2811,10 +2915,17 @@ ipcMain.handle("pick-open-file", async (_event, payload) => {
 ipcMain.handle("open-path", async (_event, payload) => {
   const targetPath = String(payload?.path || "").trim();
   const preferredApp = String(payload?.preferredApp || payload?.preferred_app || "").trim().toLowerCase();
+  const readOnly = !!payload?.readOnly
+    || !!payload?.read_only
+    || preferredApp === "excel-read-only"
+    || String(payload?.openMode || payload?.open_mode || "").trim().toLowerCase() === "read-only";
   if (!targetPath) return { ok: false, error: "Empty path." };
   try {
     if (!fs.existsSync(targetPath)) {
       return { ok: false, error: `Path not found: ${targetPath}` };
+    }
+    if (readOnly) {
+      return openExcelWorkbookReadOnly(targetPath);
     }
     let preferredError = "";
     if (preferredApp === "vscode" || preferredApp === "code") {

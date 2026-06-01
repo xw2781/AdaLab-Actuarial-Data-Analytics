@@ -1,0 +1,6 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Standardized DFM Ratios formula bar display formatting to keep a space after the leading equals sign."
+}

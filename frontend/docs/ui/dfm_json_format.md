@@ -21,7 +21,7 @@ Data-engine readers should read fields from these sections directly rather than 
 
 The formatter writes any 2D array with one child row per JSON line.
 
-`ratios tab`.`average formulas` is a columnar object. `label` is the persistent formula identity and row order. `selected` is the former `average index` matrix. `values` is the former `average formula values` analysis matrix. Formula metadata arrays live under `custom average formula settings`; arrays such as `averageType`, `base`, `periods`, and `exclude` align by index with `label`.
+`ratios tab`.`average formulas` is a columnar object. `label` is the persistent formula identity and row order. `selected` is the former `average index` matrix. `values` is the former `average formula values` analysis matrix. `inputs` stores User Entry formula/input text aligned with `label` and `values`; blank input rows may be omitted or empty arrays. Formula metadata arrays live under `custom average formula settings`; arrays such as `averageType`, `base`, `periods`, and `exclude` align by index with `label`.
 
 `summary rows` and `summary order` are not part of the JSON contract. Runtime-only formula row `id` values are generated after load for DOM rows, selection maps, drag handling, and other in-session UI mechanics; `id` is not saved in DFM method JSON.
 

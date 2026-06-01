@@ -50,6 +50,16 @@ export function wireNotesEditorInteractions(deps = {}) {
   const notesFormatToolbar = formatToolbarId ? document.getElementById(formatToolbarId) : null;
   const notesSaveBtn = document.getElementById(saveBtnId);
   const indentUnit = "    ";
+  const linkFileExtensions = [
+    "xlsx", "xlsm", "xlsb", "xls",
+    "csv", "txt", "json", "pdf",
+    "docx", "doc", "pptx", "ppt",
+  ];
+  const fileExtensionBoundaryRe = new RegExp(
+    `\\.(${linkFileExtensions.join("|")})(?=$|[\\s)"'\`,;:!?])`,
+    "iu",
+  );
+  const excelWorkbookRe = /\.(xlsx|xlsm|xlsb|xls)$/iu;
   const pathPatterns = [
     /[A-Za-z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n\\]*/g,
     /\\\\[^\\/:*?"<>|\r\n]+\\[^\\/:*?"<>|\r\n]+(?:\\[^\\/:*?"<>|\r\n\\]+)*/g,
@@ -101,6 +111,17 @@ export function wireNotesEditorInteractions(deps = {}) {
       .replace(/^[("'`]+/, "")
       .replace(/[)"'`,.;:!?]+$/, "");
 
+  const trimPathTokenAtKnownFileExtension = (raw) => {
+    const text = String(raw || "");
+    const match = fileExtensionBoundaryRe.exec(text);
+    if (!match || !Number.isFinite(match.index)) return text;
+    const end = match.index + String(match[0] || "").length;
+    if (text.slice(end).includes("\\")) return text;
+    return text.slice(0, end);
+  };
+
+  const isExcelWorkbookPath = (targetPath) => excelWorkbookRe.test(sanitizePathToken(targetPath));
+
   const escapeHtml = (raw) =>
     String(raw || "")
       .replace(/&/g, "&amp;")
@@ -116,10 +137,12 @@ export function wireNotesEditorInteractions(deps = {}) {
   contextMenuEl.setAttribute("role", "menu");
   contextMenuEl.innerHTML = `
     <button type="button" class="${contextMenuItemClass}" data-notes-path-action="open" role="menuitem">Open File</button>
+    <button type="button" class="${contextMenuItemClass}" data-notes-path-action="open-read-only" role="menuitem" hidden>Open as Read-Only</button>
     <button type="button" class="${contextMenuItemClass}" data-notes-path-action="copy" role="menuitem">Copy File Path</button>
   `;
   document.body.appendChild(contextMenuEl);
   let contextMenuPath = "";
+  const openReadOnlyMenuItem = contextMenuEl.querySelector('[data-notes-path-action="open-read-only"]');
 
   const hidePathTooltip = () => {
     tooltipEl.classList.remove("show");
@@ -136,6 +159,9 @@ export function wireNotesEditorInteractions(deps = {}) {
     contextMenuPath = String(targetPath || "");
     if (!contextMenuPath) return;
     hidePathTooltip();
+    if (openReadOnlyMenuItem) {
+      openReadOnlyMenuItem.hidden = !isExcelWorkbookPath(contextMenuPath);
+    }
     contextMenuEl.classList.add("show");
     contextMenuEl.style.left = "0px";
     contextMenuEl.style.top = "0px";
@@ -194,9 +220,11 @@ export function wireNotesEditorInteractions(deps = {}) {
         const leadTrim = (raw.match(/^[("'`]+/)?.[0]?.length) || 0;
         const tailTrim = (raw.match(/[)"'`,.;:!?]+$/)?.[0]?.length) || 0;
         const start = m.index + leadTrim;
-        const end = m.index + raw.length - tailTrim;
+        let end = m.index + raw.length - tailTrim;
         if (end <= start) continue;
-        const path = sanitizePathToken(src.slice(start, end));
+        const candidate = trimPathTokenAtKnownFileExtension(src.slice(start, end));
+        end = start + candidate.length;
+        const path = sanitizePathToken(candidate);
         if (!path || !path.includes("\\")) continue;
         matches.push({ start, end, path });
       }
@@ -436,7 +464,7 @@ export function wireNotesEditorInteractions(deps = {}) {
     }
   };
 
-  const openPathViaShellBridge = (targetPath) =>
+  const openPathViaShellBridge = (targetPath, options = {}) =>
     new Promise((resolve) => {
       if (!targetPath || !window.parent || window.parent === window) {
         resolve({ ok: false, error: "Open path requires desktop app." });
@@ -468,7 +496,12 @@ export function wireNotesEditorInteractions(deps = {}) {
       }, 5000);
 
       try {
-        window.parent.postMessage({ type: "arcrho:open-path", requestId, path: targetPath }, "*");
+        window.parent.postMessage({
+          type: "arcrho:open-path",
+          requestId,
+          path: targetPath,
+          readOnly: !!options.readOnly,
+        }, "*");
       } catch {
         finish({ ok: false, error: "Open path requires desktop app." });
       }
@@ -491,22 +524,23 @@ export function wireNotesEditorInteractions(deps = {}) {
     setNotesPlainTextMode(false);
   };
 
-  const openDetectedPath = async (targetPath) => {
+  const openDetectedPath = async (targetPath, options = {}) => {
     if (!targetPath) return;
+    const readOnly = !!options.readOnly;
     try {
       const hostApi = window.ADAHost || null;
       const result = (hostApi && typeof hostApi.openPath === "function")
-        ? await hostApi.openPath({ path: targetPath })
-        : await openPathViaShellBridge(targetPath);
+        ? await hostApi.openPath({ path: targetPath, readOnly })
+        : await openPathViaShellBridge(targetPath, { readOnly });
       if (result?.ok) {
-        setStatus(`Opened path: ${targetPath}`);
+        setStatus(readOnly ? `Opened Excel read-only: ${targetPath}` : `Opened path: ${targetPath}`);
       } else if (result?.error === "Open path requires desktop app.") {
         setStatus("Open path requires desktop app.");
       } else {
-        setStatus(`Open path failed: ${result?.error || targetPath}`);
+        setStatus(`${readOnly ? "Open Excel read-only" : "Open path"} failed: ${result?.error || targetPath}`);
       }
     } catch (err) {
-      setStatus(`Open path failed: ${String(err?.message || err)}`);
+      setStatus(`${readOnly ? "Open Excel read-only" : "Open path"} failed: ${String(err?.message || err)}`);
     }
   };
 
@@ -736,6 +770,8 @@ export function wireNotesEditorInteractions(deps = {}) {
     hidePathContextMenu();
     if (action === "open") {
       void openDetectedPath(targetPath);
+    } else if (action === "open-read-only") {
+      void openDetectedPath(targetPath, { readOnly: true });
     } else if (action === "copy") {
       void copyDetectedPath(targetPath);
     }

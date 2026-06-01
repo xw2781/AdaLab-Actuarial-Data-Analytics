@@ -1,0 +1,6 @@
+{
+  "type": "fix",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "Kept the DFM Ratios User Entry formula bar visible while horizontally scrolling or resizing wide ratio tables."
+}
