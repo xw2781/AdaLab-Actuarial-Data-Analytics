@@ -17,6 +17,7 @@ import os
 import queue
 import re
 import sys
+import tempfile
 import threading
 import time as py_time
 import traceback
@@ -24,7 +25,7 @@ import types
 from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -846,6 +847,13 @@ def _normalize_save_filename(filename: str) -> str:
     return f"{base}.ipynb"
 
 
+def _path_within_dir(path: str, directory: str) -> bool:
+    try:
+        return os.path.normcase(os.path.commonpath([directory, path])) == os.path.normcase(directory)
+    except ValueError:
+        return False
+
+
 def _source_to_text(source: Any) -> str:
     """Normalize notebook source value to a single string."""
     if isinstance(source, list):
@@ -1096,38 +1104,54 @@ def save_notebook(filename: str, cells: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"success": True, "path": filepath, "message": f"Saved to {filename}"}
 
 
-def load_notebook(filename: str) -> Dict[str, Any]:
-    """Load cells from a notebook file (.ipynb preferred, .arcnb legacy)."""
-    nb_dir = _get_notebooks_dir()
-    try:
-        safe_name = _sanitize_notebook_filename(filename)
-    except ValueError as exc:
-        return {"success": False, "message": str(exc), "cells": []}
+def _resolve_notebook_load_path(filename: str) -> Tuple[str, str]:
+    nb_dir = os.path.abspath(_get_notebooks_dir())
+    raw = str(filename or "").strip()
+    safe_name = _sanitize_notebook_filename(raw)
     name_stem, name_ext = os.path.splitext(safe_name)
+
+    if os.path.isabs(raw):
+        path = os.path.abspath(raw)
+        if not _path_within_dir(path, nb_dir):
+            raise ValueError("Scripting files must be inside the scripting directory.")
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"File not found: {raw}")
+        return path, safe_name
+
     candidates: List[str] = []
     if name_ext:
         candidates.append(safe_name)
     else:
-        candidates.extend([f"{safe_name}.ipynb", f"{safe_name}.arcnb"])
+        candidates.extend([f"{safe_name}.ipynb", f"{safe_name}.arcnb", f"{safe_name}.py"])
     if name_ext.lower() == ".ipynb":
         candidates.append(f"{name_stem}.arcnb")
 
-    filepath = ""
     for candidate in candidates:
-        candidate_path = os.path.join(nb_dir, candidate)
+        candidate_path = os.path.abspath(os.path.join(nb_dir, candidate))
+        if not _path_within_dir(candidate_path, nb_dir):
+            continue
         if os.path.isfile(candidate_path):
-            filepath = candidate_path
-            break
+            return candidate_path, safe_name
 
-    if not filepath:
-        requested = safe_name if safe_name else filename
-        return {"success": False, "message": f"File not found: {requested}", "cells": []}
+    requested = safe_name if safe_name else raw
+    raise FileNotFoundError(f"File not found: {requested}")
 
+
+def load_notebook(filename: str) -> Dict[str, Any]:
+    """Load cells from a notebook or Python scripting file."""
+    try:
+        filepath, safe_name = _resolve_notebook_load_path(filename)
+    except (FileNotFoundError, ValueError) as exc:
+        return {"success": False, "message": str(exc), "cells": []}
     if not os.path.isfile(filepath):
         return {"success": False, "message": f"File not found: {safe_name}", "cells": []}
+    _, ext = os.path.splitext(filepath)
+    if ext.lower() == ".py":
+        with open(filepath, "r", encoding="utf-8") as f:
+            source = f.read()
+        return {"success": True, "cells": [{"type": "code", "source": source}], "path": filepath}
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
-    _, ext = os.path.splitext(filepath)
     if ext.lower() == ".ipynb":
         raw_cells = data.get("cells", [])
         if not isinstance(raw_cells, list):
@@ -1432,6 +1456,30 @@ def _display_average_label(label: str) -> str:
     return text
 
 
+def _formula_number(value: float) -> str:
+    return f"{float(value):.10g}"
+
+
+def _quote_formula_label(label: str) -> str:
+    return '"' + _display_average_label(label).replace('"', "'") + '"'
+
+
+def _build_user_entry_formula(
+    label: str,
+    adjustment: dict[str, Any],
+    accounting_cutoff: float,
+    other_factor: float,
+) -> str:
+    parts = [_quote_formula_label(label)]
+    if abs(float(adjustment["factor"]) - 1.0) > 0.0000001:
+        parts.append(f"({adjustment['right']})")
+    if abs(accounting_cutoff - 1.0) > 0.0000001:
+        parts.append(_formula_number(accounting_cutoff))
+    if abs(other_factor - 1.0) > 0.0000001:
+        parts.append(_formula_number(other_factor))
+    return "= " + " * ".join(parts)
+
+
 def _mark_selected_before_adjustment(dfm: Any, col: int, label: str) -> None:
     dfm.clear_cell_notes_for_development(col + 1)
     dfm.set_cell_note(_display_average_label(label), col + 1, PRE_ADJUSTMENT_CELL_NOTE)
@@ -1538,7 +1586,15 @@ def apply_adjustments(
         if not _has_meaningful_adjustment(adjustment["factor"], accounting_cutoff, other_factor):
             continue
         _mark_selected_before_adjustment(dfm, col, labels[selected_row])
-        dfm.set_user_ratio(round(final_value, 4), col + 1)
+        final_user_value = round(final_value, 4)
+        formula = _build_user_entry_formula(labels[selected_row], adjustment, accounting_cutoff, other_factor)
+        if hasattr(dfm, "set_user_formula"):
+            dfm.set_user_formula(formula, final_user_value, col + 1)
+        else:
+            dfm.set_user_ratio(final_user_value, col + 1)
+            user_row = dfm._ensure_average_label("User Entry")
+            inputs = _ensure_matrix(dfm.average_formulas, "inputs", len(dfm._average_labels()), dfm._average_col_count(), "")
+            inputs[user_row][col] = formula
         changed = True
         if add_notes:
             note_blocks.append(_format_adjustment_note(
@@ -1660,9 +1716,50 @@ def _ensure_arcrho_api_import_path() -> None:
 
 
 def _runtime_active_dfm_path() -> str:
-    runtime_dir = os.path.join(_get_macros_dir(), ".macro_runtime")
+    runtime_dir = os.path.join(tempfile.gettempdir(), "ArcRho", "macro_runtime")
     os.makedirs(runtime_dir, exist_ok=True)
-    return os.path.join(runtime_dir, "active-dfm.json")
+    name = f"active-dfm-{os.getpid()}-{threading.get_ident()}-{py_time.time_ns()}.json"
+    return os.path.join(runtime_dir, name)
+
+
+def _decode_filename_segment(value: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        try:
+            return chr(int(match.group(1), 16))
+        except Exception:
+            return match.group(0)
+
+    return re.sub(r"_%([0-9A-Fa-f]{2})_", repl, str(value or ""))
+
+
+def _infer_active_dfm_identity_from_path(method_path: str) -> Dict[str, str]:
+    raw_path = str(method_path or "").strip()
+    if not raw_path:
+        return {}
+    try:
+        path = Path(raw_path)
+        parts = list(path.parts)
+    except Exception:
+        return {}
+
+    out: Dict[str, str] = {}
+    lower_parts = [str(part).lower() for part in parts]
+    try:
+        projects_index = lower_parts.index("projects")
+        if projects_index + 1 < len(parts):
+            out["project_name"] = str(parts[projects_index + 1]).strip()
+    except ValueError:
+        pass
+
+    for index in range(0, max(0, len(parts) - 2)):
+        if lower_parts[index] == "data" and lower_parts[index + 1] in {"manual", "generated"}:
+            out["reserving_class"] = _decode_filename_segment(str(parts[index + 2]).strip())
+            break
+
+    filename = path.name
+    if filename.startswith("DFM@") and filename.lower().endswith(".json"):
+        out["method_name"] = filename[4:-5].strip()
+    return out
 
 
 def _build_active_dfm(active_context: Dict[str, Any]):
@@ -1681,6 +1778,10 @@ def _build_active_dfm(active_context: Dict[str, Any]):
     reserving_class = str(fields.get("reservingClass") or details.get("reserving class") or "").strip()
     method_name = str(fields.get("methodName") or details.get("name") or "").strip()
     method_path = str(active_context.get("methodPath") or "").strip()
+    inferred = _infer_active_dfm_identity_from_path(method_path)
+    project_name = project_name or inferred.get("project_name", "")
+    reserving_class = reserving_class or inferred.get("reserving_class", "")
+    method_name = method_name or inferred.get("method_name", "")
 
     dfm = None
     if project_name and reserving_class and method_name:
@@ -1698,7 +1799,16 @@ def _build_active_dfm(active_context: Dict[str, Any]):
     temp_path = _runtime_active_dfm_path()
     with open(temp_path, "w", encoding="utf-8") as f:
         json.dump(active_json, f, indent=2, ensure_ascii=False)
-    return DfmMethod.load_file(temp_path)
+    dfm = DfmMethod.load_file(temp_path)
+    if project_name:
+        dfm.project_name = project_name
+    if reserving_class:
+        dfm.reserving_class = reserving_class
+    if method_name:
+        dfm.name = method_name
+    if method_path:
+        dfm.file_path = Path(method_path)
+    return dfm
 
 
 def run_macro(macro_id: str, active_context: Dict[str, Any]) -> Dict[str, Any]:

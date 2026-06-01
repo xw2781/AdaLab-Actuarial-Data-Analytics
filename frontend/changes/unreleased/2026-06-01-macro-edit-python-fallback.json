@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "scripting",
+  "audience": "user",
+  "summary": "Macro editing now opens Python scripts from the user scripting folder when the desktop file bridge is unavailable, and macro runs preserve active DFM context metadata for scripts such as Apply Growth Adjustments.",
+  "details": [
+    "Macro editing falls back to the user scripting folder when direct file opening is unavailable.",
+    "Macro runs keep active DFM context metadata available to scripts such as Apply Growth Adjustments."
+  ]
+}

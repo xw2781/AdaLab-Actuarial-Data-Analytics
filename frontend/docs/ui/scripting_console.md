@@ -36,9 +36,9 @@ Detected `arcrho:*` message types in key JS files:
 <!-- MANUAL:BEGIN -->
 - Called from shell as a scripting tab iframe.
 - Uses `/scripting/*` app-server routes for execution, variables, preferences, and notebook persistence.
-- In the desktop app, File > Open Notebook (Ctrl+O) uses the Electron host file picker and can load `.ipynb` or legacy `.arcnb` notebooks from any folder. Browser sessions fall back to the in-app saved-notebooks list under the scripting directory.
-- In the desktop app, scripting tabs can also open `.py` script files. A Python script is loaded as a single editable code cell and saves back to the original `.py` path through the host text-file bridge.
-- The shell Macro window opens user macros from `Documents\ArcRho\scripts` in fresh scripting tabs for editing.
+- In the desktop app, File > Open Notebook (Ctrl+O) uses the Electron host file picker and can load `.ipynb`, legacy `.arcnb`, or `.py` scripting files from any folder. Browser sessions fall back to the in-app saved-notebooks list under the scripting directory.
+- Python scripts load as a single editable code cell. Desktop file-backed scripts save back to the original `.py` path through the host text-file bridge; scripts opened through the app-server fallback are loaded from `Documents\ArcRho\scripts`.
+- The shell Macro window opens user macros from `Documents\ArcRho\scripts` in fresh scripting tabs for editing, using the app-server scripting loader when the desktop file bridge is unavailable.
 - In the desktop app, scripting tabs also accept shell-forwarded `arcrho:scripting-open-path` messages created by File Explorer notebook drops and load the provided `.ipynb` or `.arcnb` path through the same disk-backed open flow.
 - The notebook toolbar is rendered inside the main notebook column above the cells pane, so it stays the same width as the cell workspace when the sidebar is visible. The notebook title lives in the shell tab only; right-clicking a scripting tab exposes `Rename Notebook`, `Open File Location`, and `Copy File Path` when a saved file path is available. Rename changes the active file in place for desktop file-backed notebooks or changes the pending filename for unsaved notebooks, and saved scripting tabs show their full path in a styled shell tooltip after a two-second still tab/titlebar hover.
 - Imported `.ipynb` outputs render saved `image/png` plots and sanitized `text/html` rich display data, so notebook plots and HTML tables appear in the output area instead of being reported as unsupported rich output.

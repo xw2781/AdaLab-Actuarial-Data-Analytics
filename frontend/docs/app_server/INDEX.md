@@ -57,7 +57,7 @@ High-risk files that must follow contracts:
 <!-- MANUAL:BEGIN -->
 - Path and cache constants are centralized in `app_server/config.py`.
 - Several domains persist JSON caches under project folders or AppData.
-- Scripting notebook persistence is file-based under `~/Documents/ArcRho/scripts`; save writes `.ipynb` with code-cell outputs/execution counts and load accepts `.ipynb` plus legacy `.arcnb`.
+- Scripting notebook persistence is file-based under `~/Documents/ArcRho/scripts`; save writes `.ipynb` with code-cell outputs/execution counts and load accepts `.ipynb`, legacy `.arcnb`, and `.py` scripting files from that directory.
 - Scripting execution interrupt uses per-session cancellation with trace checks and an interruptible `time.sleep(...)` import hook so `/scripting/interrupt` can stop active cells promptly; `/scripting/run-stream` emits NDJSON stdout/stderr events for live output during long-running cells.
 <!-- MANUAL:END -->
 

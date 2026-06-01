@@ -1,4 +1,4 @@
-import { shell } from "./shell_context.js?v=20260510a";
+import { shell } from "../shell/shell_context.js?v=20260510a";
 
 const API_BASE = window.location.origin;
 const macroWindow = document.getElementById("macroWindow");

@@ -848,15 +848,11 @@ async function openNotebookFilePath(filePath, options = {}) {
     postShellStatus(msg);
     return false;
   }
-  if (!hostApi || (extension === ".py" ? typeof hostApi.readTextFile !== "function" : typeof hostApi.readJsonFile !== "function")) {
-    const msg = "Opening scripting files from disk requires the ArcRho desktop app.";
-    setStatus(msg);
-    postShellStatus(msg);
-    return false;
-  }
-
   try {
     if (extension === ".py") {
+      if (!hostApi || typeof hostApi.readTextFile !== "function") {
+        return await loadNotebook(targetPath);
+      }
       const result = await hostApi.readTextFile({ path: targetPath });
       if (!result?.ok) {
         const msg = result?.error || `File not found: ${targetPath}`;
@@ -869,6 +865,15 @@ async function openNotebookFilePath(filePath, options = {}) {
       setStatus(`Opened ${getNotebookFilenameFromPath(targetPath)}`);
       postShellStatus(`Opened ${targetPath}`);
       return true;
+    }
+    if (!hostApi || typeof hostApi.readJsonFile !== "function") {
+      if (isAbsoluteFilePath(targetPath)) {
+        const msg = "Opening notebook files from disk requires the ArcRho desktop app.";
+        setStatus(msg);
+        postShellStatus(msg);
+        return false;
+      }
+      return await loadNotebook(targetPath);
     }
     const result = await hostApi.readJsonFile({ path: targetPath });
     if (!result || !result.exists) {
@@ -977,7 +982,8 @@ async function loadNotebook(filename) {
     const result = await resp.json();
     if (!result.success) {
       setStatus(result.message || "Load failed");
-      return;
+      postShellStatus(result.message || "Load failed");
+      return false;
     }
 
     const loadedCells = Array.isArray(result.cells) ? result.cells : [];
@@ -997,8 +1003,11 @@ async function loadNotebook(filename) {
     } else {
       setStatus(`Opened ${filename}`);
     }
+    return true;
   } catch {
     setStatus("Load failed");
+    postShellStatus("Load failed");
+    return false;
   }
 }
 

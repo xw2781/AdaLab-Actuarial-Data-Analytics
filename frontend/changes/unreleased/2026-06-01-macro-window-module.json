@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "shell",
+  "audience": "internal",
+  "summary": "Moved the shell Macro window behavior into a dedicated frontend UI macro module.",
+  "details": [
+    "The Macro window behavior is now isolated in a frontend UI macro module for easier maintenance."
+  ]
+}
