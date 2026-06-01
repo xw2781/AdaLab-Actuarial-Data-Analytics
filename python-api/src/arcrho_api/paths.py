@@ -27,8 +27,10 @@ def sanitize_file_name_part(value: Any, fallback: str) -> str:
 
 
 def sanitize_reserving_class_folder(value: Any, fallback: str = "ReservingClass") -> str:
-    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "^", clean_text(value))
-    cleaned = re.sub(r"[. ]+$", lambda match: "^" * len(match.group(0)), cleaned)
+    cleaned = clean_text(value)
+    cleaned = cleaned.replace("\\", "_%5C_").replace("/", "_%2F_")
+    cleaned = re.sub(r'[<>:"|?*\x00-\x1f]+', "_", cleaned)
+    cleaned = re.sub(r"[. ]+$", "", cleaned).strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned or fallback
 

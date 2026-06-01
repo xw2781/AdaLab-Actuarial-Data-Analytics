@@ -1,0 +1,6 @@
+{
+  "type": "fix",
+  "scope": "python api",
+  "audience": "user",
+  "summary": "Fixed Python API DFM cell-note helpers so macro-written average-cell notes use the GUI's row-label and development-label JSON shape."
+}

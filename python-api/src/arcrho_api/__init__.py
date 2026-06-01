@@ -11,7 +11,7 @@ from .exceptions import (
     ProjectNotFoundError,
     ReadOnlyError,
 )
-from .models import DfmMethodRef, ProjectSettings
+from .models import DfmMethodRef, ProjectSettings, TriangleCacheResult
 from .project import Project
 from .reserving_class import ReservingClass
 
@@ -32,4 +32,5 @@ __all__ = [
     "ReservingClass",
     "reload_server_root",
     "set_server_root",
+    "TriangleCacheResult",
 ]

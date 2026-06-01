@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import csv
+import getpass
+import json
+import os
+import re
+import time
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .exceptions import DfmDataError
-from .models import DfmMethodRef
+from .exceptions import DfmDataError, ReadOnlyError
+from .models import DfmMethodRef, TriangleCacheResult
 from .paths import clean_text, dataset_filename, sanitize_reserving_class_folder
 
 if TYPE_CHECKING:
@@ -79,6 +86,146 @@ class ReservingClass:
     def read_triangle(self, name: str) -> list[list[Any]]:
         return self.read_dataset(name)
 
+    def triangle_cache_path(
+        self,
+        name: str,
+        *,
+        origin_length: int = 12,
+        development_length: int = 12,
+    ) -> Path:
+        """Return the generated ArcRhoTri CSV cache path for this reserving class."""
+
+        filename = _length_scoped_dataset_filename(name, origin_length, development_length)
+        return self.project.path / "data" / "generated" / sanitize_reserving_class_folder(self.path) / filename
+
+    def add_triangle(
+        self,
+        name: str,
+        *,
+        cumulative: bool = True,
+        origin_length: int = 12,
+        development_length: int = 12,
+        timeout_sec: float = 6.0,
+        force_refresh: bool = False,
+    ) -> TriangleCacheResult:
+        """Ensure a generated ArcRhoTri CSV cache exists, requesting it if needed.
+
+        If the cache file is already present, it is reused. Otherwise this writes an
+        ArcRhoTri request JSON to the server requests folder and waits for the engine
+        to produce the generated CSV.
+        """
+
+        dataset_name = clean_text(name)
+        if not dataset_name:
+            raise DfmDataError("Triangle dataset name cannot be blank.")
+
+        data_path = self.triangle_cache_path(
+            dataset_name,
+            origin_length=origin_length,
+            development_length=development_length,
+        )
+        if data_path.is_file() and not force_refresh:
+            self._write_triangle_sidecar_if_allowed(data_path, dataset_name)
+            return TriangleCacheResult(dataset_name=dataset_name, file_path=data_path, from_cache=True)
+
+        if self.read_only:
+            raise ReadOnlyError(f"Cannot request missing ArcRhoTri cache through a read-only client: {data_path}")
+
+        if force_refresh and data_path.exists():
+            try:
+                data_path.unlink()
+            except OSError as err:
+                raise DfmDataError(f"Failed to clear ArcRhoTri cache {data_path}: {err}") from err
+
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        request_path = self._write_triangle_request(
+            dataset_name,
+            data_path,
+            cumulative=cumulative,
+            origin_length=origin_length,
+            development_length=development_length,
+        )
+        if not _wait_for_file(data_path, timeout_sec=max(0.1, float(timeout_sec))):
+            raise DfmDataError(
+                "Timed out waiting for ArcRhoTri CSV cache. "
+                f"Request file: {request_path}; expected CSV: {data_path}"
+            )
+        self._write_triangle_sidecar(data_path, dataset_name)
+        return TriangleCacheResult(
+            dataset_name=dataset_name,
+            file_path=data_path,
+            from_cache=False,
+            request_path=request_path,
+        )
+
+    def _write_triangle_request(
+        self,
+        dataset_name: str,
+        data_path: Path,
+        *,
+        cumulative: bool,
+        origin_length: int,
+        development_length: int,
+    ) -> Path:
+        self.project.client.requests_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "Function": "ArcRhoTri",
+            "Path": self.path,
+            "DatasetName": dataset_name,
+            "Cumulative": bool(cumulative),
+            "Transposed": False,
+            "Calendar": False,
+            "ProjectName": self.project.name,
+            "OriginLength": int(origin_length),
+            "DevelopmentLength": int(development_length),
+            "DataPath": str(data_path),
+            "UserName": getpass.getuser(),
+        }
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")[:-3]
+        stem = f"request-{timestamp}"
+        temp_path = self.project.client.requests_dir / f"{stem}.{uuid.uuid4()}.tmp"
+        final_path = self.project.client.requests_dir / f"{stem}.json"
+        if final_path.exists():
+            final_path = self.project.client.requests_dir / f"{stem}-{uuid.uuid4().hex[:8]}.json"
+        try:
+            temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            os.replace(temp_path, final_path)
+        except OSError as err:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise DfmDataError(f"Failed to write ArcRhoTri request file: {err}") from err
+        return final_path
+
+    def _write_triangle_sidecar_if_allowed(self, data_path: Path, dataset_name: str) -> None:
+        if self.read_only:
+            return
+        self._write_triangle_sidecar(data_path, dataset_name)
+
+    def _write_triangle_sidecar(self, data_path: Path, dataset_name: str) -> None:
+        payload = {
+            "dataset_name": dataset_name,
+            "dataset_type": dataset_name,
+            "instance_name": dataset_name,
+            "reserving_class": self.path,
+            "project_name": self.project.name,
+            "storage": "generated",
+            "csv_file": data_path.name,
+            "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        }
+        sidecar_path = data_path.with_name(f"{_encoded_file_name_part(dataset_name, 'Dataset')}.json")
+        temp_path = sidecar_path.with_name(f"{sidecar_path.name}.{uuid.uuid4()}.tmp")
+        try:
+            temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            os.replace(temp_path, sidecar_path)
+        except OSError as err:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise DfmDataError(f"Failed to write ArcRhoTri cache metadata {sidecar_path}: {err}") from err
+
 
 def _parse_csv_cell(value: str) -> Any:
     text = str(value if value is not None else "").strip()
@@ -96,3 +243,47 @@ def _read_csv_matrix(path: Path) -> list[list[Any]]:
             return [[_parse_csv_cell(cell) for cell in row] for row in csv.reader(fh)]
     except OSError as err:
         raise DfmDataError(f"Failed to read CSV file {path}: {err}") from err
+
+
+def _encoded_file_name_part(value: Any, fallback: str) -> str:
+    replacements = {
+        "\\": "_%5C_",
+        "/": "_%2F_",
+        ":": "_%3A_",
+        "*": "_%2A_",
+        "?": "_%3F_",
+        '"': "_%22_",
+        "<": "_%3C_",
+        ">": "_%3E_",
+        "|": "_%7C_",
+    }
+    out = []
+    for ch in clean_text(value):
+        if ch in replacements:
+            out.append(replacements[ch])
+        elif ord(ch) < 32:
+            out.append(f"_%{ord(ch):02X}_")
+        else:
+            out.append(ch)
+    encoded = re.sub(r"\s+", " ", "".join(out)).strip()
+    return encoded or fallback
+
+
+def _length_scoped_dataset_filename(dataset_name: Any, origin_length: Any, development_length: Any) -> str:
+    dataset_file = _encoded_file_name_part(dataset_name, "Dataset")
+    origin = clean_text(origin_length)
+    development = clean_text(development_length)
+    if origin and development:
+        dataset_file = f"{dataset_file}@{origin}@{development}"
+    return f"{dataset_file}.csv"
+
+
+def _wait_for_file(path: Path, timeout_sec: float, settle_ms: float = 50.0) -> bool:
+    deadline = time.time() + max(0.0, float(timeout_sec))
+    while time.time() <= deadline:
+        if path.exists():
+            if settle_ms > 0:
+                time.sleep(settle_ms / 1000.0)
+            return True
+        time.sleep(0.1)
+    return path.exists()

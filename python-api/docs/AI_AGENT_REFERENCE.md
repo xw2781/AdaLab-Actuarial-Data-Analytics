@@ -60,6 +60,10 @@ Save behavior:
 - Rebuild each reserving-class folder's `method_index.json`.
 - Refuse writes when the client is `read_only=True`.
 
+DFM cell notes use the grouped `ratios tab.cell notes` shape keyed by visible row label, then visible development label. Use `set_cell_note(row_label, development, note)`, `clear_cell_notes_for_development(development)`, or `set_selected_average_cell_note(development, note, clear_column=True)` for average-formula notes.
+
+User Entry formulas can store both the cached numeric value and formula text. Use `set_user_formula(formula, value, development)` to write `average formulas.values` plus aligned `average formulas.inputs` so the GUI shows the same calculated User Entry value while retaining the decomposed formula.
+
 ## Filename Rules
 
 DFM methods are stored as:

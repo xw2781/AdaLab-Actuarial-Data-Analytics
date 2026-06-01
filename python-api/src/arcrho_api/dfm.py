@@ -53,6 +53,10 @@ def _trim_trailing_nulls_in_matrix(value: Any) -> list[list[Any]]:
     return [_trim_trailing(row, (None,)) for row in _coerce_matrix(value)]
 
 
+def _trim_trailing_empty_text_in_matrix(value: Any) -> list[list[Any]]:
+    return [_trim_trailing(row, ("", None)) for row in _coerce_matrix(value)]
+
+
 def _parse_csv_cell(value: str) -> Any:
     text = str(value if value is not None else "").strip()
     if text == "":
@@ -159,6 +163,33 @@ def _label_key(value: Any) -> str:
         if prefix.strip().isdigit():
             label = rest.strip()
     return label.lower()
+
+
+def _display_average_label(value: Any) -> str:
+    label = _normalize_label(value)
+    if ":" in label:
+        _prefix, rest = label.split(":", 1)
+        if rest.strip():
+            return rest.strip()
+    return label
+
+
+def _cell_note_table_name(table: str) -> str:
+    key = clean_text(table).lower().replace("_", " ").replace("-", " ")
+    aliases = {
+        "main": "ratio main table",
+        "ratio": "ratio main table",
+        "ratio main": "ratio main table",
+        "ratio main table": "ratio main table",
+        "summary": "ratio summary table",
+        "average": "ratio summary table",
+        "average formulas": "ratio summary table",
+        "ratio summary": "ratio summary table",
+        "ratio summary table": "ratio summary table",
+    }
+    if key in aliases:
+        return aliases[key]
+    raise DfmDataError(f"Unknown DFM cell-note table: {table!r}")
 
 
 def _as_col_index(dev_period: int) -> int:
@@ -416,6 +447,10 @@ class DfmMethod:
         return _tab(self.ratios_tab, "average formulas")
 
     @property
+    def cell_notes(self) -> dict[str, Any]:
+        return _tab(self.ratios_tab, "cell notes")
+
+    @property
     def results_tab(self) -> dict[str, Any]:
         return _tab(self.payload, "results tab")
 
@@ -583,7 +618,71 @@ class DfmMethod:
             "custom average formula settings": self.average_formulas.get("custom average formula settings") or {},
             "selected": self.average_formulas.get("selected") or [],
             "values": self.average_formulas.get("values") or [],
+            "inputs": self.average_formulas.get("inputs") or [],
         }
+
+    def set_cell_note(
+        self,
+        row_label: str,
+        development: int | str,
+        note: str,
+        *,
+        table: str = "ratio summary table",
+    ) -> "DfmMethod":
+        table_name = _cell_note_table_name(table)
+        column_label = self._cell_note_development_label(development)
+        row_key = self._cell_note_row_label(row_label, table_name)
+        notes_by_row = self._cell_note_table(table_name)
+        row_notes = notes_by_row.setdefault(row_key, {})
+        if not isinstance(row_notes, dict):
+            row_notes = {}
+            notes_by_row[row_key] = row_notes
+        note_text = str(note or "")
+        if note_text:
+            row_notes[column_label] = note_text
+        else:
+            row_notes.pop(column_label, None)
+            if not row_notes:
+                notes_by_row.pop(row_key, None)
+        return self
+
+    def clear_cell_notes_for_development(
+        self,
+        development: int | str,
+        *,
+        table: str = "ratio summary table",
+    ) -> "DfmMethod":
+        table_name = _cell_note_table_name(table)
+        column_label = self._cell_note_development_label(development)
+        notes_by_row = self._cell_note_table(table_name)
+        # Remove legacy column-keyed notes written by older API helpers.
+        notes_by_row.pop(column_label, None)
+        for row_key, row_notes in list(notes_by_row.items()):
+            if not isinstance(row_notes, dict):
+                continue
+            row_notes.pop(column_label, None)
+            if not row_notes:
+                notes_by_row.pop(row_key, None)
+        return self
+
+    def set_selected_average_cell_note(
+        self,
+        development: int | str,
+        note: str,
+        *,
+        clear_column: bool = False,
+    ) -> "DfmMethod":
+        col = self._resolve_development_col(development)
+        if clear_column:
+            self.clear_cell_notes_for_development(col + 1)
+        labels = self._average_labels()
+        selected = _coerce_matrix(self.average_formulas.get("selected"))
+        for row, selected_row in enumerate(selected):
+            if col < len(selected_row) and bool(selected_row[col]):
+                if row >= len(labels):
+                    break
+                return self.set_cell_note(labels[row], col + 1, note)
+        raise DfmDataError(f"No selected average found for development period {self.dev_period(col + 1)}.")
 
     def set_ratio_exclusions(self, matrix: list[list[bool | int]]) -> "DfmMethod":
         self.ratio_triangle["excluded"] = [[1 if cell else 0 for cell in row] for row in matrix]
@@ -735,7 +834,14 @@ class DfmMethod:
             return self.set_selected_average(label, "all")
         return self.set_selected_average(label, self._resolve_development_col(development) + 1)
 
-    def set_user_ratio(self, value: float, dev_period: int, row_index: int | None = None) -> "DfmMethod":
+    def set_user_ratio(
+        self,
+        value: float,
+        dev_period: int,
+        row_index: int | None = None,
+        *,
+        formula: str | None = None,
+    ) -> "DfmMethod":
         target_row = self._ensure_average_label("User Entry")
         if row_index is not None:
             target_row = max(0, int(row_index) - 1)
@@ -744,8 +850,21 @@ class DfmMethod:
         values = _ensure_matrix(self.average_formulas, "values", len(self._average_labels()), col_count, None)
         col = _as_col_index(dev_period)
         self._require_col(col, col_count)
+        self._set_average_row_user_entry(target_row)
         values[target_row][col] = float(value)
+        if formula is not None:
+            inputs = _ensure_matrix(self.average_formulas, "inputs", len(self._average_labels()), col_count, "")
+            inputs[target_row][col] = str(formula or "").strip() or str(float(value))
         return self.set_selected_average(self._average_labels()[target_row], dev_period)
+
+    def set_user_formula(
+        self,
+        formula: str,
+        value: float,
+        dev_period: int,
+        row_index: int | None = None,
+    ) -> "DfmMethod":
+        return self.set_user_ratio(value, dev_period, row_index, formula=formula)
 
     def copy_average_formula_patterns(
         self,
@@ -1100,6 +1219,9 @@ class DfmMethod:
         average_values = self.average_formulas.get("values")
         if isinstance(average_values, list):
             self.average_formulas["values"] = _trim_trailing_nulls_in_matrix(average_values)
+        average_inputs = self.average_formulas.get("inputs")
+        if isinstance(average_inputs, list):
+            self.average_formulas["inputs"] = _trim_trailing_empty_text_in_matrix(average_inputs)
 
     def _sync_details_identity(self) -> None:
         self.details.setdefault("name", self.name)
@@ -1340,6 +1462,29 @@ class DfmMethod:
                 return index
         raise DfmDataError(f"Could not resolve development column: {development!r}")
 
+    def _cell_note_development_label(self, development: int | str) -> str:
+        col = self._resolve_development_col(development)
+        col_count = self._average_col_count()
+        self._require_col(col, col_count)
+        return self.dev_period(col + 1, 0)
+
+    def _cell_note_table(self, table_name: str) -> dict[str, Any]:
+        value = self.cell_notes.get(table_name)
+        if isinstance(value, dict):
+            return value
+        value = {}
+        self.cell_notes[table_name] = value
+        return value
+
+    def _cell_note_row_label(self, row_label: Any, table_name: str) -> str:
+        if table_name == "ratio summary table":
+            text = _display_average_label(row_label)
+        else:
+            text = _normalize_label(row_label)
+        if not text:
+            raise DfmDataError("Cell note row label cannot be blank.")
+        return text
+
     def _resolve_data_path(self, value: Any) -> Path | None:
         text = clean_text(value)
         if not text:
@@ -1406,6 +1551,14 @@ class DfmMethod:
         _ensure_matrix(self.average_formulas, "selected", row_count, col_count, 0)
         _ensure_matrix(self.average_formulas, "values", row_count, col_count, None)
 
+    def _set_average_row_user_entry(self, row_index: int) -> None:
+        settings = self._average_settings()
+        self._ensure_settings_len(settings, row_index + 1)
+        settings["averageType"][row_index] = "user_entry"
+        settings["base"][row_index] = "simple"
+        settings["periods"][row_index] = "all"
+        settings["exclude"][row_index] = 0
+
     def _ensure_average_label(self, label: str) -> int:
         wanted = _label_key(label)
         labels = self.average_formulas.setdefault("label", [])
@@ -1428,10 +1581,11 @@ class DfmMethod:
     def _average_col_count(self) -> int:
         selected = _coerce_matrix(self.average_formulas.get("selected"))
         values = _coerce_matrix(self.average_formulas.get("values"))
+        inputs = _coerce_matrix(self.average_formulas.get("inputs"))
         ratio_rows, ratio_cols = self._ratio_shape()
         labels = self.ratio_triangle.get("development labels")
         label_count = len(labels) if isinstance(labels, list) else 0
-        return max(_matrix_shape(selected)[1], _matrix_shape(values)[1], ratio_cols, label_count, 1)
+        return max(_matrix_shape(selected)[1], _matrix_shape(values)[1], _matrix_shape(inputs)[1], ratio_cols, label_count, 1)
 
     def _require_col(self, col: int, col_count: int) -> None:
         if col < 0 or col >= col_count:

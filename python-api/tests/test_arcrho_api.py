@@ -4,6 +4,8 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
@@ -71,7 +73,7 @@ class ArcRhoApiTests(unittest.TestCase):
         self.root = Path(self.tmp.name) / "ArcRho Server"
         self.project_dir = self.root / "projects" / "Demo"
         self.data_dir = self.project_dir / "data"
-        self.rc_data_dir = self.data_dir / "Auto^PP"
+        self.rc_data_dir = self.data_dir / "Auto_%5C_PP"
         self.rc_data_dir.mkdir(parents=True)
         self.method_path = self.rc_data_dir / dfm_filename("Paid DFM")
         self.input_csv = self.rc_data_dir / "input.csv"
@@ -135,7 +137,7 @@ class ArcRhoApiTests(unittest.TestCase):
         dfm.ex_hi(1, 1, "high ratio")
         dfm.select_low(2, 1)
         dfm.set_selected_estimate("Simple - 3", "all")
-        dfm.set_user_value(1.25, 2)
+        dfm.set_user_formula('="Simple - 3" * 0.961538', 1.25, 2)
         dfm.add_notes("reviewed")
         dfm.save()
         saved_text = self.method_path.read_text(encoding="utf-8")
@@ -144,10 +146,12 @@ class ArcRhoApiTests(unittest.TestCase):
         self.assertNotIn("input data triangle values", saved["data tab"])
         self.assertNotIn("percent developed curve", saved["ratios tab"])
         self.assertNotIn("ultimate vector", saved["results tab"])
-        self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1], [1, 1])
+        self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1], [1, 0])
         self.assertIn("[1, 1]", saved_text)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][1][0], 1)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][2][1], 1)
+        self.assertEqual(saved["ratios tab"]["average formulas"]["inputs"][2][1], '="Simple - 3" * 0.961538')
+        self.assertEqual(saved["ratios tab"]["average formulas"]["values"][2][1], 1.25)
         self.assertIn("reviewed", saved["notes tab"]["notes"])
         self.assertNotEqual(saved["method metadata"]["last modified"], "2026-01-01T00:00:00")
 
@@ -201,6 +205,82 @@ class ArcRhoApiTests(unittest.TestCase):
         saved = json.loads(self.method_path.read_text(encoding="utf-8"))
         self.assertEqual(saved["ratios tab"]["ratio triangle"]["excluded"][1][0], 1)
         self.assertEqual(saved["ratios tab"]["average formulas"]["selected"][1][1], 1)
+
+    def test_add_triangle_reuses_existing_generated_cache(self) -> None:
+        rc = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP")
+        cache_path = rc.triangle_cache_path("Paid/Loss", origin_length=12, development_length=12)
+        cache_path.parent.mkdir(parents=True)
+        cache_path.write_text("1,2\n3,\n", encoding="utf-8")
+
+        result = rc.add_triangle("Paid/Loss", origin_length=12, development_length=12)
+
+        self.assertTrue(result.from_cache)
+        self.assertEqual(result.file_path, cache_path)
+        self.assertIsNone(result.request_path)
+        sidecar = cache_path.with_name("Paid_%2F_Loss.json")
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(payload["dataset_name"], "Paid/Loss")
+        self.assertEqual(payload["csv_file"], "Paid_%2F_Loss@12@12.csv")
+
+    def test_add_triangle_requests_missing_generated_cache(self) -> None:
+        rc = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP")
+        requests_dir = self.root / "requests"
+
+        def write_requested_csv() -> None:
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                request_files = sorted(requests_dir.glob("request-*.json")) if requests_dir.exists() else []
+                if request_files:
+                    payload = json.loads(request_files[0].read_text(encoding="utf-8"))
+                    data_path = Path(payload["DataPath"])
+                    data_path.parent.mkdir(parents=True, exist_ok=True)
+                    data_path.write_text("4,5\n6,\n", encoding="utf-8")
+                    return
+                time.sleep(0.05)
+
+        writer = threading.Thread(target=write_requested_csv)
+        writer.start()
+        result = rc.add_triangle("Missing Triangle", timeout_sec=3)
+        writer.join(timeout=1)
+
+        self.assertFalse(result.from_cache)
+        self.assertIsNotNone(result.request_path)
+        self.assertEqual(result.file_path.read_text(encoding="utf-8"), "4,5\n6,\n")
+        request_payload = json.loads(result.request_path.read_text(encoding="utf-8"))
+        self.assertEqual(request_payload["Function"], "ArcRhoTri")
+        self.assertEqual(request_payload["Path"], r"Auto\PP")
+        self.assertEqual(request_payload["DatasetName"], "Missing Triangle")
+        self.assertEqual(request_payload["ProjectName"], "Demo")
+        self.assertEqual(request_payload["DataPath"], str(result.file_path))
+
+    def test_dfm_cell_note_helpers_use_display_labels_and_clear_summary_column(self) -> None:
+        payload = sample_payload()
+        payload["ratios tab"]["cell notes"] = {
+            "ratio main table": {"2019": {"(1) 12-24": "keep"}},
+            "ratio summary table": {
+                "Old Average": {"(1) 12-24": "stale"},
+                "(1) 12-24": {"Legacy Old Average": "legacy stale"},
+            },
+        }
+        self.method_path.write_text(json.dumps(payload), encoding="utf-8")
+        dfm = ArcRhoClient(self.root).project("Demo").reserving_class(r"Auto\PP").dfm("Paid DFM")
+        dfm.set_selected_average("Simple - 3", 1)
+        dfm.set_selected_average_cell_note(1, "Selected before adjustments.", clear_column=True)
+        dfm.set_cell_note("1: Volume - all", "(2) 24-36", "other note")
+        saved = dfm.to_dict()
+        self.assertEqual(saved["ratios tab"]["cell notes"]["ratio main table"]["2019"], {"(1) 12-24": "keep"})
+        self.assertNotIn("Old Average", saved["ratios tab"]["cell notes"]["ratio summary table"])
+        self.assertNotIn("(1) 12-24", saved["ratios tab"]["cell notes"]["ratio summary table"])
+        self.assertEqual(
+            saved["ratios tab"]["cell notes"]["ratio summary table"]["Simple - 3"],
+            {"(1) 12-24": "Selected before adjustments."},
+        )
+        self.assertEqual(
+            saved["ratios tab"]["cell notes"]["ratio summary table"]["Volume - all"],
+            {"(2) 24-36": "other note"},
+        )
+        dfm.clear_cell_notes_for_development("(2) 24-36")
+        self.assertNotIn("Volume - all", dfm.to_dict()["ratios tab"]["cell notes"]["ratio summary table"])
 
     def test_agent_inspect_bundles_summary_components_and_ratio_rows(self) -> None:
         output = StringIO()

@@ -13,6 +13,7 @@ dfm = rc.dfm("Paid Loss Ultimate")
 dfm.clear()
 dfm.exclude_covid_years()
 dfm.set_selected_average("Simple - 3")
+dfm.set_selected_average_cell_note(1, "Selected before adjustments.", clear_column=True)
 dfm.save()
 ```
 

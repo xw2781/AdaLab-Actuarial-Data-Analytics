@@ -35,3 +35,13 @@ class ProjectSettings:
     project_name: str
     project_path: Path
     general_settings: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class TriangleCacheResult:
+    """Result of ensuring an ArcRhoTri generated CSV cache exists."""
+
+    dataset_name: str
+    file_path: Path
+    from_cache: bool
+    request_path: Path | None = None
