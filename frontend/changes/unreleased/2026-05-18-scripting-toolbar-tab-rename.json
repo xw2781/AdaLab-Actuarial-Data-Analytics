@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "scripting",
+  "audience": "user",
   "summary": "Move the scripting toolbar into the notebook workspace and add tab rename for notebooks.",
   "details": [
     "The scripting toolbar now sits above the cell area at the same width as the notebook workspace, and the tab right-click menu can rename scripting notebooks, including desktop file-backed .ipynb/.arcnb files."

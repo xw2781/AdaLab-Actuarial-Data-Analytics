@@ -1,4 +1,6 @@
 {
   "summary": "ArcRho release builds now create and ship a pip-installable arcrho-api wheel and include the Python API in the packaged app server.",
-  "type": "feature"
+  "type": "feature",
+  "scope": "build",
+  "audience": "internal"
 }

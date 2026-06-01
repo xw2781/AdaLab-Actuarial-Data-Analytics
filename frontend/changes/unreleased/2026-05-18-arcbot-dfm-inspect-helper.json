@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Reduce repeated ArcBot DFM helper reads.",
   "details": [
     "Added a bundled ArcRho Python API DFM inspect helper and updated ArcBot instructions to prefer one consolidated inspection call, avoid repeated summary/component reads, and validate only after edits."

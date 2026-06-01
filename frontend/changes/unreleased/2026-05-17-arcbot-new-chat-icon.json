@@ -1,3 +1,6 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Updated the ArcBot New Chat icon with a missing-corner square design."
 }

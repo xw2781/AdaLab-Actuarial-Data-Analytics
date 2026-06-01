@@ -21,6 +21,20 @@ These contracts are mandatory whenever a task touches:
 5. Any behavior/logic/architecture change must update the corresponding MANUAL doc sections in the same change.
 6. Any meaningful user-facing feature, fix, improvement, or breaking change must add a release fragment under `changes/unreleased/` with a short user-facing summary.
 
+## Release Fragment Schema
+Before adding or editing a release fragment, read `changes/README.md` and keep the fragment valid for `python build/release_notes.py check`.
+
+Required JSON fields:
+- `type`: one of `feature`, `improvement`, `fix`, or `breaking`
+- `scope`: short area name such as `workflow`, `dataset`, `dfm`, `project settings`, or `build`
+- `audience`: `user` or `internal`
+- `summary`: one short sentence
+
+Optional field:
+- `details`: array of short supporting strings
+
+Do not use obsolete fields or values such as `category`, `areas`, `type: "fixed"`, or `type: "changed"`. Use `type: "fix"` for fixes and `type: "improvement"` for changed behavior that is not a bug fix.
+
 ## Required Documentation Workflow
 After relevant code changes:
 1. Update contract docs (or explicitly state "no contract impact").

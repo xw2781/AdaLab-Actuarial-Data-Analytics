@@ -1,0 +1,6 @@
+{
+  "type": "improvement",
+  "scope": "agent rules",
+  "audience": "internal",
+  "summary": "Clarified frontend agent instructions so future release fragments use the current validated schema."
+}

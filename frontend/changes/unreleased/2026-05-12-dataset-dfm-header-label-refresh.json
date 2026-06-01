@@ -1,5 +1,7 @@
 {
   "type": "fix",
+  "scope": "dataset/dfm",
+  "audience": "user",
   "summary": "Refresh project-specific Data and Ratios triangle labels on page open.",
   "details": [
     "Dataset and DFM pages now refresh origin/development labels for the selected project before rendering triangle headers, preventing fallback labels such as 12-24 from appearing when project-specific labels are available."

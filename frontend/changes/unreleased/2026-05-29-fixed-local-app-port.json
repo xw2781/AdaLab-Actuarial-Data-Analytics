@@ -1,4 +1,6 @@
 {
   "summary": "Moved the desktop app server default to fixed local port 28765 with existing listener cleanup.",
-  "type": "changed"
+  "type": "improvement",
+  "scope": "runtime",
+  "audience": "internal"
 }

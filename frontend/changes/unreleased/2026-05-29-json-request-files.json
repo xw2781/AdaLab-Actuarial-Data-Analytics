@@ -1,7 +1,7 @@
 {
-  "type": "change",
+  "type": "breaking",
   "scope": "runtime",
-  "audience": "admin",
+  "audience": "internal",
   "summary": "Switch ArcRho request files from text to JSON.",
   "details": [
     "Excel add-in, app-server ArcRho routes, and DFM RPC bridge requests now publish flat `request-*.json` files with native booleans and numbers.",

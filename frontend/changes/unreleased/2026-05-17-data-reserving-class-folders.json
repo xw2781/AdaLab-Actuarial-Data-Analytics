@@ -1,4 +1,6 @@
 {
   "summary": "Dataset CSV and DFM JSON storage now uses per-reserving-class folders under project data, with dataset and method names no longer repeating the full reserving-class path in file names.",
-  "type": "breaking"
+  "type": "breaking",
+  "scope": "project data",
+  "audience": "user"
 }

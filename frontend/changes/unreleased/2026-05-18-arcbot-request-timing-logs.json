@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "internal",
   "summary": "Add local ArcBot request timing logs.",
   "details": [
     "Each ArcBot request now writes a JSON timing log under Documents\\ArcRho\\ArcBot\\request_logs with elapsed and delta timings for setup, context, prompt building, Codex execution, fallback CLI, edited JSON read/apply work, and live chat activity events."

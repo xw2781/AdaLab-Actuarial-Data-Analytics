@@ -1,3 +1,6 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "internal",
   "summary": "Added a standalone review page with six unrestricted ArcBot New Chat icon directions."
 }

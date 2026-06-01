@@ -1,3 +1,6 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Removed the centered ArcBot system hint from the chat message area."
 }

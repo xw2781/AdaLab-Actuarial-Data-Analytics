@@ -1,3 +1,6 @@
 {
+  "type": "feature",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Added an ArcBot settings popover for model, reasoning effort, token, status, and login details."
 }

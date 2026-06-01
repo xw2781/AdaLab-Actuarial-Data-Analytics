@@ -1,7 +1,7 @@
 {
-  "type": "documentation",
+  "type": "improvement",
   "scope": "docs",
-  "audience": "developer",
+  "audience": "internal",
   "summary": "Add an ArcBot workflow and Codex CLI review page.",
   "details": [
     "Added a standalone HTML review page that summarizes ArcBot prompt assembly, active app context, Codex CLI execution, edit safety, progress events, and recommended prompt externalization boundaries."

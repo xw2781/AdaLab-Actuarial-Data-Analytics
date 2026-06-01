@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Make ArcBot work updates easier to read.",
   "details": [
     "ArcBot now uses ArcBot as the user-facing actor in progress updates, shows natural-language progress for ArcRho Python helper activity, and keeps raw helper-call details in the debug drawer."

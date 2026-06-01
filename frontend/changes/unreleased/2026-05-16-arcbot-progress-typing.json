@@ -1,3 +1,6 @@
 {
+  "type": "improvement",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Added typing animation to ArcBot live progress bullet updates."
 }

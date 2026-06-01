@@ -1,6 +1,8 @@
 {
   "date": "2026-05-21",
+  "type": "feature",
   "scope": "project instance",
+  "audience": "user",
   "summary": "Added a cached dataset view toggle to Project Instance dataset tables.",
   "details": [
     "Project Instance now includes a small eye toggle above the dataset table that filters rows to datasets with cached CSV or JSON files in the selected reserving-class data folder.",

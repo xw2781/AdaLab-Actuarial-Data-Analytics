@@ -1,4 +1,7 @@
 {
+  "type": "feature",
+  "scope": "dfm",
+  "audience": "user",
   "summary": "Reload active DFM pages when local method JSON changes on disk.",
   "details": [
     "DFM tabs now watch the active local method JSON file and automatically apply external disk edits when the page is clean, so ArcBot or hand-edited JSON changes show in the GUI without reopening the tab.",

@@ -1,5 +1,5 @@
 {
-  "type": "change",
+  "type": "breaking",
   "scope": "project-data",
   "audience": "user",
   "summary": "Split project data files into generated and manual folders.",

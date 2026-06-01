@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "dfm",
+  "audience": "user",
   "summary": "DFM saves now use one metadata JSON sidecar per base dataset instance.",
   "details": [
     "DFM Results CSV variants can still be saved for different origin/development length configurations, but DFM save now writes the dataset metadata sidecar to the base `<DatasetName>.json` file instead of creating `<DatasetName>@Origin@Development.json` files.",

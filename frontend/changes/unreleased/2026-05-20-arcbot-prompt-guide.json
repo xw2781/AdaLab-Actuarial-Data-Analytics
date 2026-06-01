@@ -1,4 +1,7 @@
 {
+  "type": "feature",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Added an ArcBot prompt guide from settings.",
   "details": [
     "ArcBot settings now include a Prompt Guide action that opens an in-app Agent Guide tab explaining the shared prompt workflow and showing rendered views of the entry prompt and instruction Markdown files."

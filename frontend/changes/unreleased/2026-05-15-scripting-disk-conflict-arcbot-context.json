@@ -1,4 +1,6 @@
 {
+  "type": "improvement",
   "scope": "scripting",
+  "audience": "user",
   "summary": "Add revision-aware scripting notebook dirty state, disk-change conflict handling, autosave safety, ArcBot App Context support with an explicit on/off toggle, one-request ArcBot file attachments with file-type preview cards, low-contrast circular initial avatars for the home sidebar and ArcBot user messages, ArcBot avatars, a title-bar Online/Offline status stamp and new-chat action, centered mode/model/context controls, a safer panel minimum width that is used for the first panel open of each app session, warm Codex app-server turns with one-shot exec fallback, project tree picker recent projects backed by the local last-project preference, result-anchored work details, and a cancel state for active ArcBot requests."
 }

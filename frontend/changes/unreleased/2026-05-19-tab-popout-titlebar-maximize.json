@@ -1,6 +1,7 @@
 {
-  "type": "changed",
-  "area": "frontend",
+  "type": "improvement",
+  "scope": "shell",
+  "audience": "user",
   "summary": "Added titlebar double-click maximize behavior for floating tabs.",
   "details": [
     "Dataset and DFM floating tab titlebars now support double-click maximize and restore.",

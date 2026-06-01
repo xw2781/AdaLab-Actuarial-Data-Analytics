@@ -1,4 +1,7 @@
 {
+  "type": "improvement",
+  "scope": "project instance",
+  "audience": "user",
   "summary": "Project Instance floating DFM windows now show dirty state and support shell save commands.",
   "details": [
     "Floating DFM windows inside Project Instance display an unsaved-changes dot, keep that marker when minimized, mark the containing Project Instance shell tab dirty, and ask before closing with unsaved changes.",

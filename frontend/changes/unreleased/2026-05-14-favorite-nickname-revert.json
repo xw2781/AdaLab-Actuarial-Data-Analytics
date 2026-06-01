@@ -1,6 +1,7 @@
 {
-  "area": "dataset",
   "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
   "summary": "Add a favorite nickname revert action.",
   "details": [
     "The reserving-class favorite path context menu now includes a `Revert Nickname to Raw Path` action for favorites with custom nicknames.",

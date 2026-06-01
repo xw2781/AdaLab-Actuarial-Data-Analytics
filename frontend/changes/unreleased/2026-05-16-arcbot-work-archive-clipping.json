@@ -1,3 +1,6 @@
 {
+  "type": "fix",
+  "scope": "arcbot",
+  "audience": "user",
   "summary": "Fixed ArcBot work archive details so expanded progress content is not clipped."
 }

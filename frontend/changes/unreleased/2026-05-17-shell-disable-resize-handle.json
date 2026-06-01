@@ -1,5 +1,5 @@
 {
-  "type": "change",
+  "type": "improvement",
   "scope": "shell",
   "audience": "user",
   "summary": "Disabled the main shell's custom status-bar resize handle.",

@@ -1,6 +1,9 @@
 {
-  "type": "change",
-  "area": "shell",
+  "type": "improvement",
+  "scope": "shell",
+  "audience": "user",
   "summary": "Aligned docked tabs while preserving the active tab accent.",
-  "details": "Docked shell tabs now use top accent lines for visual height, with inactive tabs matching the topbar background and the active tab keeping the blue accent without a vertical offset."
+  "details": [
+    "Docked shell tabs now use top accent lines for visual height, with inactive tabs matching the topbar background and the active tab keeping the blue accent without a vertical offset."
+  ]
 }
