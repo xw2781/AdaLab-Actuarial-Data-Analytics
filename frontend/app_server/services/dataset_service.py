@@ -130,6 +130,22 @@ def _cached_dataset_names_from_sidecar(path: str) -> Set[str]:
     return names
 
 
+def _format_file_timestamp(value: float) -> str:
+    try:
+        return datetime.fromtimestamp(float(value)).isoformat(timespec="seconds")
+    except (OSError, TypeError, ValueError):
+        return ""
+
+
+def _metadata_text(metadata: Dict[str, Any], keys: Tuple[str, ...]) -> str:
+    for key in keys:
+        value = metadata.get(key)
+        text = str(value if value is not None else "").strip()
+        if text:
+            return text
+    return ""
+
+
 def _cached_folder_signature(files: List[Dict[str, Any]], folder_paths: Dict[str, str]) -> str:
     source = {
         "folders": {
@@ -170,11 +186,16 @@ def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str
             stat = entry.stat()
             names.update(_cached_dataset_names_from_file(entry.name))
             metadata: Dict[str, Any] = {}
+            metadata_path = entry.path
             if ext == ".csv":
-                metadata = _read_dataset_sidecar(_dataset_sidecar_path_for_cached_csv(entry.path))
+                metadata_path = _dataset_sidecar_path_for_cached_csv(entry.path)
+                metadata = _read_dataset_sidecar(metadata_path)
             if ext == ".json":
                 metadata = _read_dataset_sidecar(entry.path)
                 names.update(_cached_dataset_names_from_sidecar(entry.path))
+            file_names = set(_cached_dataset_names_from_file(entry.name))
+            if metadata:
+                file_names.update(_cached_dataset_names_from_sidecar(metadata_path))
             file_info = {
                 "name": entry.name,
                 "storage": storage,
@@ -182,11 +203,41 @@ def _scan_cached_dataset_folder(folder_path: str, storage: str) -> Tuple[Set[str
                 "size": stat.st_size,
                 "mtime": stat.st_mtime,
                 "mtime_ns": stat.st_mtime_ns,
+                "last_modified": _format_file_timestamp(stat.st_mtime),
+                "last_modified_timestamp": stat.st_mtime,
+                "created": _format_file_timestamp(stat.st_ctime),
+                "created_timestamp": stat.st_ctime,
             }
+            if file_names:
+                file_info["dataset_names"] = sorted(file_names, key=lambda item: item.lower())
             if metadata:
                 file_info["dataset_name"] = _normalize_cached_dataset_name(metadata.get("dataset_name") or metadata.get("instance_name"))
                 file_info["dataset_type"] = _normalize_cached_dataset_name(metadata.get("dataset_type") or metadata.get("dataset_type_name"))
                 file_info["csv_file"] = str(metadata.get("csv_file") or "").strip()
+                file_info["user"] = _metadata_text(metadata, (
+                    "user",
+                    "user_name",
+                    "username",
+                    "UserName",
+                    "created_by",
+                    "modified_by",
+                    "updated_by",
+                    "owner",
+                    "author",
+                ))
+                file_info["metadata_last_modified"] = _metadata_text(metadata, (
+                    "last_modified",
+                    "last modified",
+                    "updated_at",
+                    "updated",
+                    "modified_at",
+                    "modified",
+                ))
+                file_info["metadata_created"] = _metadata_text(metadata, (
+                    "created_at",
+                    "created",
+                    "creation_time",
+                ))
             files.append(file_info)
     return names, files
 

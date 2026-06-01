@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import hashlib
+import getpass
 import json
 import uuid
 from datetime import datetime
@@ -29,10 +30,27 @@ def _dataset_sidecar_path(data_path: str, pairs: list) -> str:
     return os.path.join(os.path.dirname(data_path), f"{dataset_file}.json")
 
 
+def _utc_timestamp_from_stat(value: float) -> str:
+    return datetime.utcfromtimestamp(value).isoformat(timespec="seconds") + "Z"
+
+
+def _pair_int_value(pairs: list, key: str, default: int) -> int:
+    try:
+        return int(_pair_value(pairs, key) or default)
+    except (TypeError, ValueError):
+        return default
+
+
 def _write_dataset_sidecar(data_path: str, pairs: list) -> None:
     dataset_name = _pair_value(pairs, "DatasetName") or _pair_value(pairs, "TriangleName")
     if not dataset_name:
         return
+    user_name = getpass.getuser()
+    created = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    try:
+        created = _utc_timestamp_from_stat(os.stat(data_path).st_ctime)
+    except OSError:
+        pass
     payload = {
         "dataset_name": dataset_name,
         "dataset_type": dataset_name,
@@ -40,7 +58,14 @@ def _write_dataset_sidecar(data_path: str, pairs: list) -> None:
         "reserving_class": _pair_value(pairs, "Path"),
         "project_name": _pair_value(pairs, "ProjectName"),
         "storage": "generated",
+        "data_format": "Triangle",
+        "data_format_code": 0,
+        "origin_length": _pair_int_value(pairs, "OriginLength", 12),
+        "development_length": _pair_int_value(pairs, "DevelopmentLength", 12),
         "csv_file": os.path.basename(data_path),
+        "user": user_name,
+        "created": created,
+        "modified_by": user_name,
         "updated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
     sidecar_path = _dataset_sidecar_path(data_path, pairs)

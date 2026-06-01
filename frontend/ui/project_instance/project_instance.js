@@ -117,6 +117,7 @@ const cachedDatasetFilter = {
   loading: false,
   loadedPath: "",
   names: new Set(),
+  metadataByName: new Map(),
   error: "",
   requestSeq: 0,
 };
@@ -224,7 +225,7 @@ function syncCachedDatasetToolbar() {
   if (btn) {
     btn.classList.toggle("active", cachedDatasetFilter.enabled);
     btn.setAttribute("aria-pressed", cachedDatasetFilter.enabled ? "true" : "false");
-    btn.disabled = cachedDatasetFilter.loading;
+    btn.disabled = cachedDatasetFilter.enabled && cachedDatasetFilter.loading;
     if (cachedDatasetFilter.enabled) {
       btn.title = "Show all datasets";
     } else {
@@ -268,10 +269,138 @@ function shouldUseCachedDatasetFilter() {
   );
 }
 
+function hasCachedDatasetMetadataForSelectedPath() {
+  return (
+    selectedPath
+    && normalizePath(cachedDatasetFilter.loadedPath).toLowerCase() === normalizePath(selectedPath).toLowerCase()
+    && cachedDatasetFilter.metadataByName instanceof Map
+  );
+}
+
 function isDatasetRecordCached(record) {
   if (!shouldUseCachedDatasetFilter()) return true;
   const key = getCachedDatasetKey(record?.datasetName || getDatasetName(record?.row));
   return !!key && cachedDatasetFilter.names.has(key);
+}
+
+function splitLengthScopedDatasetName(value) {
+  const text = toText(value);
+  const parts = text.split("@");
+  if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 1]) && /^\d+$/.test(parts[parts.length - 2])) {
+    return parts.slice(0, -2).join("@").trim();
+  }
+  return text;
+}
+
+function getCachedFileDatasetNames(item) {
+  const names = [];
+  const add = (value) => {
+    const text = splitLengthScopedDatasetName(value);
+    if (text) names.push(text);
+  };
+  if (Array.isArray(item?.dataset_names)) {
+    for (const name of item.dataset_names) add(name);
+  }
+  add(item?.dataset_name);
+  add(item?.instance_name);
+  add(item?.dataset_type);
+  add(item?.dataset_type_name);
+
+  const filename = toText(item?.name);
+  const stem = filename.replace(/\.[^.]*$/u, "");
+  if (stem.startsWith("ArcRhoTriNotes@")) add(stem.slice("ArcRhoTriNotes@".length));
+  else if (stem.startsWith("DFM@")) add(stem.slice("DFM@".length));
+  else add(stem);
+
+  const seen = new Set();
+  return names.filter((name) => {
+    const key = getCachedDatasetKey(name);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getTimestampNumber(value) {
+  const text = toText(value);
+  if (!text) return 0;
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric > 1000000000000 ? numeric / 1000 : numeric;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed / 1000 : 0;
+}
+
+function formatCachedTimestamp(value) {
+  const text = toText(value);
+  if (!text) return "";
+  const numeric = Number(text);
+  const date = Number.isFinite(numeric) && numeric > 0
+    ? new Date(numeric > 1000000000000 ? numeric : numeric * 1000)
+    : new Date(text);
+  if (!Number.isNaN(date.getTime())) {
+    const pad = (part) => String(part).padStart(2, "0");
+    const hours = date.getHours();
+    const hour12 = hours % 12 || 12;
+    const suffix = hours >= 12 ? "PM" : "AM";
+    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()} ${hour12}:${pad(date.getMinutes())}:${pad(date.getSeconds())} ${suffix}`;
+  }
+  return text
+    .replace("T", " ")
+    .replace(/\.\d+(?=Z?$)/u, "")
+    .replace(/Z$/u, "")
+    .slice(0, 16);
+}
+
+function mergeCachedDatasetMetadata(existing, item) {
+  const meta = existing || {
+    lastModified: "",
+    created: "",
+    user: "",
+    _lastModifiedTs: 0,
+    _createdTs: 0,
+    _userModifiedTs: 0,
+  };
+
+  const lastModifiedRaw = item?.last_modified || item?.last_modified_timestamp || item?.mtime || item?.metadata_last_modified;
+  const lastModified = formatCachedTimestamp(lastModifiedRaw);
+  const lastModifiedTs = getTimestampNumber(lastModifiedRaw) || getTimestampNumber(item?.last_modified_timestamp) || getTimestampNumber(item?.mtime);
+  if (lastModified && (!meta.lastModified || lastModifiedTs >= meta._lastModifiedTs)) {
+    meta.lastModified = lastModified;
+    meta._lastModifiedTs = lastModifiedTs;
+  }
+
+  const createdRaw = item?.created || item?.created_timestamp || item?.metadata_created;
+  const created = formatCachedTimestamp(createdRaw);
+  const createdTs = getTimestampNumber(createdRaw) || getTimestampNumber(item?.created_timestamp);
+  if (created && (!meta.created || !meta._createdTs || (createdTs && createdTs < meta._createdTs))) {
+    meta.created = created;
+    meta._createdTs = createdTs;
+  }
+
+  const user = toText(item?.user);
+  if (user && (!meta.user || lastModifiedTs >= meta._userModifiedTs)) {
+    meta.user = user;
+    meta._userModifiedTs = lastModifiedTs;
+  }
+  return meta;
+}
+
+function normalizeCachedDatasetSnapshot(payload) {
+  const names = Array.isArray(payload?.dataset_names) ? payload.dataset_names : [];
+  const metadataByName = new Map();
+  for (const item of Array.isArray(payload?.files) ? payload.files : []) {
+    for (const name of getCachedFileDatasetNames(item)) {
+      const key = getCachedDatasetKey(name);
+      if (!key) continue;
+      metadataByName.set(key, mergeCachedDatasetMetadata(metadataByName.get(key), item));
+    }
+  }
+  return {
+    names: new Set(names.map((name) => getCachedDatasetKey(name)).filter(Boolean)),
+    metadataByName,
+  };
 }
 
 function getCachedDatasetSnapshotSignature(payload) {
@@ -428,9 +557,10 @@ async function loadCachedDatasetFilterForSelectedPath() {
   cachedDatasetFilter.requestSeq = seq;
   cachedDatasetFilter.error = "";
   cachedDatasetFilter.names = new Set();
+  cachedDatasetFilter.metadataByName = new Map();
   cachedDatasetFilter.loadedPath = path;
 
-  if (!cachedDatasetFilter.enabled || !projectName || !path) {
+  if (!projectName || !path) {
     cachedDatasetFilter.loading = false;
     syncCachedDatasetToolbar();
     renderDatasetTable();
@@ -444,16 +574,16 @@ async function loadCachedDatasetFilterForSelectedPath() {
   try {
     const payload = await fetchCachedDatasetSnapshot(path);
     if (seq !== cachedDatasetFilter.requestSeq) return;
-    const names = Array.isArray(payload?.dataset_names) ? payload.dataset_names : [];
-    cachedDatasetFilter.names = new Set(
-      names.map((name) => getCachedDatasetKey(name)).filter(Boolean)
-    );
+    const snapshot = normalizeCachedDatasetSnapshot(payload);
+    cachedDatasetFilter.names = snapshot.names;
+    cachedDatasetFilter.metadataByName = snapshot.metadataByName;
     cachedDatasetFilter.loadedPath = path;
     cachedDatasetFilter.error = "";
     rememberActivePathFolderSignature(payload, path);
   } catch (err) {
     if (seq !== cachedDatasetFilter.requestSeq) return;
     cachedDatasetFilter.names = new Set();
+    cachedDatasetFilter.metadataByName = new Map();
     cachedDatasetFilter.error = toText(err?.message) || "Cached dataset lookup failed.";
     setStatus(cachedDatasetFilter.error, true);
   } finally {
@@ -536,9 +666,6 @@ function setCachedDatasetFilterEnabled(enabled) {
   }
   cachedDatasetFilter.loading = false;
   cachedDatasetFilter.error = "";
-  cachedDatasetFilter.names = new Set();
-  cachedDatasetFilter.loadedPath = "";
-  cachedDatasetFilter.requestSeq += 1;
   syncCachedDatasetToolbar();
   renderDatasetTable();
 }
@@ -1168,6 +1295,12 @@ function getMethodType(row) {
   return methodIndexState.typesByDatasetName.get(normalizeLookupKey(getDatasetName(row))) || "None";
 }
 
+function getCachedDatasetMetadata(row) {
+  if (!hasCachedDatasetMetadataForSelectedPath()) return null;
+  const key = getCachedDatasetKey(getDatasetName(row));
+  return key ? cachedDatasetFilter.metadataByName.get(key) || null : null;
+}
+
 function getDatasetColumn(key) {
   return DATASET_TABLE_COLUMNS.find((col) => col.key === key) || null;
 }
@@ -1227,9 +1360,11 @@ function getDatasetCellValue(row, key) {
     case "methodType":
       return getMethodType(row);
     case "lastModified":
+      return getCachedDatasetMetadata(row)?.lastModified || "";
     case "created":
+      return getCachedDatasetMetadata(row)?.created || "";
     case "user":
-      return "";
+      return getCachedDatasetMetadata(row)?.user || "";
     default:
       return "";
   }
@@ -1268,6 +1403,19 @@ function openDfmTabForDataset(record) {
   const datasetName = toText(record?.datasetName);
   if (!datasetName || !selectedPath) return;
   openDfmWindow(datasetName);
+}
+
+function recordSelectedDfmObject(methodName) {
+  const name = toText(methodName);
+  if (!projectName || !selectedPath || !name) return;
+  scheduleProjectUserPreferencesSave(projectName, {
+    lastReservingClassPath: selectedPath,
+    dfmObject: {
+      methodName: name,
+      outputVector: name,
+      updated_at: new Date().toISOString(),
+    },
+  });
 }
 
 function measureDatasetTableText(text) {
@@ -2078,11 +2226,7 @@ function setSelectedPath(path, options = {}) {
     els.selectedPathText.textContent = selectedPath || "Select a reserving class path.";
     els.selectedPathText.title = selectedPath;
   }
-  if (cachedDatasetFilter.enabled) {
-    void loadCachedDatasetFilterForSelectedPath();
-  } else {
-    syncCachedDatasetToolbar();
-  }
+  void loadCachedDatasetFilterForSelectedPath();
   void loadMethodIndexForSelectedPath();
   renderDatasetTable();
   if (options?.persist !== false) saveLastSelectedPath(selectedPath);
@@ -3101,6 +3245,7 @@ function openDfmWindow(datasetName) {
     return;
   }
 
+  recordSelectedDfmObject(name);
   const windowKey = getDfmWindowKey(name);
   const title = `${selectedPath}\\DFM\\${name}`;
   const inst = `pi_dfm_${Date.now()}_${windowSeq++}`;

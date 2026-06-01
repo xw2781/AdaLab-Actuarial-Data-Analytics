@@ -1,0 +1,9 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "ArcRhoTri generated dataset metadata now includes triangle format, length, creation, update, and user fields.",
+  "details": [
+    "Generated dataset sidecars written beside ArcRhoTri CSV cache files now include data_format, data_format_code, origin_length, development_length, created, updated_at, user, and modified_by fields for consistency with migrated ResQ triangle metadata."
+  ]
+}

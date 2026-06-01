@@ -1,0 +1,9 @@
+{
+  "type": "fix",
+  "scope": "project instance",
+  "audience": "user",
+  "summary": "Project Instance now updates the saved DFM object method name as soon as a DFM row is opened.",
+  "details": [
+    "Opening a DFM row immediately records the selected DFM object method name in saved preferences."
+  ]
+}

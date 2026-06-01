@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "project-instance",
+  "audience": "user",
+  "summary": "Project Instance dataset table now shows cached file last-modified, created, and user metadata when available.",
+  "details": [
+    "The cached dataset lookup includes per-file disk timestamps and sidecar/user metadata so the existing metadata columns populate for the selected reserving-class path.",
+    "Generated and DFM dataset sidecars now write the Windows login user into user and modified_by for the Project Instance User column."
+  ]
+}
