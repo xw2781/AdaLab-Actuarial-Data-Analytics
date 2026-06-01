@@ -1414,6 +1414,9 @@
           rgba(59, 130, 246, 0) 132deg,
           rgba(59, 130, 246, 0) 360deg
         );
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
       -webkit-mask:
         linear-gradient(#000 0 0) content-box,
         linear-gradient(#000 0 0);
@@ -3462,6 +3465,7 @@
       overflow: hidden;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
+      line-clamp: 2;
     }
     .macroListItem:hover { background: #eef6ff; }
     .macroListItem:focus-visible {
@@ -4395,7 +4399,7 @@
       </div>
       <div id="aboutBody">
         <div id="aboutAppName">ArcRho</div>
-        <div id="aboutVersion">Version 0.2.4</div>
+        <div id="aboutVersion">Version 0.2.11</div>
         <div id="aboutDesc">Actuarial Data & Analytics System</div>
         <button id="aboutCloseBtn" type="button">Close</button>
       </div>

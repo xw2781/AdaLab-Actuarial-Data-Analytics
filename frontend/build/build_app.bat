@@ -2,12 +2,25 @@
 setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "APP_ROOT=%%~fI"
+
+if defined ARCRHO_BUILD_LOG_ACTIVE goto after_log_setup
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"`) do set "ARCRHO_BUILD_LOG_STAMP=%%I"
+set "ARCRHO_BUILD_LOG_FILE=%SCRIPT_DIR%log\build_app_%ARCRHO_BUILD_LOG_STAMP%.log"
+echo Writing build log to: %ARCRHO_BUILD_LOG_FILE%
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%run_with_log.ps1" -LogPath "%ARCRHO_BUILD_LOG_FILE%" -CommandPath "%~f0" %*
+exit /b %ERRORLEVEL%
+
+:after_log_setup
 cd /d "%APP_ROOT%"
 
 echo ========================================
 echo Building ArcRho Standalone Application
 echo ========================================
 echo.
+if defined ARCRHO_BUILD_LOG_FILE (
+    echo Build log: %ARCRHO_BUILD_LOG_FILE%
+    echo.
+)
 
 REM Setup portable node in PATH
 set "NODE_HOME=%APP_ROOT%\node-portable"
@@ -15,9 +28,17 @@ set "PATH=%NODE_HOME%;%PATH%"
 set "APP_BUILDER_EXE=node_modules\app-builder-bin\win\x64\app-builder.exe"
 set "APP_VERSION="
 
+if not defined PYTHON_EXE (
+    for /f "usebackq delims=" %%I in (`py -3.10 -c "import sys; print(sys.executable)" 2^>nul`) do set "PYTHON_EXE=%%I"
+)
+if not defined PYTHON_EXE set "PYTHON_EXE=python"
+
+echo Using Python: %PYTHON_EXE%
+echo.
+
 echo Step 0: Validating release note fragments...
 echo ----------------------------------------
-python build\release_notes.py check
+"%PYTHON_EXE%" build\release_notes.py check
 if errorlevel 1 (
     echo ERROR: Release note fragment validation failed.
     echo.
@@ -30,9 +51,9 @@ echo.
 echo Step 1: Updating application version...
 echo ----------------------------------------
 if "%~1"=="" (
-    for /f "usebackq delims=" %%I in (`python build\version_manager.py`) do set "APP_VERSION=%%I"
+    for /f "usebackq delims=" %%I in (`"%PYTHON_EXE%" build\version_manager.py`) do set "APP_VERSION=%%I"
 ) else (
-    for /f "usebackq delims=" %%I in (`python build\version_manager.py "%~1"`) do set "APP_VERSION=%%I"
+    for /f "usebackq delims=" %%I in (`"%PYTHON_EXE%" build\version_manager.py "%~1"`) do set "APP_VERSION=%%I"
 )
 if errorlevel 1 (
     echo ERROR: Failed to update application version metadata.
@@ -88,7 +109,7 @@ if not exist "dist\ArcRho-Setup-*.exe" (
 echo.
 echo Step 4: Generating release notes...
 echo ----------------------------------------
-for /f "usebackq delims=" %%I in (`python build\release_notes.py release "%APP_VERSION%"`) do set "RELEASE_NOTE_PATH=%%I"
+for /f "usebackq delims=" %%I in (`"%PYTHON_EXE%" build\release_notes.py release "%APP_VERSION%"`) do set "RELEASE_NOTE_PATH=%%I"
 if errorlevel 1 (
     echo ERROR: Failed to generate release notes for version %APP_VERSION%.
     echo.
@@ -129,7 +150,7 @@ endlocal
 exit /b 0
 
 :run_pyinstaller
-pyinstaller build\server.spec --distpath python_dist --workpath python_build --noconfirm
+call build\build_python_server.bat
 if not errorlevel 1 exit /b 0
 
 echo.
@@ -141,12 +162,13 @@ if exist "python_dist" (
 if exist "python_build" (
     rmdir /s /q "python_build"
 )
-pyinstaller build\server.spec --distpath python_dist --workpath python_build --noconfirm --clean
+call build\build_python_server.bat --clean
 if not errorlevel 1 exit /b 0
 
 echo ERROR: PyInstaller build failed after retry.
 echo HINT: Re-run manually to capture full traceback:
-echo       pyinstaller build\server.spec --distpath python_dist --workpath python_build --noconfirm --clean
+echo       set PYTHON_EXE=%PYTHON_EXE%
+echo       build\build_python_server.bat --clean
 exit /b 1
 
 :prepare_app_builder

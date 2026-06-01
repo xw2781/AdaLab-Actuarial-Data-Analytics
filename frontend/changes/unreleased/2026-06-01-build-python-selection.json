@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "build",
+  "audience": "internal",
+  "summary": "Use the selected Python interpreter when building the packaged app server.",
+  "details": [
+    "The standalone build now prefers Python 3.10 or PYTHON_EXE and runs PyInstaller as a Python module so the build no longer depends on a global pyinstaller command being on PATH.",
+    "The app-server PyInstaller spec now excludes pandas' optional SQLAlchemy integration so an unrelated local SQLAlchemy install cannot break packaging."
+  ]
+}

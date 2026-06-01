@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "build",
+  "audience": "internal",
+  "summary": "Write full standalone build output to a timestamped log file.",
+  "details": [
+    "The standalone build script now mirrors console output into build\\log\\build_app_<timestamp>.log so packaging failures can be reviewed after the command window closes.",
+    "Build command stderr is logged as normal text so tools such as PyInstaller can report progress without stopping the logger."
+  ]
+}

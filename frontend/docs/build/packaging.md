@@ -11,7 +11,7 @@ Document Electron + Python packaging inputs and scripts.
 | --- | --- |
 | `npm run build` | `npm run build:python-api && npm run build:python && npm run build:electron && npm run clean:python-artifacts` |
 | `npm run build:electron` | `node-portable\node.exe build/patch_nsis_installer_progress.js && node-portable\node.exe node_modules/electron-builder/cli.js --win` |
-| `npm run build:python` | `pyinstaller build/server.spec --distpath python_dist --workpath python_build --noconfirm` |
+| `npm run build:python` | `build\build_python_server.bat` |
 | `npm run build:python-api` | `node-portable\node.exe build/build_python_api_wheel.js` |
 | `npm run clean:python-artifacts` | `node -e "const fs=require('fs'); ['python_dist','python_build','build/python_packages'].forEach((p)=>fs.rmSync(p,{recursive:true,force:true}));"` |
 | `npm run electron` | `electron .` |
@@ -39,6 +39,7 @@ Electron main entry: `electron/main.js`
 - PyInstaller spec (`build/server.spec`) builds backend executable artifacts.
 - `build/release_notes.py` validates unreleased change fragments and generates versioned release notes in `docs/releases/`.
 - `build/build_app.bat` updates the app version before packaging: by default it bumps the patch version, and an explicit semantic version argument overrides that default.
+- `build/build_app.bat` mirrors console output into timestamped `build/log/build_app_<timestamp>.log` files for troubleshooting packaging failures.
 - Electron packaging enables NSIS's built-in compressor path before `electron-builder` runs so installer file progress is visible during the main install phase.
 - Successful build flows now clean `python_dist/` and `python_build/` automatically.
 <!-- MANUAL:END -->
@@ -46,6 +47,7 @@ Electron main entry: `electron/main.js`
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
 - Build outputs: `dist/`, `python_build/`, `python_dist/`.
+- Build logs: `build/log/build_app_<timestamp>.log`.
 - Installer settings in `package.json`, `build/installer.nsh`, and `build/patch_nsis_installer_progress.js`.
 - Release tracking data lives under `changes/unreleased/`, `changes/archive/`, and `docs/releases/`.
 - `python_dist/` and `python_build/` are transient and removed after successful packaging.
@@ -57,8 +59,9 @@ Electron main entry: `electron/main.js`
 2. Update bundled backend: edit `build/server.spec` and verify `extraResources` mappings.
 3. Add or update unreleased change fragments in `changes/unreleased/` before packaging a release.
 4. If you need a specific release version, run `build\build_app.bat <version>` (for example `build\build_app.bat 2.0.0`); otherwise the script auto-increments the patch version.
-5. If inspecting PyInstaller artifacts is needed, run `npm run build:python` directly (the full build cleans them on success).
-6. If electron-builder is reinstalled or upgraded, rerun `npm run build:electron` or `build\build_app.bat`; both paths reapply the ArcRho NSIS installer-progress patch before packaging.
+5. If a packaged build fails, inspect the newest `build\log\build_app_<timestamp>.log`.
+6. If inspecting PyInstaller artifacts is needed, run `npm run build:python` directly (the full build cleans them on success).
+7. If electron-builder is reinstalled or upgraded, rerun `npm run build:electron` or `build\build_app.bat`; both paths reapply the ArcRho NSIS installer-progress patch before packaging.
 <!-- MANUAL:END -->
 
 ## Known Risks
