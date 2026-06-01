@@ -1,5 +1,6 @@
 ﻿import argparse
 import os
+import re
 import subprocess
 import sys
 import time
@@ -60,6 +61,10 @@ BRIDGE_ROLE = "bridge"
 WORKER_ROLE = "bridge_worker"
 REQUEST_SUBDIR = "RPC bridge"
 WORKER_STALE_AFTER_SECONDS = 6
+
+
+def normalize_method_name(method_name):
+    return re.sub(r"\s+", " ", str(method_name or "")).strip()
 
 
 def make_instance_id(role):
@@ -205,9 +210,11 @@ class BridgeRequestHandler(FileSystemEventHandler):
         try:
             function_name = normalize_function_name(request.get("Function", ""))
             if function_name == "DFM":
+                request["MethodName"] = normalize_method_name(request.get("MethodName", ""))
                 self._validate_request(request)
                 self.client.write_dfm_payload(request)
             elif function_name == "SyncDFM":
+                request["MethodName"] = normalize_method_name(request.get("MethodName", ""))
                 self._validate_request(request)
                 self._validate_sync_dfm_request(request)
                 self.client.write_sync_dfm_payload(request)
